@@ -7,7 +7,7 @@ on:
     branches: [ main, develop ]
 
 env:
-  FLUTTER_VERSION: '3.24.0'
+  FLUTTER_VERSION: '3.41.5'
   PROJECT_DIR: 'cb_file_manager'
 
 jobs:

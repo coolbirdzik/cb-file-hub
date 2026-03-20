@@ -132,7 +132,7 @@ cd bundle
 
 ### Prerequisites
 
-- Flutter SDK 3.24.0 or later
+- Flutter SDK 3.41.5 or later
 - Dart SDK 2.15.0 or later
 - Visual Studio 2022 with C++ tools for Windows builds
 - Android SDK and JDK 17+ for Android builds
