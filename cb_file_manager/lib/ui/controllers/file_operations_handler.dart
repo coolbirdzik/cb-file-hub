@@ -445,7 +445,9 @@ class FileOperationsHandler {
     try {
       scaffoldMessenger.showSnackBar(
         SnackBar(
-          content: Text(isFile ? l10n.renamedFileTo(newName) : l10n.renamedFolderTo(newName)),
+          content: Text(isFile
+              ? l10n.renamedFileTo(newName)
+              : l10n.renamedFolderTo(newName)),
         ),
       );
     } catch (_) {}

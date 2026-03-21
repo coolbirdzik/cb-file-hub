@@ -1,16 +1,29 @@
 ## Quick Links
 
-- **Overview** `project-brief.md`
-- **AI Guide** `ai-technical-guide.md`
-- **Contributing** `contribution-guide.md`
-- **Standards** `coding-standards.md`
-- **Features** 
+- **Overview**
+  - `overview/01-project-brief.md`
+- **Guides**
+  - `guides/01-ai-technical-guide.md`
+  - `contributing/01-contribution-guide.md`
+  - `contributing/02-coding-standards.md`
+  - `quality/01-testing-strategy.md`
+- **Technical**
+  - `technical/index.md`
+- **Features**
   - `features/01-file-browser-grid-preview.md`
   - `features/02-keyboard-shortcuts.md` - Keyboard shortcuts guide
   - `features/03-sidebar-pinning-and-workspace.md` - Sidebar pinning and workspace restore
-- **Testing** `testing-strategy.md`
-- **Troubleshooting** `troubleshooting.md`
+  - `features/04-split-pane-view.md`
+  - `features/06-tag-management.md`
 - **UI Patterns**
-  - `ui-patterns/operation-progress.md`
+  - `ui-patterns/01-operation-progress.md`
+  - `ui-patterns/02-file-folder-listing.md`
+  - `ui-patterns/03-skeleton-loading.md`
+- **Coding Rules**
+  - `coding-rules/01-theme-styling-guide.md`
+  - `coding-rules/02-i18n-internationalization-guide.md`
+- **Troubleshooting**
+  - `troubleshooting/01-index.md`
+  - `troubleshooting/02-android-smb-vlc-no-render.md`
 
-Each document is short and focused. Start with the overview, then dive into the AI guide for internals.
+Each document is short and focused. Start with the overview, then dive into guides and technical docs as needed.

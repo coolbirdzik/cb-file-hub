@@ -13,6 +13,6 @@
 - **Rule**: All user-facing strings must go through i18n keys.
 - **Implementation**: Import `cb_file_manager/lib/config/languages/app_localizations.dart` or call `context.tr.keyName`.
 - **Adding Keys**: Update `app_localizations.dart`, `english_localizations.dart`, and `vietnamese_localizations.dart` in tandem.
-- **Reference**: `docs/coding-rules/i18n-internationalization-guide.md` documents the workflow.
+- **Reference**: `docs/coding-rules/02-i18n-internationalization-guide.md` documents the workflow.
 
 _Last reviewed: 2026-03-07_

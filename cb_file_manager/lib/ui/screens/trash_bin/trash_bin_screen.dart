@@ -641,7 +641,8 @@ class _TrashBinScreenState extends State<TrashBinScreen> with SelectionMixin {
                             onPressed: () => _restoreItem(item),
                           ),
                           IconButton(
-                            icon: const Icon(PhosphorIconsLight.trash, size: 20),
+                            icon:
+                                const Icon(PhosphorIconsLight.trash, size: 20),
                             tooltip: l10n.deletePermanentlyTooltip,
                             onPressed: () => _deleteItem(item),
                           ),

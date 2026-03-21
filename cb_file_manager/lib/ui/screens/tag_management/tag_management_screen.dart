@@ -2939,12 +2939,12 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
                 ),
               );
             }
-          // ignore: empty_catches
+            // ignore: empty_catches
           } catch (e) {}
         } else {
           RouteUtils.safePopDialog(context);
         }
-      // ignore: empty_catches
+        // ignore: empty_catches
       } catch (e) {}
     } else {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(

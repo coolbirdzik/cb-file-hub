@@ -125,7 +125,8 @@ void showAddTagToFileDialog(BuildContext context, String filePath) {
                     }
 
                     // Pre-extract all context-dependent values before async gap
-                    final navigator = Navigator.of(context, rootNavigator: true);
+                    final navigator =
+                        Navigator.of(context, rootNavigator: true);
                     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
                     try {
@@ -230,7 +231,8 @@ void showDeleteTagDialog(
                     if (selectedTag != null) {
                       // Pre-extract all context-dependent values before async gap
                       final l10n = AppLocalizations.of(context)!;
-                      final bloc = BlocProvider.of<FolderListBloc>(context, listen: false);
+                      final bloc = BlocProvider.of<FolderListBloc>(context,
+                          listen: false);
                       final scaffoldMessenger = ScaffoldMessenger.of(context);
                       final navigator = Navigator.of(context);
 
@@ -242,7 +244,8 @@ void showDeleteTagDialog(
                           bloc.add(RemoveTagFromFile(filePath, selectedTag!));
                         } catch (_) {}
 
-                        TagManager.instance.notifyTagChanged("tag_only:$filePath");
+                        TagManager.instance
+                            .notifyTagChanged("tag_only:$filePath");
 
                         try {
                           scaffoldMessenger.showSnackBar(
@@ -257,7 +260,8 @@ void showDeleteTagDialog(
                         try {
                           scaffoldMessenger.showSnackBar(
                             SnackBar(
-                              content: Text(l10n.errorDeletingTag(e.toString())),
+                              content:
+                                  Text(l10n.errorDeletingTag(e.toString())),
                               backgroundColor: Colors.red,
                             ),
                           );
@@ -513,7 +517,8 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
                     onPressed: () async {
                       // Pre-extract all context-dependent values before async gap
                       final l10n = AppLocalizations.of(context)!;
-                      final bloc = BlocProvider.of<FolderListBloc>(context, listen: false);
+                      final bloc = BlocProvider.of<FolderListBloc>(context,
+                          listen: false);
                       final scaffoldMessenger = ScaffoldMessenger.of(context);
                       final navigator = Navigator.of(context);
 
@@ -529,8 +534,8 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
 
                         TagManager.clearCache();
 
-                        final commonTags = await batchTagManager
-                            .findCommonTags(selectedFiles);
+                        final commonTags =
+                            await batchTagManager.findCommonTags(selectedFiles);
 
                         int tagsAdded = 0;
                         int tagsRemoved = 0;
@@ -546,8 +551,7 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
                           final Set<String> commonTagsSet =
                               Set.from(commonTags);
 
-                          final updatedTags =
-                              Set<String>.from(originalTagsSet);
+                          final updatedTags = Set<String>.from(originalTagsSet);
 
                           final commonTagsToRemove =
                               commonTagsSet.difference(currentTagsSet);
@@ -578,7 +582,9 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
                           scaffoldMessenger.showSnackBar(
                             SnackBar(
                               content: Text(l10n.tagsUpdated(
-                                  selectedFiles.length, tagsAdded, tagsRemoved)),
+                                  selectedFiles.length,
+                                  tagsAdded,
+                                  tagsRemoved)),
                             ),
                           );
                           navigator.pop();

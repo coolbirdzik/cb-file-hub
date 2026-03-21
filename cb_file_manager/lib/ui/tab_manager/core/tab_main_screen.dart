@@ -289,8 +289,7 @@ class _NativeDropHoverOverlayState extends State<_NativeDropHoverOverlay>
         child: AnimatedBuilder(
           animation: _animation,
           builder: (context, child) {
-            Tween<double>(begin: 0.22, end: 0.42)
-                .transform(_animation.value);
+            Tween<double>(begin: 0.22, end: 0.42).transform(_animation.value);
 
             return Stack(
               children: [

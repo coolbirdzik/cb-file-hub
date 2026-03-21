@@ -210,7 +210,8 @@ class _OpenWithDialogState extends State<OpenWithDialog> {
                           ),
                           onTap: () async {
                             // Pre-extract context-dependent values before async gap
-                            final scaffoldMessenger = ScaffoldMessenger.of(context);
+                            final scaffoldMessenger =
+                                ScaffoldMessenger.of(context);
                             final navigator = Navigator.of(context);
                             final l10n = AppLocalizations.of(context)!;
 

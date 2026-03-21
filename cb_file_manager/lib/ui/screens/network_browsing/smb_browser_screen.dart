@@ -345,8 +345,7 @@ class _SMBBrowserScreenState extends State<SMBBrowserScreen>
       } catch (e) {
         debugPrint('Error opening network settings: $e');
         scaffoldMessenger.showSnackBar(
-          SnackBar(
-              content: Text(l10n.errorWithMessage(e.toString()))),
+          SnackBar(content: Text(l10n.errorWithMessage(e.toString()))),
         );
       }
     }

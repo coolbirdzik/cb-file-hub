@@ -1,7 +1,7 @@
 # Project Brief
 
 - **Product**: CoolBird FM (a.k.a **CB File Hub**) – cross-platform Flutter file manager.
-- **Platforms**: 
+- **Platforms**:
     - **Tier 1**: Windows, Android.
     - **Tier 2**: macOS, Linux.
     - **Tier 3**: iOS (Video playback support is currently experimental/disabled).

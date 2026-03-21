@@ -545,7 +545,8 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
   void _shareImage() {
     final file = _allImages[_currentIndex];
     final xFile = XFile(file.path);
-    SharePlus.instance.share(ShareParams(files: [xFile], text: 'Check out this image!'));
+    SharePlus.instance
+        .share(ShareParams(files: [xFile], text: 'Check out this image!'));
   }
 
   // Phương thức để tải và cache ảnh

@@ -242,7 +242,8 @@ class _FolderPickerDialogState extends State<FolderPickerDialog> {
               ),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsLight.folderOpen, color: Colors.white),
+                  const Icon(PhosphorIconsLight.folderOpen,
+                      color: Colors.white),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(

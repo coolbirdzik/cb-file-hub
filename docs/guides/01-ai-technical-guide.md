@@ -68,7 +68,7 @@ lib/
 
 ## UI Standards & Theming
 - **Minimal Theme** Import `config/app_theme.dart` / `MinimalTheme` helpers; never hardcode colors or spacing.
-- **Design Rules** See `docs/coding-rules/theme-styling-guide.md` for spacing (`spacing(4/8/12/16/20/24)`), radii (`radius(16/20/24/28)`), icon sizes (`icons(18/22/24)`), and flat design philosophy (avoid borders, prefer subtle shadows and opacity).
+- **Design Rules** See `docs/coding-rules/01-theme-styling-guide.md` for spacing (`spacing(4/8/12/16/20/24)`), radii (`radius(16/20/24/28)`), icon sizes (`icons(18/22/24)`), and flat design philosophy (avoid borders, prefer subtle shadows and opacity).
 - **Builders** Use shared factories like `buildIconButton()` and `buildCloseButton()`; line icons only (`*_line`).
 - **Mobile Galleries** `ui/screens/media_gallery/` follow flat cards (no elevation) and reuse `MobileFileActionsController` for top action bars.
 
@@ -76,7 +76,7 @@ lib/
 - **Rule** All user-facing strings must go through i18n keys.
 - **Implementation** Import `config/languages/app_localizations.dart` or call `context.tr.keyName`.
 - **Adding Keys** Update `config/languages/app_localizations.dart`, `config/languages/english_localizations.dart`, and `config/languages/vietnamese_localizations.dart` in tandem.
-- **Reference** `docs/coding-rules/i18n-internationalization-guide.md` documents the workflow.
+- **Reference** `docs/coding-rules/02-i18n-internationalization-guide.md` documents the workflow.
 
 ## Logging Framework
 - **CRITICAL RULE** Never use `print()` statements in production code. Always use the logging framework.
@@ -94,7 +94,7 @@ lib/
 - **Configuration** Based on `logger` package; supports runtime log level adjustment via `AppLogger.setLevel(Level.info)`.
 
 ## Testing & Tooling
-- **Test Harness** See `test/` and scripts documented in `docs/testing-strategy.md`; infra includes `run_tests.dart`, `stable_tests.dart`, and CI-ready runners.
+- **Test Harness** See `test/` and scripts documented in `docs/quality/01-testing-strategy.md`; infra includes `run_tests.dart`, `stable_tests.dart`, and CI-ready runners.
 - **Coverage Focus** Navigation flows and core widgets presently covered; expand for new galleries or services when modified.
 - **Diagnostics** Use `AppLogger.debug()` for verbose logging during development; toggle log levels as needed.
 
@@ -112,7 +112,7 @@ lib/
 ## Extending the App Safely
 - **Feature Checklist** When adding screens, wire actions through `MobileFileActionsController`, hook BLoC events, and provide i18n keys.
 - **Theming Checklist** Use theme tokens (`theme.colorScheme.*`, `MinimalTheme.spacing()`), avoid literal numbers unless defined constants exist.
-- **Testing Checklist** Add or update tests and runners documented in `docs/testing-strategy.md`; verify manual regressions on target platforms.
+- **Testing Checklist** Add or update tests and runners documented in `docs/quality/01-testing-strategy.md`; verify manual regressions on target platforms.
 - **Documentation** Update both this guide and feature-specific docs under `docs/features/` for substantial changes.
 
 ---

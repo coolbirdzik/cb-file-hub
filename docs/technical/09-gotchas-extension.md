@@ -4,13 +4,13 @@
 - **Tag Systems** Invoke `BatchTagManager.initialize()` and `TagManager.initialize()` during startup; failing to do so breaks gallery tagging.
 - **Gallery Scans** Empty gallery paths trigger recursive scans of common media directories (DCIM, Movies, Download, Pictures, Screenshots) inside `getAllVideos()` / `getAllImages()`.
 - **Network Modules** Legacy SMB helpers under `services/network_browsing/` may need refactors for modern authentication; consult `smb_refactor_plan.md` before changes.
-- **Android VLC + SMB Rendering** If SMB playback "starts" but the UI never renders video, check `flutter_vlc_player` Pigeon channel compatibility (see `docs/troubleshooting/android-smb-vlc-no-render.md`).
+- **Android VLC + SMB Rendering** If SMB playback "starts" but the UI never renders video, check `flutter_vlc_player` Pigeon channel compatibility (see `docs/troubleshooting/02-android-smb-vlc-no-render.md`).
 
 ## Extending the App Safely
 
 - **Feature Checklist** When adding screens, wire actions through `MobileFileActionsController`, hook BLoC events, and provide i18n keys.
 - **Theming Checklist** Use theme tokens (`theme.colorScheme.*`, `MinimalTheme.spacing()`), avoid literal numbers unless defined constants exist.
-- **Testing Checklist** Add or update tests and runners documented in `docs/testing-strategy.md`; verify manual regressions on target platforms.
+- **Testing Checklist** Add or update tests and runners documented in `docs/quality/01-testing-strategy.md`; verify manual regressions on target platforms.
 - **Documentation** Update both this guide and feature-specific docs under `docs/features/` for substantial changes.
 
 _Last reviewed: 2025-10-25_

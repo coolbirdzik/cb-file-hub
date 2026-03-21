@@ -233,7 +233,8 @@ class _FileSearchDialogState extends State<FileSearchDialog> {
               ),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsLight.magnifyingGlass, color: Colors.white),
+                  const Icon(PhosphorIconsLight.magnifyingGlass,
+                      color: Colors.white),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(

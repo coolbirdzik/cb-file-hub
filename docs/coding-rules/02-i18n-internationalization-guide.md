@@ -35,7 +35,7 @@ When you need to add new user-facing text, follow these steps:
 ```dart
 abstract class AppLocalizations {
   // ... existing properties
-  
+
   // Tab manager
   String get tabManager;
   String get closeAllTabs;
@@ -47,13 +47,13 @@ abstract class AppLocalizations {
 ```dart
 class EnglishLocalizations implements AppLocalizations {
   // ... existing implementations
-  
+
   @override
   String get tabManager => 'Tab Manager';
-  
+
   @override
   String get closeAllTabs => 'Close All Tabs';
-  
+
   @override
   String get addNewTab => 'Add new tab';
 }
@@ -63,13 +63,13 @@ class EnglishLocalizations implements AppLocalizations {
 ```dart
 class VietnameseLocalizations implements AppLocalizations {
   // ... existing implementations
-  
+
   @override
   String get tabManager => 'Quản lý Tab';
-  
+
   @override
   String get closeAllTabs => 'Đóng tất cả Tab';
-  
+
   @override
   String get addNewTab => 'Thêm tab mới';
 }

@@ -349,6 +349,6 @@ FutureBuilder(
 
 ## Related Documentation
 
-- [File and Folder Listing UI Patterns](file-folder-listing.md) - General listing patterns
+- [File and Folder Listing UI Patterns](02-file-folder-listing.md) - General listing patterns
 - [Skeleton Component](../../cb_file_manager/lib/ui/components/common/skeleton.dart) - Core component
 - [Skeleton Helper](../../cb_file_manager/lib/ui/components/common/skeleton_helper.dart) - Helper methods

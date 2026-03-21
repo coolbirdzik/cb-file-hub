@@ -646,10 +646,11 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.error.withValues(alpha: 0.1),
+                            color:
+                                theme.colorScheme.error.withValues(alpha: 0.1),
                             border: Border.all(
-                                color:
-                                    theme.colorScheme.error.withValues(alpha: 0.3)),
+                                color: theme.colorScheme.error
+                                    .withValues(alpha: 0.3)),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(

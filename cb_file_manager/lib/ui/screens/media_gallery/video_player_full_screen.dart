@@ -60,7 +60,8 @@ class _VideoPlayerFullScreenState extends State<VideoPlayerFullScreen> {
         SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
       });
       // Ensure Flutter re-applies overlays automatically while this route is on top
-      RendererBinding.instance.renderViews.first.automaticSystemUiAdjustment = true;
+      RendererBinding.instance.renderViews.first.automaticSystemUiAdjustment =
+          true;
       // Re-assert overlays for a short period in case platform view toggles them off
       int attempts = 0;
       _uiEnforceTimer?.cancel();
@@ -121,7 +122,8 @@ class _VideoPlayerFullScreenState extends State<VideoPlayerFullScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
         overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom]);
     // Keep automatic adjustment enabled for underlying screens
-    RendererBinding.instance.renderViews.first.automaticSystemUiAdjustment = true;
+    RendererBinding.instance.renderViews.first.automaticSystemUiAdjustment =
+        true;
     _uiEnforceTimer?.cancel();
     _overlayHideTimer?.cancel();
     super.dispose();

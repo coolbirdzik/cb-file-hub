@@ -480,7 +480,7 @@ LayoutBuilder(
     int crossAxisCount = 2;
     if (width >= 600) crossAxisCount = 3;
     if (width >= 900) crossAxisCount = 4;
-    
+
     return GridView.builder(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
@@ -532,7 +532,7 @@ Good examples of theme usage:
    ```dart
    // ❌ WRONG
    color: Colors.blue
-   
+
    // ✅ CORRECT
    color: theme.colorScheme.primary
    ```
@@ -541,7 +541,7 @@ Good examples of theme usage:
    ```dart
    // ❌ WRONG
    padding: EdgeInsets.all(13.0)
-   
+
    // ✅ CORRECT
    padding: EdgeInsets.all(16.0)
    ```
@@ -550,7 +550,7 @@ Good examples of theme usage:
    ```dart
    // ❌ WRONG
    Icon(PhosphorIconsFill.xCircle)
-   
+
    // ✅ CORRECT
    Icon(PhosphorIconsRegular.x)
    ```
@@ -563,7 +563,7 @@ Good examples of theme usage:
      constraints: BoxConstraints(),
      icon: Icon(PhosphorIconsRegular.x, size: 12),
    )
-   
+
    // ✅ CORRECT
    IconButton(
      icon: Icon(PhosphorIconsRegular.x, size: 20),
@@ -597,4 +597,3 @@ Good examples of theme usage:
    - Same spacing for similar elements
    - Same border radius for cards
    - Same icon sizes for similar contexts
-
