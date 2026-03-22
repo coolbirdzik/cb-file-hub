@@ -120,9 +120,8 @@ GitHub Release created with all artifacts
 ### Retagging Same Version
 
 ```bash
-# Push the same tag again (e.g., hotfix)
-git tag -a "v1.2.3" -m "hotfix"
-git push origin v1.2.3
+# Recreate annotated tag and force-push
+bash scripts/retag.sh v1.2.3
 
 # CI reads pubspec: version: 1.2.3+6
 # CI bumps to: version: 1.2.3+7
@@ -140,7 +139,6 @@ This is fully **repo-based** — no dependency on GitHub Run IDs, works with any
 | Android | `CBFileManager-{ver}-{arch}.apk` | arm64-v8a, armeabi-v7a, x86_64 |
 | Android | `CBFileManager-{ver}.aab` | For Google Play |
 | Windows | `CBFileManager-{ver}-windows-portable.zip` | No install needed |
-| Windows | `CBFileManager-Setup-{ver}.exe` | Inno Setup installer |
 | Windows | `CBFileManager-Setup-{ver}.msi` | MSI for enterprise |
 | Linux | `CBFileManager-{ver}-linux.tar.gz` | |
 | macOS | `CBFileManager-{ver}-macos.zip` | |
@@ -152,14 +150,14 @@ This is fully **repo-based** — no dependency on GitHub Run IDs, works with any
 For beta or hotfix scenarios where the version stays the same but you need multiple CI builds with incrementing build numbers:
 
 ```bash
-# Interactive (prompts for tag)
-make retag
+# Specific version (recommended)
+bash scripts/retag.sh v1.2.3
 
-# One-liner — recommended for scripts/CI
-make retag-one TAG=v1.2.3
+# Interactive (detects latest tag automatically)
+make retag
 ```
 
-This pushes the existing tag again, triggering CI. Each run increments the build number:
+Both recreate the annotated tag and force-push it. Each run increments the build number:
 ```
 v1.2.3 push #1 → build_number: +2
 v1.2.3 push #2 → build_number: +3
@@ -181,8 +179,8 @@ v1.2.3 push #3 → build_number: +4  (beta 3)
 | `make release-patch` | Run verify, bump patch, create tag, commit |
 | `make release-minor` | Run verify, bump minor, create tag, commit |
 | `make release-major` | Run verify, bump major, create tag, commit |
-| `make retag` | Interactive — push existing tag to trigger CI rebuild |
-| `make retag-one TAG=v1.2.3` | One-liner — push tag without prompting |
+| `make retag` | Interactive — recreate & push annotated tag |
+| `bash scripts/retag.sh v1.2.3` | Recreate annotated tag and force-push |
 
 ---
 

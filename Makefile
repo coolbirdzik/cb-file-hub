@@ -57,7 +57,8 @@ help:
 	@echo "  make release-patch     - Create patch release (x.x.X)"
 	@echo "  make release-minor     - Create minor release (x.X.0)"
 	@echo "  make release-major     - Create major release (X.0.0)"
-	@echo "  make retag-one TAG=v1.2.3 - Retag existing version (for beta)"
+	@echo "  make retag            - Recreate & retag (interactive)"
+	@echo "  bash scripts/retag.sh v1.2.3  - Retag specific version"
 	@echo "  make version           - Show current version"
 	@echo "  make version-info      - Show version + build number separately"
 	@echo "  make bump-build        - Bump build number only (auto in CI)"
@@ -164,16 +165,8 @@ build-windows-portable: deps
 	@echo "Output: $(BUILD_DIR)/windows/portable/CBFileHub-Portable.zip"
 
 # Build Windows EXE Installer
-build-windows-exe: build-windows-portable
-	@echo "$(BLUE)Building Windows EXE Installer...$(NC)"
-	@if ! command -v iscc.exe >/dev/null 2>&1 && ! command -v iscc >/dev/null 2>&1; then \
-		echo "$(YELLOW)Inno Setup not found. Install from: https://jrsoftware.org/isdl.php$(NC)"; \
-		exit 1; \
-	fi
-	@mkdir -p $(BUILD_DIR)/windows/installer
-	iscc.exe installer/windows/installer.iss || iscc installer/windows/installer.iss
-	@echo "$(GREEN)Windows EXE Installer build completed!$(NC)"
-	@echo "Output: $(BUILD_DIR)/windows/installer/CBFileHub-Setup.exe"
+build-windows-exe:
+	@bash scripts/build.sh windows-exe
 
 # Build Windows MSI Installer
 build-windows-msi: build-windows-portable
@@ -181,21 +174,18 @@ build-windows-msi: build-windows-portable
 	@mkdir -p $(BUILD_DIR)/windows/installer
 	@# Check for WiX v4+ (wix.exe) or v3 (candle.exe)
 	@if command -v wix.exe >/dev/null 2>&1; then \
-		echo "$(BLUE)Using WiX v4+ (wix build)...$(NC)"; \
-		wix.exe build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-	elif command -v wix >/dev/null 2>&1; then \
-		echo "$(BLUE)Using WiX v4+ (wix build)...$(NC)"; \
-		wix build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-	elif [ -f "/c/Program Files/WiX Toolset v7.0/bin/wix.exe" ]; then \
-		echo "$(BLUE)Using WiX v7 (wix build)...$(NC)"; \
-		"/c/Program Files/WiX Toolset v7.0/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-	elif [ -f "/c/Program Files/WiX Toolset v5.0/bin/wix.exe" ]; then \
-		echo "$(BLUE)Using WiX v5 (wix build)...$(NC)"; \
-		"/c/Program Files/WiX Toolset v5.0/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-	elif [ -f "/c/Program Files/WiX Toolset v4.0/bin/wix.exe" ]; then \
-		echo "$(BLUE)Using WiX v4 (wix build)...$(NC)"; \
-		"/c/Program Files/WiX Toolset v4.0/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-	elif command -v candle.exe >/dev/null 2>&1; then \
+	echo "$(BLUE)Using WiX v4.0.5 (wix build)...$(NC)"; \
+	wix.exe build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
+elif command -v wix >/dev/null 2>&1; then \
+	echo "$(BLUE)Using WiX v4.0.5 (wix build)...$(NC)"; \
+	wix build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
+elif [ -f "/c/Program Files/WiX Toolset v4.0.5/bin/wix.exe" ]; then \
+	echo "$(BLUE)Using WiX v4.0.5 (wix build)...$(NC)"; \
+	"/c/Program Files/WiX Toolset v4.0.5/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
+elif [ -f "/c/Program Files/WiX Toolset v4.0/bin/wix.exe" ]; then \
+	echo "$(BLUE)Using WiX v4.0 (wix build)...$(NC)"; \
+	"/c/Program Files/WiX Toolset v4.0/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
+elif command -v candle.exe >/dev/null 2>&1; then \
 		echo "$(BLUE)Using WiX v3 (candle/light)...$(NC)"; \
 		candle.exe -dSourceDir="$(BUILD_DIR)/windows/x64/runner/Release" -out "$(BUILD_DIR)/windows/installer/installer.wixobj" installer/windows/installer.wxs; \
 		light.exe -out "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi" "$(BUILD_DIR)/windows/installer/installer.wixobj" -ext WixUIExtension -sval; \
@@ -264,6 +254,8 @@ build-ios: clean deps
 build-all:
 	@echo "$(BLUE)Building for all platforms...$(NC)"
 	@$(MAKE) build-windows-portable || echo "$(YELLOW)Windows Portable build failed$(NC)"
+	@$(MAKE) build-windows-exe || echo "$(YELLOW)Windows EXE build failed$(NC)"
+	@$(MAKE) build-windows-msi || echo "$(YELLOW)Windows MSI build failed$(NC)"
 	@$(MAKE) build-android-apk || echo "$(YELLOW)Android APK build failed$(NC)"
 	@$(MAKE) build-android-aab || echo "$(YELLOW)Android AAB build failed$(NC)"
 	@$(MAKE) build-linux || echo "$(YELLOW)Linux build failed$(NC)"
@@ -284,7 +276,7 @@ macos: build-macos
 ios: build-ios
 all: build-all
 
-# Retag: push existing version tag again to trigger CI rebuild with incremented build number
+# Retag: recreate annotated tag and force-push to trigger CI rebuild
 # Use for beta/hotfix builds where version stays same but build number must increase
 retag:
 	@CURRENT_VER=$$(make -s next-patch 2>/dev/null || echo ""); \
@@ -297,21 +289,16 @@ retag:
 		echo "$(RED)Tag cannot be empty$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(BLUE)Pushing tag $$TAG to trigger CI rebuild...$(NC)"; \
-	git push origin "$$TAG" --force; \
+	echo "$(BLUE)Recreating annotated tag $$TAG and force-pushing...$(NC)"; \
+	git tag -f -a "$$TAG" -m "Rebuild $$TAG - auto-incremented build number"; \
+	git push origin "$$TAG" -f; \
 	echo "$(GREEN)Done. CI will auto-increment build_number on each build.$(NC)"; \
 	echo "$(YELLOW)Monitor at: https://github.com/<owner>/<repo>/actions$(NC)"
 
-# One-liner version (set TAG=v1.2.3 make retag)
+# One-liner: retag a specific version tag and force-push
+# Usage: bash scripts/retag.sh v1.2.3
 retag-one:
-	@if [ -z "$(TAG)" ]; then \
-		echo "$(RED)Error: TAG not set$(NC)"; \
-		echo "Usage: make retag-one TAG=v1.2.3"; \
-		exit 1; \
-	fi
-	@echo "$(BLUE)Pushing tag $(TAG) to trigger CI rebuild...$(NC)"; \
-	git push origin $(TAG) --force; \
-	echo "$(GREEN)Done. CI will auto-increment build_number on each build.$(NC)"
+	@echo "$(YELLOW)Use: bash scripts/retag.sh v1.2.3$(NC)"
 
 # Version management
 version:

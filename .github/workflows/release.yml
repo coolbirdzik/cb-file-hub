@@ -208,8 +208,24 @@ jobs:
         run: |
           VERSION="${{ needs.generate-release-notes.outputs.version_name }}"
           OUTPUT_DIR="${{ env.PROJECT_DIR }}/build/windows/portable"
-          if [ -f "$OUTPUT_DIR/CoolBirdTagify-Portable.zip" ]; then
-            mv "$OUTPUT_DIR/CoolBirdTagify-Portable.zip" "$OUTPUT_DIR/CBFileManager-$VERSION-windows-portable.zip"
+          TARGET_FILE="$OUTPUT_DIR/CBFileManager-$VERSION-windows-portable.zip"
+          SOURCE_FILE=""
+          for candidate in \
+            "CBFileHub-Portable.zip" \
+            "CoolBirdTagify-Portable.zip" \
+            "CBFileManager-$VERSION-windows-portable.zip"; do
+            if [ -f "$OUTPUT_DIR/$candidate" ]; then
+              SOURCE_FILE="$OUTPUT_DIR/$candidate"
+              break
+            fi
+          done
+          if [ -z "$SOURCE_FILE" ]; then
+            echo "::error::Portable ZIP not found in $OUTPUT_DIR"
+            ls -la "$OUTPUT_DIR"
+            exit 1
+          fi
+          if [ "$SOURCE_FILE" != "$TARGET_FILE" ]; then
+            mv "$SOURCE_FILE" "$TARGET_FILE"
           fi
 
       - name: Upload Windows artifact
@@ -250,7 +266,25 @@ jobs:
         run: |
           VERSION="${{ needs.generate-release-notes.outputs.version_name }}"
           OUTPUT_DIR="${{ env.PROJECT_DIR }}/build/windows/installer"
-          mv "$OUTPUT_DIR/CoolBirdTagify-Setup.exe" "$OUTPUT_DIR/CBFileManager-Setup-$VERSION.exe"
+          TARGET_FILE="$OUTPUT_DIR/CBFileManager-Setup-$VERSION.exe"
+          SOURCE_FILE=""
+          for candidate in \
+            "CBFileHub-Setup.exe" \
+            "CoolBirdTagify-Setup.exe" \
+            "CBFileManager-Setup-$VERSION.exe"; do
+            if [ -f "$OUTPUT_DIR/$candidate" ]; then
+              SOURCE_FILE="$OUTPUT_DIR/$candidate"
+              break
+            fi
+          done
+          if [ -z "$SOURCE_FILE" ]; then
+            echo "::error::EXE installer not found in $OUTPUT_DIR"
+            ls -la "$OUTPUT_DIR"
+            exit 1
+          fi
+          if [ "$SOURCE_FILE" != "$TARGET_FILE" ]; then
+            mv "$SOURCE_FILE" "$TARGET_FILE"
+          fi
 
       - name: Upload EXE artifact
         uses: actions/upload-artifact@v4
@@ -274,7 +308,8 @@ jobs:
 
       - name: Install WiX Toolset
         run: |
-          dotnet tool install --global wix
+          dotnet tool install --global wix --version 4.0.5
+          wix extensions add WixToolset.UI.wixext
           echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Ensure build script is executable
@@ -290,7 +325,25 @@ jobs:
         run: |
           VERSION="${{ needs.generate-release-notes.outputs.version_name }}"
           OUTPUT_DIR="${{ env.PROJECT_DIR }}/build/windows/installer"
-          mv "$OUTPUT_DIR/CoolBirdTagify-Setup.msi" "$OUTPUT_DIR/CBFileManager-Setup-$VERSION.msi"
+          TARGET_FILE="$OUTPUT_DIR/CBFileManager-Setup-$VERSION.msi"
+          SOURCE_FILE=""
+          for candidate in \
+            "CBFileHub-Setup.msi" \
+            "CoolBirdTagify-Setup.msi" \
+            "CBFileManager-Setup-$VERSION.msi"; do
+            if [ -f "$OUTPUT_DIR/$candidate" ]; then
+              SOURCE_FILE="$OUTPUT_DIR/$candidate"
+              break
+            fi
+          done
+          if [ -z "$SOURCE_FILE" ]; then
+            echo "::error::MSI installer not found in $OUTPUT_DIR"
+            ls -la "$OUTPUT_DIR"
+            exit 1
+          fi
+          if [ "$SOURCE_FILE" != "$TARGET_FILE" ]; then
+            mv "$SOURCE_FILE" "$TARGET_FILE"
+          fi
 
       - name: Upload MSI artifact
         uses: actions/upload-artifact@v4

@@ -44,6 +44,10 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+escape_powershell_single_quotes() {
+    echo "${1//\'/\'\'}"
+}
+
 # Verify required runtime files exist in Windows release bundle.
 verify_windows_release_bundle() {
     local release_dir="$1"
@@ -389,14 +393,16 @@ build_windows_portable() {
 # Build Windows EXE
 build_windows_exe() {
     print_info "Building Windows EXE Installer..."
-    
-    # Check for Inno Setup in common locations
+
     local ISCC=""
-    
+    local ISCC_WIN=""
+
     if command -v iscc.exe &> /dev/null; then
         ISCC="iscc.exe"
+        ISCC_WIN="iscc.exe"
     elif command -v iscc &> /dev/null; then
         ISCC="iscc"
+        ISCC_WIN="iscc"
     elif [ -f "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" ]; then
         ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
     elif [ -f "/c/Program Files (x86)/Inno Setup 5/ISCC.exe" ]; then
@@ -407,25 +413,42 @@ build_windows_exe() {
         print_info "Or add to PATH: C:\\Program Files (x86)\\Inno Setup 6"
         return 1
     fi
-    
-    print_info "Found Inno Setup: $ISCC"
-    
-    build_windows_portable
-    local VERSION_NAME
-    VERSION_NAME=$(get_version_name)
-    local VERSION_NAME
-    VERSION_NAME=$(get_version_name)
-    
-    print_info "Creating EXE installer..."
-    
-    # Convert path for Windows if needed
-    local INSTALLER_SCRIPT="installer/windows/installer.iss"
-    if command -v cygpath &> /dev/null; then
-        INSTALLER_SCRIPT=$(cygpath -w "$INSTALLER_SCRIPT")
+
+    if [ -z "$ISCC_WIN" ]; then
+        if command -v cygpath &> /dev/null; then
+            ISCC_WIN=$(cygpath -w "$ISCC")
+        else
+            ISCC_WIN="$ISCC"
+        fi
     fi
-    
-    "$ISCC" "/DMyAppVersion=$VERSION_NAME" "$INSTALLER_SCRIPT"
-    
+
+    print_info "Found Inno Setup: $ISCC_WIN"
+
+    build_windows_portable
+
+    local VERSION_NAME
+    VERSION_NAME=$(get_version_name)
+    local INSTALLER_SCRIPT="$REPO_DIR/installer/windows/installer.iss"
+    local INSTALLER_SCRIPT_WIN="$INSTALLER_SCRIPT"
+
+    if command -v cygpath &> /dev/null; then
+        INSTALLER_SCRIPT_WIN=$(cygpath -w "$INSTALLER_SCRIPT")
+    fi
+
+    local iscc_ps
+    local define_ps
+    local installer_ps
+    iscc_ps=$(escape_powershell_single_quotes "$ISCC_WIN")
+    define_ps=$(escape_powershell_single_quotes "/DMyAppVersion=$VERSION_NAME")
+    installer_ps=$(escape_powershell_single_quotes "$INSTALLER_SCRIPT_WIN")
+
+    print_info "Creating EXE installer..."
+    if command -v powershell.exe &> /dev/null; then
+        powershell.exe -NoProfile -Command "& { & '$iscc_ps' '$define_ps' '$installer_ps'; if (\$LASTEXITCODE -ne 0) { exit \$LASTEXITCODE } }"
+    else
+        MSYS2_ARG_CONV_EXCL="/D*" "$ISCC" "/DMyAppVersion=$VERSION_NAME" "$INSTALLER_SCRIPT"
+    fi
+
     if [ $? -eq 0 ]; then
         print_success "Windows EXE Installer created!"
         print_info "Output: $BUILD_DIR/windows/installer/CBFileHub-Setup.exe"
@@ -450,15 +473,18 @@ build_windows_msi() {
     elif command -v wix &> /dev/null; then
         WIX_CMD="wix"
         WIX_VERSION="v4+"
+    elif [ -f "/c/Program Files/WiX Toolset v4.0.5/bin/wix.exe" ]; then
+        WIX_CMD="/c/Program Files/WiX Toolset v4.0.5/bin/wix.exe"
+        WIX_VERSION="v4+"
+    elif [ -f "/c/Program Files/WiX Toolset v4.0/bin/wix.exe" ]; then
+        WIX_CMD="/c/Program Files/WiX Toolset v4.0/bin/wix.exe"
+        WIX_VERSION="v4+"
     elif [ -f "/c/Program Files/WiX Toolset v7.0/bin/wix.exe" ]; then
         WIX_CMD="/c/Program Files/WiX Toolset v7.0/bin/wix.exe"
         WIX_VERSION="v7"
     elif [ -f "/c/Program Files/WiX Toolset v5.0/bin/wix.exe" ]; then
         WIX_CMD="/c/Program Files/WiX Toolset v5.0/bin/wix.exe"
         WIX_VERSION="v5"
-    elif [ -f "/c/Program Files/WiX Toolset v4.0/bin/wix.exe" ]; then
-        WIX_CMD="/c/Program Files/WiX Toolset v4.0/bin/wix.exe"
-        WIX_VERSION="v4"
     # Check for WiX v3 (candle.exe/light.exe)
     elif command -v candle.exe &> /dev/null; then
         WIX_CMD="candle"
@@ -520,7 +546,6 @@ build_windows_msi() {
         # WiX v4+: Use wix.exe build command
         # Syntax: wix build [options] source.wxs -o output.msi
         # -d defines preprocessor variables (like -dSourceDir)
-        # -ext adds extensions (WixUIExtension for UI dialogs)
         print_info "Using WiX $WIX_VERSION (wix build)..."
         "$WIX_CMD" eula accept wix7 >/dev/null 2>&1 || true
         "$WIX_CMD" build "$INSTALLER_DIR_WIN\\installer.wxs" -d "SourceDir=$BUILD_PATH_WIN" -d "ProductVersion=$VERSION_MSI" -d "ProductDisplayVersion=$VERSION_DISPLAY" -ext WixToolset.UI.wixext -o "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi"
@@ -790,7 +815,7 @@ check_build_tools() {
         echo "Install from: https://wixtoolset.org/releases/"
     fi
     echo ""
-    
+
     # Check Inno Setup
     echo -e "${BLUE}Inno Setup:${NC}"
     if command -v iscc.exe &> /dev/null; then
@@ -807,7 +832,7 @@ check_build_tools() {
         echo "Install from: https://jrsoftware.org/isdl.php"
     fi
     echo ""
-    
+
     # Check Visual Studio
     echo -e "${BLUE}Visual Studio:${NC}"
     if [ -d "/c/Program Files/Microsoft Visual Studio/2022/Community" ]; then
