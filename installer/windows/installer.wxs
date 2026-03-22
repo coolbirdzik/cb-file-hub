@@ -56,10 +56,7 @@
   </Fragment>
 
   <Fragment>
-    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
-      <!-- Install all files produced in the Windows Release bundle, including FFmpeg DLLs. -->
-      <Files Include="$(var.SourceDir)\**" />
-    </ComponentGroup>
+    <!-- ProductComponents is generated at build time from the Windows Release bundle. -->
 
     <!-- Start Menu Shortcut -->
     <DirectoryRef Id="ApplicationProgramsFolder">

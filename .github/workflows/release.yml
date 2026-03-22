@@ -123,8 +123,8 @@ jobs:
           echo "" >> release_notes.md
           echo "### Windows" >> release_notes.md
           echo "- **Portable**: \`CBFileManager-$VERSION-windows-portable.zip\` - Extract and run, no installation needed" >> release_notes.md
-          echo "- **EXE Installer**: \`CBFileManager-Setup-$VERSION.exe\` - Recommended for most users" >> release_notes.md
-          echo "- **MSI Installer**: \`CBFileManager-Setup-$VERSION.msi\` - For enterprise deployment" >> release_notes.md
+          echo "- **MSI Installer**: \`CBFileManager-Setup-$VERSION.msi\` - Classic Windows installer" >> release_notes.md
+          echo "- **MSIX Package**: \`CBFileManager-$VERSION.msix\` - Modern Windows package with clean install/uninstall" >> release_notes.md
           echo "" >> release_notes.md
           echo "### Android" >> release_notes.md
           echo "- **APK**: \`CBFileManager-$VERSION-arm64-v8a.apk\` (64-bit)" >> release_notes.md
@@ -139,15 +139,15 @@ jobs:
           echo "2. Extract to any folder" >> release_notes.md
           echo "3. Run \`cb_file_manager.exe\`" >> release_notes.md
           echo "" >> release_notes.md
-          echo "**EXE Installer (Recommended):**" >> release_notes.md
-          echo "1. Download \`CBFileManager-Setup-$VERSION.exe\`" >> release_notes.md
+          echo "**MSI Installer:**" >> release_notes.md
+          echo "1. Download \`CBFileManager-Setup-$VERSION.msi\`" >> release_notes.md
           echo "2. Run the installer" >> release_notes.md
           echo "3. Follow the setup wizard" >> release_notes.md
           echo "" >> release_notes.md
-          echo "**MSI Installer (Enterprise):**" >> release_notes.md
-          echo "1. Download \`CBFileManager-Setup-$VERSION.msi\`" >> release_notes.md
-          echo "2. Run the installer" >> release_notes.md
-          echo "3. Supports Group Policy deployment" >> release_notes.md
+          echo "**MSIX Package:**" >> release_notes.md
+          echo "1. Download \`CBFileManager-$VERSION.msix\`" >> release_notes.md
+          echo "2. Open the package in Windows" >> release_notes.md
+          echo "3. Approve the installation if Windows prompts for confirmation" >> release_notes.md
           echo "" >> release_notes.md
           echo "### Android" >> release_notes.md
           echo "- Download and install the \`.apk\` file" >> release_notes.md
@@ -219,64 +219,6 @@ jobs:
           name: windows-build
           path: ${{ env.PROJECT_DIR }}/build/windows/portable/*.zip
 
-  # Build Windows EXE Installer
-  build-windows-exe:
-    runs-on: windows-latest
-    needs: generate-release-notes
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: "stable"
-
-      - name: Install Inno Setup
-        run: |
-          choco install innosetup -y
-          echo "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
-      - name: Ensure build script is executable
-        shell: bash
-        run: chmod +x scripts/build.sh
-
-      - name: Build EXE Installer
-        shell: bash
-        run: ./scripts/build.sh windows-exe
-
-      - name: Rename EXE
-        shell: bash
-        run: |
-          VERSION="${{ needs.generate-release-notes.outputs.version_name }}"
-          OUTPUT_DIR="${{ env.PROJECT_DIR }}/build/windows/installer"
-          TARGET_FILE="$OUTPUT_DIR/CBFileManager-Setup-$VERSION.exe"
-          SOURCE_FILE=""
-          for candidate in \
-            "CBFileHub-Setup.exe" \
-            "CoolBirdTagify-Setup.exe" \
-            "CBFileManager-Setup-$VERSION.exe"; do
-            if [ -f "$OUTPUT_DIR/$candidate" ]; then
-              SOURCE_FILE="$OUTPUT_DIR/$candidate"
-              break
-            fi
-          done
-          if [ -z "$SOURCE_FILE" ]; then
-            echo "::error::EXE installer not found in $OUTPUT_DIR"
-            ls -la "$OUTPUT_DIR"
-            exit 1
-          fi
-          if [ "$SOURCE_FILE" != "$TARGET_FILE" ]; then
-            mv "$SOURCE_FILE" "$TARGET_FILE"
-          fi
-
-      - name: Upload EXE artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-exe
-          path: ${{ env.PROJECT_DIR }}/build/windows/installer/*.exe
-
   # Build Windows MSI
   build-windows-msi:
     runs-on: windows-latest
@@ -335,6 +277,34 @@ jobs:
         with:
           name: windows-msi
           path: ${{ env.PROJECT_DIR }}/build/windows/installer/*.msi
+
+  # Build Windows MSIX
+  build-windows-msix:
+    runs-on: windows-latest
+    needs: generate-release-notes
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: "stable"
+
+      - name: Ensure build script is executable
+        shell: bash
+        run: chmod +x scripts/build.sh
+
+      - name: Build MSIX
+        shell: bash
+        run: ./scripts/build.sh windows-msix
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msix
+          path: ${{ env.PROJECT_DIR }}/build/windows/msix/*.msix
 
   # Build Android APK
   build-android-apk:
@@ -435,8 +405,8 @@ jobs:
     needs:
       - generate-release-notes
       - build-windows
-      - build-windows-exe
       - build-windows-msi
+      - build-windows-msix
       - build-android-apk
       - build-android-aab
     permissions:
@@ -460,8 +430,8 @@ jobs:
           prerelease: false
           files: |
             artifacts/windows-build/*.zip
-            artifacts/windows-exe/*.exe
             artifacts/windows-msi/*.msi
+            artifacts/windows-msix/*.msix
             artifacts/android-apk/*.apk
             artifacts/android-aab/*.aab
         env:

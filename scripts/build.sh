@@ -48,6 +48,83 @@ escape_powershell_single_quotes() {
     echo "${1//\'/\'\'}"
 }
 
+xml_escape() {
+    local value="$1"
+    value=${value//&/&amp;}
+    value=${value//\"/&quot;}
+    value=${value//</&lt;}
+    value=${value//>/&gt;}
+    printf '%s' "$value"
+}
+
+generate_wix_harvest_fragment() {
+    local source_dir="$1"
+    local output_file="$2"
+    local file_count=0
+
+    if [ ! -d "$source_dir" ]; then
+        print_error "WiX source directory not found: $source_dir"
+        return 1
+    fi
+
+    print_info "Generating WiX file manifest..."
+
+    {
+        cat <<'EOF'
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+EOF
+
+        while IFS= read -r -d '' file_path; do
+            file_count=$((file_count + 1))
+
+            local relative_path="${file_path#$source_dir/}"
+            local windows_relative_path="${relative_path//\//\\}"
+            local subdirectory=""
+            local windows_file_path="$file_path"
+            local component_id
+            local file_id
+
+            if [[ "$windows_relative_path" == *\\* ]]; then
+                subdirectory="${windows_relative_path%\\*}"
+            fi
+
+            if command -v cygpath &> /dev/null; then
+                windows_file_path=$(cygpath -w "$file_path")
+            fi
+
+            component_id=$(printf "AutoCmp%05d" "$file_count")
+            file_id=$(printf "AutoFile%05d" "$file_count")
+
+            if [ -n "$subdirectory" ]; then
+                printf '      <Component Id="%s" Subdirectory="%s">\n' \
+                    "$component_id" "$(xml_escape "$subdirectory")"
+            else
+                printf '      <Component Id="%s">\n' "$component_id"
+            fi
+
+            printf '        <File Id="%s" Source="%s" KeyPath="yes" />\n' \
+                "$file_id" "$(xml_escape "$windows_file_path")"
+            printf '      </Component>\n'
+        done < <(find "$source_dir" -type f -print0)
+
+        cat <<'EOF'
+    </ComponentGroup>
+  </Fragment>
+</Wix>
+EOF
+    } > "$output_file"
+
+    if [ "$file_count" -eq 0 ]; then
+        print_error "No files found to include in MSI package."
+        return 1
+    fi
+
+    print_info "WiX manifest generated with $file_count files."
+    return 0
+}
+
 # Verify required runtime files exist in Windows release bundle.
 verify_windows_release_bundle() {
     local release_dir="$1"
@@ -171,6 +248,20 @@ get_display_version() {
     echo "$major.$patch.$minor.$build_number"
 }
 
+get_msix_version() {
+    local version_name
+    local build_number
+    local major minor patch
+    version_name=$(get_version_name)
+    build_number=$(get_version_code)
+    IFS='.' read -r major minor patch <<< "$version_name"
+    major=${major:-0}
+    minor=${minor:-0}
+    patch=${patch:-0}
+    build_number=${build_number:-0}
+    echo "$major.$minor.$patch.$build_number"
+}
+
 # Show main menu
 show_menu() {
     clear
@@ -182,8 +273,8 @@ show_menu() {
     echo -e "${GREEN}📦 BUILD TARGETS${NC}"
     echo -e "${CYAN}═══════════════════════════════════════════════${NC}"
     echo "  1) Windows Portable (ZIP)"
-    echo "  2) Windows EXE Installer"
-    echo "  3) Windows MSI Installer"
+    echo "  2) Windows MSI Installer"
+    echo "  3) Windows MSIX Package"
     echo "  4) Android APK"
     echo "  5) Android AAB"
     echo "  6) Linux"
@@ -201,7 +292,7 @@ show_menu() {
     echo " 14) Analyze Code"
     echo " 15) Format Code"
     echo " 16) Flutter Doctor"
-    echo " 17) Check Build Tools (WiX, Inno Setup)"
+    echo " 17) Check Build Tools (WiX, MSIX, Inno Setup)"
     echo ""
     echo -e "${CYAN}═══════════════════════════════════════════════${NC}"
     echo -e "${GREEN}🚀 RELEASE${NC}"
@@ -503,7 +594,12 @@ build_windows_msi() {
     fi
     
     print_info "Found WiX $WIX_VERSION: $WIX_CMD"
-    
+
+    if [ "$WIX_VERSION" != "v3" ]; then
+        print_info "Ensuring WiX UI extension is available..."
+        "$WIX_CMD" extension add -g WixToolset.UI.wixext/4.0.5 >/dev/null 2>&1 || true
+    fi
+
     build_windows_portable
     local VERSION_DISPLAY
     VERSION_DISPLAY=$(get_display_version)
@@ -514,10 +610,15 @@ build_windows_msi() {
     local BUILD_PATH="$PROJECT_DIR/build/windows/x64/runner/Release"
     local INSTALLER_DIR="$REPO_DIR/installer/windows"
     local OUTPUT_DIR="$PROJECT_DIR/build/windows/installer"
+    local HARVEST_WXS="$OUTPUT_DIR/generated-files.wxs"
     
     mkdir -p "$OUTPUT_DIR"
 
     if ! verify_windows_release_bundle "$BUILD_PATH"; then
+        return 1
+    fi
+
+    if ! generate_wix_harvest_fragment "$BUILD_PATH" "$HARVEST_WXS"; then
         return 1
     fi
     
@@ -525,11 +626,13 @@ build_windows_msi() {
     local BUILD_PATH_WIN="$BUILD_PATH"
     local OUTPUT_DIR_WIN="$OUTPUT_DIR"
     local INSTALLER_DIR_WIN="$INSTALLER_DIR"
+    local HARVEST_WXS_WIN="$HARVEST_WXS"
     
     if command -v cygpath &> /dev/null; then
         BUILD_PATH_WIN=$(cygpath -w "$BUILD_PATH")
         OUTPUT_DIR_WIN=$(cygpath -w "$OUTPUT_DIR")
         INSTALLER_DIR_WIN=$(cygpath -w "$INSTALLER_DIR")
+        HARVEST_WXS_WIN=$(cygpath -w "$HARVEST_WXS")
     fi
     
     if [ "$WIX_VERSION" = "v3" ]; then
@@ -537,10 +640,12 @@ build_windows_msi() {
         print_info "Using WiX v3 (candle/light)..."
         if [ "$WIX_CMD" = "candle" ]; then
             candle.exe -dSourceDir="$BUILD_PATH_WIN" -dProductVersion="$VERSION_MSI" -dProductDisplayVersion="$VERSION_DISPLAY" -out "$OUTPUT_DIR_WIN\\installer.wixobj" "$INSTALLER_DIR_WIN\\installer.wxs"
-            light.exe -out "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi" "$OUTPUT_DIR_WIN\\installer.wixobj" -ext WixUIExtension -sval
+            candle.exe -out "$OUTPUT_DIR_WIN\\generated-files.wixobj" "$HARVEST_WXS_WIN"
+            light.exe -out "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi" "$OUTPUT_DIR_WIN\\installer.wixobj" "$OUTPUT_DIR_WIN\\generated-files.wixobj" -ext WixUIExtension -sval
         else
             "$WIX_CMD/candle.exe" -dSourceDir="$BUILD_PATH_WIN" -dProductVersion="$VERSION_MSI" -dProductDisplayVersion="$VERSION_DISPLAY" -out "$OUTPUT_DIR_WIN\\installer.wixobj" "$INSTALLER_DIR_WIN\\installer.wxs"
-            "$WIX_CMD/light.exe" -out "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi" "$OUTPUT_DIR_WIN\\installer.wixobj" -ext WixUIExtension -sval
+            "$WIX_CMD/candle.exe" -out "$OUTPUT_DIR_WIN\\generated-files.wixobj" "$HARVEST_WXS_WIN"
+            "$WIX_CMD/light.exe" -out "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi" "$OUTPUT_DIR_WIN\\installer.wixobj" "$OUTPUT_DIR_WIN\\generated-files.wixobj" -ext WixUIExtension -sval
         fi
     else
         # WiX v4+: Use wix.exe build command
@@ -548,7 +653,7 @@ build_windows_msi() {
         # -d defines preprocessor variables (like -dSourceDir)
         print_info "Using WiX $WIX_VERSION (wix build)..."
         "$WIX_CMD" eula accept wix7 >/dev/null 2>&1 || true
-        "$WIX_CMD" build "$INSTALLER_DIR_WIN\\installer.wxs" -d "SourceDir=$BUILD_PATH_WIN" -d "ProductVersion=$VERSION_MSI" -d "ProductDisplayVersion=$VERSION_DISPLAY" -ext WixToolset.UI.wixext -o "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi"
+        "$WIX_CMD" build "$INSTALLER_DIR_WIN\\installer.wxs" "$HARVEST_WXS_WIN" -d "SourceDir=$BUILD_PATH_WIN" -d "ProductVersion=$VERSION_MSI" -d "ProductDisplayVersion=$VERSION_DISPLAY" -ext WixToolset.UI.wixext -o "$OUTPUT_DIR_WIN\\CBFileHub-Setup.msi"
     fi
     
     if [ $? -eq 0 ]; then
@@ -558,6 +663,42 @@ build_windows_msi() {
         print_error "MSI installer creation failed!"
         return 1
     fi
+}
+
+# Build Windows MSIX
+build_windows_msix() {
+    print_info "Building Windows MSIX Package..."
+
+    build_windows_portable
+
+    local VERSION_NAME
+    local VERSION_MSIX
+    local OUTPUT_DIR
+    local OUTPUT_DIR_WIN
+    VERSION_NAME=$(get_version_name)
+    VERSION_MSIX=$(get_msix_version)
+    OUTPUT_DIR="$BUILD_DIR/windows/msix"
+    OUTPUT_DIR_WIN="$OUTPUT_DIR"
+
+    mkdir -p "$OUTPUT_DIR"
+
+    if command -v cygpath &> /dev/null; then
+        OUTPUT_DIR_WIN=$(cygpath -w "$OUTPUT_DIR")
+    fi
+
+    cd "$PROJECT_DIR"
+    print_info "Creating MSIX package..."
+    dart run msix:create --release --version "$VERSION_MSIX" --output-path "$OUTPUT_DIR_WIN" --output-name "CBFileManager-$VERSION_NAME"
+
+    if [ $? -eq 0 ]; then
+        print_success "Windows MSIX Package created!"
+        print_info "Output: $OUTPUT_DIR/CBFileManager-$VERSION_NAME.msix"
+    else
+        print_error "MSIX package creation failed!"
+        cd ..
+        return 1
+    fi
+    cd ..
 }
 
 # Build Android APK
@@ -715,6 +856,8 @@ build_all() {
     local failed_builds=()
     
     build_windows_portable || failed_builds+=("Windows Portable")
+    build_windows_msi || failed_builds+=("Windows MSI")
+    build_windows_msix || failed_builds+=("Windows MSIX")
     build_android_apk || failed_builds+=("Android APK")
     build_android_aab || failed_builds+=("Android AAB")
     build_linux || failed_builds+=("Linux")
@@ -813,6 +956,16 @@ check_build_tools() {
     else
         echo -e "${RED}Not found${NC}"
         echo "Install from: https://wixtoolset.org/releases/"
+    fi
+    echo ""
+
+    # Check MSIX tooling
+    echo -e "${BLUE}MSIX:${NC}"
+    if command -v dart &> /dev/null; then
+        echo -e "${GREEN}Dart SDK found${NC}"
+        echo -e "${YELLOW}Run 'dart run msix:create' from the Flutter app directory after 'flutter pub get'.${NC}"
+    else
+        echo -e "${RED}Dart SDK not found${NC}"
     fi
     echo ""
 
@@ -936,8 +1089,8 @@ main() {
         
         case $choice in
             1) build_windows_portable; pause ;;
-            2) build_windows_exe; pause ;;
-            3) build_windows_msi; pause ;;
+            2) build_windows_msi; pause ;;
+            3) build_windows_msix; pause ;;
             4) build_android_apk; pause ;;
             5) build_android_aab; pause ;;
             6) build_linux; pause ;;
@@ -973,6 +1126,7 @@ if [ $# -gt 0 ]; then
         windows-portable) build_windows_portable ;;
         windows-exe) build_windows_exe ;;
         windows-msi) build_windows_msi ;;
+        windows-msix) build_windows_msix ;;
         android-apk) build_android_apk ;;
         android-aab) build_android_aab ;;
         linux) build_linux ;;

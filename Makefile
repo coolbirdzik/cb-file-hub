@@ -2,7 +2,7 @@
 # Cross-platform build system for Flutter application
 # Works on: Windows (Git Bash/WSL/MinGW), Linux, macOS
 
-.PHONY: help clean deep-clean deps build-windows-portable build-windows-exe build-windows-msi build-android-apk build-android-aab build-linux build-macos build-ios build-all test analyze format doctor release version version-info bump-build retag retag-one verify
+.PHONY: help clean deep-clean deps build-windows-portable build-windows-msi build-windows-msix build-android-apk build-android-aab build-linux build-macos build-ios build-all test analyze format doctor release version version-info bump-build retag retag-one verify
 
 # Default target
 .DEFAULT_GOAL := help
@@ -34,8 +34,8 @@ help:
 	@echo ""
 	@echo "$(GREEN)📦 Build Targets:$(NC)"
 	@echo "  make windows           - Build Windows portable (ZIP)"
-	@echo "  make windows-exe       - Build Windows EXE installer"
 	@echo "  make windows-msi       - Build Windows MSI installer"
+	@echo "  make windows-msix      - Build Windows MSIX package"
 	@echo "  make android           - Build Android APK"
 	@echo "  make android-aab       - Build Android AAB"
 	@echo "  make linux             - Build Linux"
@@ -164,41 +164,13 @@ build-windows-portable: deps
 	@echo "$(GREEN)Windows Portable build completed!$(NC)"
 	@echo "Output: $(BUILD_DIR)/windows/portable/CBFileHub-Portable.zip"
 
-# Build Windows EXE Installer
-build-windows-exe:
-	@bash scripts/build.sh windows-exe
-
 # Build Windows MSI Installer
-build-windows-msi: build-windows-portable
-	@echo "$(BLUE)Building Windows MSI Installer...$(NC)"
-	@mkdir -p $(BUILD_DIR)/windows/installer
-	@# Check for WiX v4+ (wix.exe) or v3 (candle.exe)
-	@if command -v wix.exe >/dev/null 2>&1; then \
-	echo "$(BLUE)Using WiX v4.0.5 (wix build)...$(NC)"; \
-	wix.exe build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-elif command -v wix >/dev/null 2>&1; then \
-	echo "$(BLUE)Using WiX v4.0.5 (wix build)...$(NC)"; \
-	wix build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-elif [ -f "/c/Program Files/WiX Toolset v4.0.5/bin/wix.exe" ]; then \
-	echo "$(BLUE)Using WiX v4.0.5 (wix build)...$(NC)"; \
-	"/c/Program Files/WiX Toolset v4.0.5/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-elif [ -f "/c/Program Files/WiX Toolset v4.0/bin/wix.exe" ]; then \
-	echo "$(BLUE)Using WiX v4.0 (wix build)...$(NC)"; \
-	"/c/Program Files/WiX Toolset v4.0/bin/wix.exe" build installer/windows/installer.wxs -d "SourceDir=$(BUILD_DIR)/windows/x64/runner/Release" -ext WixToolset.UI.wixext -o "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"; \
-elif command -v candle.exe >/dev/null 2>&1; then \
-		echo "$(BLUE)Using WiX v3 (candle/light)...$(NC)"; \
-		candle.exe -dSourceDir="$(BUILD_DIR)/windows/x64/runner/Release" -out "$(BUILD_DIR)/windows/installer/installer.wixobj" installer/windows/installer.wxs; \
-		light.exe -out "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi" "$(BUILD_DIR)/windows/installer/installer.wixobj" -ext WixUIExtension -sval; \
-	elif command -v candle >/dev/null 2>&1; then \
-		echo "$(BLUE)Using WiX v3 (candle/light)...$(NC)"; \
-		candle -dSourceDir="$(BUILD_DIR)/windows/x64/runner/Release" -out "$(BUILD_DIR)/windows/installer/installer.wixobj" installer/windows/installer.wxs; \
-		light -out "$(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi" "$(BUILD_DIR)/windows/installer/installer.wixobj" -ext WixUIExtension -sval; \
-	else \
-		echo "$(YELLOW)WiX Toolset not found. Install from: https://wixtoolset.org/releases/$(NC)"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)Windows MSI Installer build completed!$(NC)"
-	@echo "Output: $(BUILD_DIR)/windows/installer/CBFileHub-Setup.msi"
+build-windows-msi:
+	@bash scripts/build.sh windows-msi
+
+# Build Windows MSIX Package
+build-windows-msix:
+	@bash scripts/build.sh windows-msix
 
 # Build Android APK
 build-android-apk: clean deps
@@ -254,8 +226,8 @@ build-ios: clean deps
 build-all:
 	@echo "$(BLUE)Building for all platforms...$(NC)"
 	@$(MAKE) build-windows-portable || echo "$(YELLOW)Windows Portable build failed$(NC)"
-	@$(MAKE) build-windows-exe || echo "$(YELLOW)Windows EXE build failed$(NC)"
 	@$(MAKE) build-windows-msi || echo "$(YELLOW)Windows MSI build failed$(NC)"
+	@$(MAKE) build-windows-msix || echo "$(YELLOW)Windows MSIX build failed$(NC)"
 	@$(MAKE) build-android-apk || echo "$(YELLOW)Android APK build failed$(NC)"
 	@$(MAKE) build-android-aab || echo "$(YELLOW)Android AAB build failed$(NC)"
 	@$(MAKE) build-linux || echo "$(YELLOW)Linux build failed$(NC)"
@@ -267,8 +239,8 @@ build-all:
 
 # Quick build shortcuts
 windows: build-windows-portable
-windows-exe: build-windows-exe
 windows-msi: build-windows-msi
+windows-msix: build-windows-msix
 android: build-android-apk
 android-aab: build-android-aab
 linux: build-linux
@@ -283,15 +255,22 @@ retag:
 	if [ -n "$$CURRENT_VER" ]; then \
 		echo "$(BLUE)Last version: $$CURRENT_VER$(NC)"; \
 	fi; \
+	echo "$(YELLOW)Available git remotes:$(NC)"; \
+	git remote; \
+	echo "$(YELLOW)Enter remote to push to (default: origin):$(NC)"; \
+	read -r REMOTE; \
+	if [ -z "$$REMOTE" ]; then \
+		REMOTE=origin; \
+	fi; \
 	echo "$(YELLOW)Enter tag to retag (e.g. v1.2.3):$(NC)"; \
 	read -r TAG; \
 	if [ -z "$$TAG" ]; then \
 		echo "$(RED)Tag cannot be empty$(NC)"; \
 		exit 1; \
 	fi; \
-	echo "$(BLUE)Recreating annotated tag $$TAG and force-pushing...$(NC)"; \
+	echo "$(BLUE)Recreating annotated tag $$TAG and force-pushing to remote $$REMOTE...$(NC)"; \
 	git tag -f -a "$$TAG" -m "Rebuild $$TAG - auto-incremented build number"; \
-	git push origin "$$TAG" -f; \
+	git push "$$REMOTE" "$$TAG" -f; \
 	echo "$(GREEN)Done. CI will auto-increment build_number on each build.$(NC)"; \
 	echo "$(YELLOW)Monitor at: https://github.com/<owner>/<repo>/actions$(NC)"
 

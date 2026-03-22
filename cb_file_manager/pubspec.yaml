@@ -99,6 +99,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^2.0.0
   build_runner: ^2.4.6
+  msix: ^3.16.13
 
 # Ghi đè các phiên bản gói phụ thuộc để giải quyết xung đột
 dependency_overrides:
@@ -147,3 +148,14 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+
+msix_config:
+  display_name: CB File Hub
+  publisher_display_name: COOLBIRDZIK
+  identity_name: COOLBIRDZIK.CBFileHub
+  publisher: CN=COOLBIRDZIK
+  logo_path: assets/images/logo_circle.png
+  trim_logo: false
+  install_certificate: false
+  architecture: x64
+  capabilities: internetClient, privateNetworkClientServer
