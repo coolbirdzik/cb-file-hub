@@ -921,9 +921,9 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
                 currentPath: _displayPathForInput(_currentPath),
                 tabPath: _currentPath,
                 isNetworkPath: isNetworkPath,
-                canNavigateToParent: _navigationController
-                        .parentPathForUpButton(_currentPath) !=
-                    null,
+                canNavigateToParent:
+                    _navigationController.parentPathForUpButton(_currentPath) !=
+                        null,
                 onNavigateToParent: () {
                   _navigationController.navigateToParentFolder(
                     context,
@@ -980,9 +980,9 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
               currentPath: _displayPathForInput(_currentPath),
               tabPath: _currentPath,
               isNetworkPath: isNetworkPath, // Pass network flag
-              canNavigateToParent: _navigationController
-                      .parentPathForUpButton(_currentPath) !=
-                  null,
+              canNavigateToParent:
+                  _navigationController.parentPathForUpButton(_currentPath) !=
+                      null,
               onNavigateToParent: () {
                 _navigationController.navigateToParentFolder(
                   context,

@@ -2,25 +2,25 @@
 class SmbConnectionConfig {
   /// SMB server hostname or IP address
   final String host;
-  
+
   /// SMB server port (default: 445)
   final int port;
-  
+
   /// Username for authentication
   final String username;
-  
+
   /// Password for authentication
   final String password;
-  
+
   /// Domain name (optional)
   final String? domain;
-  
+
   /// Share name to connect to
   final String? shareName;
-  
+
   /// Connection timeout in milliseconds
   final int timeoutMs;
-  
+
   /// SMB protocol version (1, 2, or 3)
   final int smbVersion;
 

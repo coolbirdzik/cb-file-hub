@@ -38,7 +38,7 @@ class _MyHomePageState extends State<MyHomePage> {
   final _usernameController = TextEditingController(text: 'user');
   final _passwordController = TextEditingController(text: 'password');
   final _pathController = TextEditingController(text: '/');
-  
+
   final _smbService = SmbPlatformService.instance;
   bool _isConnected = false;
   bool _isLoading = false;
@@ -155,7 +155,8 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _downloadFile(SmbFile file) async {
     if (file.isDirectory) {
       // Navigate to directory
-      _pathController.text = '${_pathController.text}/${file.name}'.replaceAll('//', '/');
+      _pathController.text =
+          '${_pathController.text}/${file.name}'.replaceAll('//', '/');
       await _listDirectory();
       return;
     }
@@ -166,25 +167,27 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
-      final filePath = '${_pathController.text}/${file.name}'.replaceAll('//', '/');
+      final filePath =
+          '${_pathController.text}/${file.name}'.replaceAll('//', '/');
       final stream = _smbService.streamFileWithProgress(
         filePath,
         onProgress: (progress) {
           if (mounted) {
             setState(() {
               _downloadProgress = progress;
-              _status = 'Downloading ${file.name}... ${(progress * 100).toStringAsFixed(1)}%';
+              _status =
+                  'Downloading ${file.name}... ${(progress * 100).toStringAsFixed(1)}%';
             });
           }
         },
       );
-      
+
       final chunks = <int>[];
       await for (final chunk in stream) {
         chunks.addAll(chunk.data);
         // Progress is already updated via onProgress callback
       }
-      
+
       setState(() {
         _status = 'Download completed: ${chunks.length} bytes';
         _downloadProgress = 1.0;
@@ -220,9 +223,12 @@ class _MyHomePageState extends State<MyHomePage> {
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 8),
-                    Text('Platform: ${_platformStatus['platform'] ?? 'Unknown'}'),
-                    Text('Native Available: ${_platformStatus['nativeAvailable'] ?? false}'),
-                    Text('Support Level: ${_platformStatus['supportLevel'] ?? 'unknown'}'),
+                    Text(
+                        'Platform: ${_platformStatus['platform'] ?? 'Unknown'}'),
+                    Text(
+                        'Native Available: ${_platformStatus['nativeAvailable'] ?? false}'),
+                    Text(
+                        'Support Level: ${_platformStatus['supportLevel'] ?? 'unknown'}'),
                     if (!(_platformStatus['nativeAvailable'] ?? false))
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
@@ -247,7 +253,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     ),
                     TextField(
                       controller: _shareController,
-                      decoration: const InputDecoration(labelText: 'Share Name'),
+                      decoration:
+                          const InputDecoration(labelText: 'Share Name'),
                     ),
                     TextField(
                       controller: _usernameController,
@@ -263,8 +270,13 @@ class _MyHomePageState extends State<MyHomePage> {
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: (_isLoading || !(_platformStatus['nativeAvailable'] ?? false)) ? null : (_isConnected ? _disconnect : _connect),
-                            child: Text(_isConnected ? 'Disconnect' : 'Connect'),
+                            onPressed: (_isLoading ||
+                                    !(_platformStatus['nativeAvailable'] ??
+                                        false))
+                                ? null
+                                : (_isConnected ? _disconnect : _connect),
+                            child:
+                                Text(_isConnected ? 'Disconnect' : 'Connect'),
                           ),
                         ),
                       ],
@@ -273,7 +285,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ),
             ),
-            
+
             // Status and path
             Card(
               child: Padding(
@@ -290,12 +302,17 @@ class _MyHomePageState extends State<MyHomePage> {
                           Expanded(
                             child: TextField(
                               controller: _pathController,
-                              decoration: const InputDecoration(labelText: 'Path'),
+                              decoration:
+                                  const InputDecoration(labelText: 'Path'),
                             ),
                           ),
                           IconButton(
-                            onPressed: (_platformStatus['nativeAvailable'] ?? false) ? _listDirectory : null,
-                            icon: const Icon(PhosphorIconsRegular.arrowsClockwise),
+                            onPressed:
+                                (_platformStatus['nativeAvailable'] ?? false)
+                                    ? _listDirectory
+                                    : null,
+                            icon: const Icon(
+                                PhosphorIconsRegular.arrowsClockwise),
                           ),
                         ],
                       ),
@@ -304,7 +321,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               ),
             ),
-            
+
             // File list
             if (_isConnected)
               Expanded(
@@ -315,15 +332,19 @@ class _MyHomePageState extends State<MyHomePage> {
                       final file = _files[index];
                       return ListTile(
                         leading: Icon(
-                          file.isDirectory ? PhosphorIconsRegular.folder : PhosphorIconsRegular.file,
+                          file.isDirectory
+                              ? PhosphorIconsRegular.folder
+                              : PhosphorIconsRegular.file,
                         ),
                         title: Text(file.name),
                         subtitle: Text(
-                          file.isDirectory 
-                              ? 'Directory' 
+                          file.isDirectory
+                              ? 'Directory'
                               : '${file.size} bytes - ${file.lastModified}',
                         ),
-                        onTap: (_platformStatus['nativeAvailable'] ?? false) ? () => _downloadFile(file) : null,
+                        onTap: (_platformStatus['nativeAvailable'] ?? false)
+                            ? () => _downloadFile(file)
+                            : null,
                       );
                     },
                   ),

@@ -2,22 +2,22 @@
 class SmbFile {
   /// The name of the file or directory
   final String name;
-  
+
   /// The full path of the file or directory
   final String path;
-  
+
   /// Whether this is a directory
   final bool isDirectory;
-  
+
   /// File size in bytes (0 for directories)
   final int size;
-  
+
   /// Last modified timestamp
   final DateTime? lastModified;
-  
+
   /// Whether the file is hidden
   final bool isHidden;
-  
+
   /// File permissions (if available)
   final String? permissions;
 
@@ -38,7 +38,7 @@ class SmbFile {
       path: map['path'] as String,
       isDirectory: map['isDirectory'] as bool,
       size: map['size'] as int,
-      lastModified: map['lastModified'] != null 
+      lastModified: map['lastModified'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['lastModified'] as int)
           : null,
       isHidden: map['isHidden'] as bool? ?? false,
@@ -76,9 +76,6 @@ class SmbFile {
 
   @override
   int get hashCode {
-    return name.hashCode ^
-        path.hashCode ^
-        isDirectory.hashCode ^
-        size.hashCode;
+    return name.hashCode ^ path.hashCode ^ isDirectory.hashCode ^ size.hashCode;
   }
 }

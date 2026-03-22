@@ -32,8 +32,7 @@ String? computeParentPathRaw(String path) {
     return parts.sublist(0, parts.length - 1).join('/');
   }
   try {
-    final normalized =
-        Platform.isWindows ? path.replaceAll('/', r'\') : path;
+    final normalized = Platform.isWindows ? path.replaceAll('/', r'\') : path;
     final parentPath = Directory(normalized).parent.path;
     final same = Platform.isWindows
         ? parentPath.toLowerCase() == normalized.toLowerCase()

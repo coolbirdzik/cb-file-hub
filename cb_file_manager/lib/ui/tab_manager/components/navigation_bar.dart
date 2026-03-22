@@ -12,8 +12,10 @@ class PathNavigationBar extends StatefulWidget {
   final String tabId;
   final TextEditingController pathController;
   final Function(String) onPathSubmitted;
+
   /// Path shown in the bar (e.g. empty when at drives view).
   final String currentPath;
+
   /// Logical tab path for Up navigation (e.g. `#drives`, `H:\\folder`, `#network/...`).
   final String tabPath;
   final bool isNetworkPath;
@@ -93,9 +95,8 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
         if (widget.onNavigateToParent != null)
           IconButton(
             icon: const Icon(PhosphorIconsLight.arrowUp),
-            onPressed: widget.canNavigateToParent
-                ? widget.onNavigateToParent
-                : null,
+            onPressed:
+                widget.canNavigateToParent ? widget.onNavigateToParent : null,
             tooltip: AppLocalizations.of(context)!.parentFolder,
           ),
 
