@@ -1043,14 +1043,14 @@ class VietnameseLocalizations implements AppLocalizations {
   String get viewTagSuggestions => 'Xem gợi ý tag';
 
   @override
-  String get globalSearchModeEnabled => 'Đã chuyển sang tìm kiếm toàn cục';
+  String get globalSearchModeEnabled => 'Đã chuyển sang tìm trong thư mục con';
 
   @override
   String get localSearchModeEnabled =>
       'Đã chuyển sang tìm kiếm thư mục hiện tại';
 
   @override
-  String get globalSearchMode => 'Đang tìm kiếm toàn cục (nhấn để chuyển)';
+  String get globalSearchMode => 'Đang tìm trong thư mục con (nhấn để chuyển)';
 
   @override
   String get localSearchMode =>
@@ -1066,7 +1066,7 @@ class VietnameseLocalizations implements AppLocalizations {
   String get searchMultipleTags => 'Tìm nhiều tag';
 
   @override
-  String get globalSearch => 'Tìm kiếm toàn cục';
+  String get globalSearch => 'Tìm trong thư mục con';
 
   @override
   String get searchByNameOrTag => 'Tìm theo tên hoặc #tag';
@@ -1078,13 +1078,23 @@ class VietnameseLocalizations implements AppLocalizations {
   String get featureNotImplemented => 'Tính năng sẽ được thêm sau';
 
   @override
-  String get searchInAllFolders => 'Tìm trong tất cả thư mục';
+  String get searchInAllFolders =>
+      'Tìm trong thư mục hiện tại và các thư mục con';
 
   @override
   String get searchInCurrentFolder => 'Chỉ tìm trong thư mục hiện tại';
 
   @override
   String get searchShortcuts => 'Phím tắt';
+
+  @override
+  String get regexMode => 'Chế độ Regex';
+
+  @override
+  String get regexModeEnabled => 'Đã bật chế độ Regex';
+
+  @override
+  String get regexModeDisabled => 'Đã tắt chế độ Regex';
 
   @override
   String get searchHintText => 'Tìm kiếm tệp hoặc dùng # để tìm theo tag';
@@ -1137,7 +1147,17 @@ class VietnameseLocalizations implements AppLocalizations {
 
   @override
   String get globalSearchDesc =>
-      'Bấm vào biểu tượng thư mục/toàn cầu để chuyển đổi giữa tìm kiếm thư mục hiện tại và toàn hệ thống.';
+      'Bấm vào biểu tượng thư mục/toàn cầu để chuyển giữa chỉ tìm trong thư mục hiện tại và tìm cả các thư mục con.';
+
+  @override
+  String get regexSearchDesc =>
+      'Bật chế độ Regex ({ }) để khớp tên bằng biểu thức chính quy.\n'
+      'Ví dụ cơ bản:\n'
+      '• Bắt đầu bằng "img_": ^img_.*\n'
+      '• Kết thúc bằng .mp4: .*\\.mp4\$\n'
+      '• Chứa "invoice": .*invoice.*\n'
+      '• Đúng 4 chữ số: ^\\d{4}\$\n'
+      '• File report theo năm: ^report_\\d{4}\\.pdf\$';
 
   @override
   String get searchShortcutsDesc =>

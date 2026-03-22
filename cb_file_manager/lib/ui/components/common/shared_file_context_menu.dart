@@ -886,10 +886,12 @@ void _showFileContextMenuDesktop({
       Rect.fromPoints(globalPosition, globalPosition),
       Offset.zero & overlay.size,
     );
+    final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
 
     showMenu<String>(
       context: context,
       position: position,
+      color: menuColor,
       items: [
         if (isVideo)
           PopupMenuItem(
@@ -1260,10 +1262,12 @@ void _showFolderContextMenuDesktop({
       Offset.zero & overlay.size,
     );
     final l10n = AppLocalizations.of(context)!;
+    final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
 
     showMenu<String>(
       context: context,
       position: position,
+      color: menuColor,
       items: [
         PopupMenuItem(
           value: 'open',
@@ -1591,10 +1595,12 @@ void showMultipleFilesContextMenu({
 
   final l10n = AppLocalizations.of(context)!;
   final count = selectedPaths.length;
+  final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
 
   showMenu<String>(
     context: context,
     position: position,
+    color: menuColor,
     items: [
       PopupMenuItem(
         enabled: false,

@@ -38,6 +38,7 @@ class _SearchBarState extends State<SearchBar> {
   bool _isSearchingTags = false;
   List<String> _suggestedTags = [];
   bool _isGlobalSearch = false;
+  bool _useRegex = false;
 
   // Biến để lưu trữ overlay entry
   OverlayEntry? _overlayEntry;
@@ -186,7 +187,7 @@ class _SearchBarState extends State<SearchBar> {
           child: Material(
             elevation: 0,
             borderRadius: BorderRadius.circular(16),
-            color: Colors.transparent,
+            color: isDark ? Colors.grey[850] : theme.colorScheme.surface,
             child: Container(
               decoration: BoxDecoration(
                 color: isDark ? Colors.grey[850] : theme.colorScheme.surface,
@@ -264,7 +265,6 @@ class _SearchBarState extends State<SearchBar> {
                                 child: Container(
                                   color: isSelected
                                       ? theme.colorScheme.primaryContainer
-                                          .withValues(alpha: 0.5)
                                       : Colors.transparent,
                                   padding: const EdgeInsets.symmetric(
                                       vertical: 8.0, horizontal: 16.0),
@@ -409,7 +409,8 @@ class _SearchBarState extends State<SearchBar> {
 
       // Show a message with the tags being searched
       String tagListStr = tags.map((t) => '"$t"').join(', ');
-      ScaffoldMessenger.of(context).showSnackBar(
+      final messenger = ScaffoldMessenger.maybeOf(context);
+      messenger?.showSnackBar(
         SnackBar(
           content: Row(
             children: [
@@ -454,7 +455,13 @@ class _SearchBarState extends State<SearchBar> {
       }
     } else {
       // Tìm kiếm theo tên file
-      folderListBloc.add(SearchByFileName(query));
+      folderListBloc.add(
+        SearchByFileName(
+          query,
+          recursive: _isGlobalSearch,
+          useRegex: _useRegex,
+        ),
+      );
     }
   }
 
@@ -517,6 +524,17 @@ class _SearchBarState extends State<SearchBar> {
             child: Focus(
               // Bắt sự kiện phím mũi tên và ngăn chặn nó lan truyền
               onKeyEvent: (FocusNode node, KeyEvent event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.escape) {
+                  // ESC closes tag suggestions first, then closes search mode.
+                  if (_overlayEntry != null) {
+                    _removeOverlay();
+                  } else {
+                    widget.onCloseSearch();
+                  }
+                  return KeyEventResult.handled;
+                }
+
                 if (_overlayEntry != null &&
                     _currentTags.isNotEmpty &&
                     _isSearchingTags) {
@@ -547,10 +565,6 @@ class _SearchBarState extends State<SearchBar> {
                         _selectedTagIndex >= 0) {
                       // Chọn tag hiện tại khi nhấn Enter hoặc Tab
                       _applySelectedTag(_currentTags[_selectedTagIndex]);
-                      _removeOverlay();
-                      return KeyEventResult.handled;
-                    } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-                      // Đóng overlay khi nhấn ESC
                       _removeOverlay();
                       return KeyEventResult.handled;
                     }
@@ -643,7 +657,8 @@ class _SearchBarState extends State<SearchBar> {
                   _isGlobalSearch = !_isGlobalSearch;
                 });
                 // Hiển thị snackbar ngắn khi chuyển chế độ
-                ScaffoldMessenger.of(context).showSnackBar(
+                final messenger = ScaffoldMessenger.maybeOf(context);
+                messenger?.showSnackBar(
                   SnackBar(
                     content: Text(_isGlobalSearch
                         ? AppLocalizations.of(context)!.globalSearchModeEnabled
@@ -683,6 +698,47 @@ class _SearchBarState extends State<SearchBar> {
               ),
             ),
           ),
+          // Regex toggle button - only for filename search
+          if (!_isSearchingTags)
+            Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  setState(() {
+                    _useRegex = !_useRegex;
+                  });
+                  final messenger = ScaffoldMessenger.maybeOf(context);
+                  messenger?.showSnackBar(
+                    SnackBar(
+                      content: Text(_useRegex
+                          ? AppLocalizations.of(context)!.regexModeEnabled
+                          : AppLocalizations.of(context)!.regexModeDisabled),
+                      duration: const Duration(milliseconds: 1000),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16.0),
+                      ),
+                      margin: const EdgeInsets.all(8),
+                    ),
+                  );
+                },
+                child: Tooltip(
+                  message: AppLocalizations.of(context)!.regexMode,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    child: Icon(
+                      PhosphorIconsLight.bracketsCurly,
+                      color: _useRegex
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.onSurfaceVariant,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           // Search button
           Material(
             color: Colors.transparent,

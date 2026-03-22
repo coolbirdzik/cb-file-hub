@@ -468,10 +468,12 @@ class _DriveViewState extends State<DriveView> {
     );
     final canShowShellMenu = Platform.isWindows &&
         FileSystemEntity.typeSync(drive.path) != FileSystemEntityType.notFound;
+    final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
 
     final selected = await showMenu<String>(
       context: context,
       position: position,
+      color: menuColor,
       items: <PopupMenuEntry<String>>[
         PopupMenuItem(
           value: 'open',

@@ -339,6 +339,7 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
       pathController: _pathController,
       onPathSubmitted: (_) => _syncPathField(currentPath),
       currentPath: currentPath,
+      tabPath: currentPath,
       isNetworkPath: false,
     );
   }

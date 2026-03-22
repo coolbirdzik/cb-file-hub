@@ -92,11 +92,16 @@ class SearchByMultipleTagsGlobally extends FolderListEvent {
 class SearchByFileName extends FolderListEvent {
   final String query;
   final bool recursive;
+  final bool useRegex;
 
-  const SearchByFileName(this.query, {this.recursive = false});
+  const SearchByFileName(
+    this.query, {
+    this.recursive = false,
+    this.useRegex = false,
+  });
 
   @override
-  List<Object> get props => [query, recursive];
+  List<Object> get props => [query, recursive, useRegex];
 }
 
 class SearchMediaFiles extends FolderListEvent {

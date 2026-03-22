@@ -672,6 +672,9 @@ abstract class AppLocalizations {
   String get searchInAllFolders;
   String get searchInCurrentFolder;
   String get searchShortcuts;
+  String get regexMode;
+  String get regexModeEnabled;
+  String get regexModeDisabled;
   String get searchHintText;
   String get searchHintTextTags;
   String get suggestedTags;
@@ -687,6 +690,7 @@ abstract class AppLocalizations {
   String get searchByTagsDesc;
   String get searchMultipleTagsDesc;
   String get globalSearchDesc;
+  String get regexSearchDesc;
   String get searchShortcutsDesc;
 
   // Permissions

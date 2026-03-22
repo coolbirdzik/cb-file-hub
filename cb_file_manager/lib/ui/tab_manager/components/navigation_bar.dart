@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/tab_manager.dart';
 import '../../../config/theme_config.dart';
+import '../../../config/languages/app_localizations.dart';
 import 'address_bar_menu.dart';
 import 'path_autocomplete_text_field.dart';
 
@@ -11,9 +12,14 @@ class PathNavigationBar extends StatefulWidget {
   final String tabId;
   final TextEditingController pathController;
   final Function(String) onPathSubmitted;
+  /// Path shown in the bar (e.g. empty when at drives view).
   final String currentPath;
+  /// Logical tab path for Up navigation (e.g. `#drives`, `H:\\folder`, `#network/...`).
+  final String tabPath;
   final bool isNetworkPath;
   final List<AddressBarMenuItem>? menuItems;
+  final bool canNavigateToParent;
+  final VoidCallback? onNavigateToParent;
 
   const PathNavigationBar({
     Key? key,
@@ -21,8 +27,11 @@ class PathNavigationBar extends StatefulWidget {
     required this.pathController,
     required this.onPathSubmitted,
     required this.currentPath,
+    required this.tabPath,
     this.isNetworkPath = false,
     this.menuItems,
+    this.canNavigateToParent = false,
+    this.onNavigateToParent,
   }) : super(key: key);
 
   @override
@@ -81,6 +90,14 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
               : null,
           tooltip: 'Go forward',
         ),
+        if (widget.onNavigateToParent != null)
+          IconButton(
+            icon: const Icon(PhosphorIconsLight.arrowUp),
+            onPressed: widget.canNavigateToParent
+                ? widget.onNavigateToParent
+                : null,
+            tooltip: AppLocalizations.of(context)!.parentFolder,
+          ),
 
         // Special display for network paths
         if (widget.isNetworkPath) ...[

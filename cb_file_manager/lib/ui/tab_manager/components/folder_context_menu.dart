@@ -48,10 +48,12 @@ class FolderContextMenu {
       Rect.fromPoints(globalPosition, globalPosition),
       Offset.zero & overlay.size,
     );
+    final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
 
     await showMenu<String>(
       context: context,
       position: position,
+      color: menuColor,
       items: <PopupMenuEntry<String>>[
         _buildSubmenuPopupMenuItem(
           context: context,
@@ -233,7 +235,7 @@ class FolderContextMenu {
         width: subMenuWidth,
         child: Material(
           elevation: 0,
-          color: Theme.of(anchorContext).canvasColor,
+          color: Theme.of(anchorContext).colorScheme.surface.withAlpha(255),
           shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(8.0))),
           child: ConstrainedBox(

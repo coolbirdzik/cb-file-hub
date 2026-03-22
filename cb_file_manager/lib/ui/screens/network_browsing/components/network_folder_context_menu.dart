@@ -16,6 +16,7 @@ class NetworkFolderContextMenu {
       context,
     ).context.findRenderObject();
     final RenderBox overlay = renderObject as RenderBox;
+    final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
 
     showMenu(
       context: context,
@@ -47,6 +48,7 @@ class NetworkFolderContextMenu {
           ),
         ),
       ],
+      color: menuColor,
       elevation: 0,
     );
   }

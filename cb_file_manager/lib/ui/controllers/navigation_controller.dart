@@ -11,6 +11,42 @@ import 'package:cb_file_manager/ui/tab_manager/core/tab_data.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tab_paths.dart';
 import 'package:cb_file_manager/helpers/core/uri_utils.dart';
 
+/// Resolves the filesystem / virtual parent of [path] for "Up" navigation.
+/// Returns [kDrivesPath] when already at a volume root (e.g. `H:\`).
+/// Returns `null` when there is no parent (drives view, settings, search paths, etc.).
+String? computeParentPathRaw(String path) {
+  if (path.isEmpty || isDrivesPath(path) || isSettingsPath(path)) {
+    return null;
+  }
+  if (path.startsWith('#search')) {
+    return null;
+  }
+  if (path.startsWith('#') && !path.startsWith('#network/')) {
+    return null;
+  }
+  if (path.startsWith('#network/')) {
+    final parts = path.split('/');
+    if (parts.length <= 3) {
+      return null;
+    }
+    return parts.sublist(0, parts.length - 1).join('/');
+  }
+  try {
+    final normalized =
+        Platform.isWindows ? path.replaceAll('/', r'\') : path;
+    final parentPath = Directory(normalized).parent.path;
+    final same = Platform.isWindows
+        ? parentPath.toLowerCase() == normalized.toLowerCase()
+        : parentPath == normalized;
+    if (same) {
+      return kDrivesPath;
+    }
+    return parentPath;
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Controller for handling navigation operations in tabbed folder screens
 class NavigationController {
   final String tabId;
@@ -33,6 +69,30 @@ class NavigationController {
     if (isDrivesPath(trimmed)) return;
     if (trimmed.startsWith('#')) return;
     unawaited(UserPreferences.instance.addRecentPath(trimmed));
+  }
+
+  /// Parent path for the Up button, accounting for active in-folder search.
+  String? parentPathForUpButton(String tabPath) {
+    var pathForParent = tabPath;
+    final state = folderListBloc.state;
+    if (state.isSearchActive && !tabPath.startsWith('#')) {
+      pathForParent = state.currentPath.path;
+    } else if (state.isSearchActive && tabPath.startsWith('#search')) {
+      return null;
+    }
+    return computeParentPathRaw(pathForParent);
+  }
+
+  /// Navigate to parent folder (address bar Up). No-op if no parent.
+  void navigateToParentFolder(
+    BuildContext context,
+    String tabPath,
+    TextEditingController pathController,
+    Function(String) clearKeyboardFocus,
+  ) {
+    final parent = parentPathForUpButton(tabPath);
+    if (parent == null) return;
+    navigateToPath(context, parent, pathController, clearKeyboardFocus);
   }
 
   /// Navigate to a specific path
@@ -80,13 +140,15 @@ class NavigationController {
     onSaveLastAccessedFolder();
 
     // Update the tab name based on the new path
-    final pathParts = path.split(Platform.pathSeparator);
-    final lastPart = pathParts.lastWhere((part) => part.isNotEmpty,
-        orElse: () => l10n.rootFolder);
-    final tabName = lastPart.isEmpty ? l10n.rootFolder : lastPart;
-
-    // Update tab name if needed
-    tabManagerBloc.add(UpdateTabName(tabId, tabName));
+    if (isDrivesPath(path)) {
+      tabManagerBloc.add(UpdateTabName(tabId, l10n.drivesTab));
+    } else {
+      final pathParts = path.split(Platform.pathSeparator);
+      final lastPart = pathParts.lastWhere((part) => part.isNotEmpty,
+          orElse: () => l10n.rootFolder);
+      final tabName = lastPart.isEmpty ? l10n.rootFolder : lastPart;
+      tabManagerBloc.add(UpdateTabName(tabId, tabName));
+    }
 
     // Notify path changed
     onPathChanged(path);

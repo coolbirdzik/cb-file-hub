@@ -919,7 +919,19 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
                 pathController: _pathController,
                 onPathSubmitted: _handlePathSubmit,
                 currentPath: _displayPathForInput(_currentPath),
+                tabPath: _currentPath,
                 isNetworkPath: isNetworkPath,
+                canNavigateToParent: _navigationController
+                        .parentPathForUpButton(_currentPath) !=
+                    null,
+                onNavigateToParent: () {
+                  _navigationController.navigateToParentFolder(
+                    context,
+                    _currentPath,
+                    _pathController,
+                    (p) => _keyboardController.clearFocus(),
+                  );
+                },
               );
         final newData = SplitPaneAppBarData(
           titleWidget: titleWidget,
@@ -966,7 +978,19 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
               pathController: _pathController,
               onPathSubmitted: _handlePathSubmit,
               currentPath: _displayPathForInput(_currentPath),
+              tabPath: _currentPath,
               isNetworkPath: isNetworkPath, // Pass network flag
+              canNavigateToParent: _navigationController
+                      .parentPathForUpButton(_currentPath) !=
+                  null,
+              onNavigateToParent: () {
+                _navigationController.navigateToParentFolder(
+                  context,
+                  _currentPath,
+                  _pathController,
+                  (p) => _keyboardController.clearFocus(),
+                );
+              },
             ),
             actions: _getAppBarActions(),
           ),

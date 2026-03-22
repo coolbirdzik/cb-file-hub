@@ -254,6 +254,7 @@ class _PathAutocompleteTextFieldState extends State<PathAutocompleteTextField> {
         final size = renderBox?.size ?? Size.zero;
 
         final theme = Theme.of(context);
+        final overlayBackgroundColor = theme.colorScheme.surface.withAlpha(255);
 
         return Positioned(
           width: size.width,
@@ -264,11 +265,12 @@ class _PathAutocompleteTextFieldState extends State<PathAutocompleteTextField> {
             child: Material(
               elevation: 0,
               borderRadius: BorderRadius.circular(16.0),
-              color: theme.colorScheme.surface,
+              color: overlayBackgroundColor,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 320),
                 child: DecoratedBox(
                   decoration: BoxDecoration(
+                    color: overlayBackgroundColor,
                     borderRadius: BorderRadius.circular(16.0),
                   ),
                   child: ListView.builder(

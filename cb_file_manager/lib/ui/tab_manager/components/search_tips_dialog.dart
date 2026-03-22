@@ -48,6 +48,12 @@ Future<void> showSearchTipsDialog(BuildContext context) async {
             ),
             const Divider(),
             _SearchTipItem(
+              icon: PhosphorIconsLight.bracketsCurly,
+              title: l10n.regexMode,
+              description: l10n.regexSearchDesc,
+            ),
+            const Divider(),
+            _SearchTipItem(
               icon: PhosphorIconsLight.list,
               title: l10n.searchShortcuts,
               description: l10n.searchShortcutsDesc,

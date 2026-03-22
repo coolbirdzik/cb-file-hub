@@ -1022,13 +1022,13 @@ class EnglishLocalizations implements AppLocalizations {
   String get viewTagSuggestions => 'View tag suggestions';
 
   @override
-  String get globalSearchModeEnabled => 'Switched to global search';
+  String get globalSearchModeEnabled => 'Switched to subfolder search';
 
   @override
   String get localSearchModeEnabled => 'Switched to current folder search';
 
   @override
-  String get globalSearchMode => 'Searching globally (tap to switch)';
+  String get globalSearchMode => 'Searching in subfolders (tap to switch)';
 
   @override
   String get localSearchMode => 'Searching current folder (tap to switch)';
@@ -1043,7 +1043,7 @@ class EnglishLocalizations implements AppLocalizations {
   String get searchMultipleTags => 'Search multiple tags';
 
   @override
-  String get globalSearch => 'Global search';
+  String get globalSearch => 'Subfolder search';
 
   @override
   String get searchByNameOrTag => 'Search by name or #tag';
@@ -1055,13 +1055,22 @@ class EnglishLocalizations implements AppLocalizations {
   String get featureNotImplemented => 'This feature will be added soon';
 
   @override
-  String get searchInAllFolders => 'Search in all folders';
+  String get searchInAllFolders => 'Search in current folder and subfolders';
 
   @override
   String get searchInCurrentFolder => 'Search in current folder only';
 
   @override
   String get searchShortcuts => 'Shortcuts';
+
+  @override
+  String get regexMode => 'Regex mode';
+
+  @override
+  String get regexModeEnabled => 'Regex mode enabled';
+
+  @override
+  String get regexModeDisabled => 'Regex mode disabled';
 
   @override
   String get searchHintText => 'Search files or use # to search by tags';
@@ -1114,7 +1123,17 @@ class EnglishLocalizations implements AppLocalizations {
 
   @override
   String get globalSearchDesc =>
-      'Click on the folder/globe icon to toggle between searching the current folder and the entire system.';
+      'Click on the folder/globe icon to toggle between searching only the current folder and searching including subfolders.';
+
+  @override
+  String get regexSearchDesc =>
+      'Enable regex mode ({ }) to match names with regular expressions.\n'
+      'Basic examples:\n'
+      '• Starts with "img_": ^img_.*\n'
+      '• Ends with .mp4: .*\\.mp4\$\n'
+      '• Contains "invoice": .*invoice.*\n'
+      '• Exactly 4 digits: ^\\d{4}\$\n'
+      '• Report with year: ^report_\\d{4}\\.pdf\$';
 
   @override
   String get searchShortcutsDesc =>

@@ -1702,6 +1702,22 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
 
     try {
       final String query = event.query.toLowerCase();
+      RegExp? regexPattern;
+      if (event.useRegex) {
+        try {
+          regexPattern = RegExp(
+            event.query,
+            caseSensitive: false,
+            unicode: true,
+          );
+        } on FormatException catch (e) {
+          emit(state.copyWith(
+            isLoading: false,
+            error: 'Invalid regex pattern: ${e.message}',
+          ));
+          return;
+        }
+      }
       final List<FileSystemEntity> searchResults = [];
 
       if (event.recursive) {
@@ -1731,6 +1747,7 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
                   '🔍 Scanned: $scannedCount, Matched: $matchedCount, Errors: $errorCount');
             }
           },
+          regexPattern,
         );
 
         debugPrint(
@@ -1743,8 +1760,10 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
         // Search in files
         for (var file in allFiles) {
           final fileName = pathlib.basename(file.path);
-          // Use Vietnamese normalization for matching
-          if (TextUtils.matchesVietnamese(fileName, query)) {
+          final bool isMatch = regexPattern != null
+              ? regexPattern.hasMatch(fileName)
+              : TextUtils.matchesVietnamese(fileName, query);
+          if (isMatch) {
             searchResults.add(file);
           }
         }
@@ -1752,8 +1771,10 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
         // Search in folders
         for (var folder in allFolders) {
           final folderName = pathlib.basename(folder.path);
-          // Use Vietnamese normalization for matching
-          if (TextUtils.matchesVietnamese(folderName, query)) {
+          final bool isMatch = regexPattern != null
+              ? regexPattern.hasMatch(folderName)
+              : TextUtils.matchesVietnamese(folderName, query);
+          if (isMatch) {
             searchResults.add(folder);
           }
         }
@@ -1790,6 +1811,7 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
     String query,
     List<FileSystemEntity> results,
     Function(int scanned, int matched, int errors) onProgress,
+    RegExp? regexPattern,
   ) async {
     int scannedCount = 0;
     int matchedCount = 0;
@@ -1803,8 +1825,10 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
 
           final entityName = pathlib.basename(entity.path);
 
-          // Check if entity matches query
-          if (TextUtils.matchesVietnamese(entityName, query)) {
+          final bool isMatch = regexPattern != null
+              ? regexPattern.hasMatch(entityName)
+              : TextUtils.matchesVietnamese(entityName, query);
+          if (isMatch) {
             results.add(entity);
             matchedCount++;
             debugPrint('✅ Match found: ${entity.path}');
@@ -1818,7 +1842,7 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
                 matchedCount += m;
                 errorCount += e;
                 onProgress(scannedCount, matchedCount, errorCount);
-              });
+              }, regexPattern);
             } catch (e) {
               // Skip directories that cause errors
               errorCount++;
