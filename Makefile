@@ -2,7 +2,7 @@
 # Cross-platform build system for Flutter application
 # Works on: Windows (Git Bash/WSL/MinGW), Linux, macOS
 
-.PHONY: help clean deep-clean deps build-windows-portable build-windows-exe build-windows-msi build-android-apk build-android-aab build-linux build-macos build-ios build-all test analyze format doctor release version version-info bump-build retag retag-one
+.PHONY: help clean deep-clean deps build-windows-portable build-windows-exe build-windows-msi build-android-apk build-android-aab build-linux build-macos build-ios build-all test analyze format doctor release version version-info bump-build retag retag-one verify
 
 # Default target
 .DEFAULT_GOAL := help
@@ -53,6 +53,7 @@ help:
 	@echo "  make doctor            - Run flutter doctor"
 	@echo ""
 	@echo "$(GREEN)🚀 Release:$(NC)"
+	@echo "  make verify           - Run format + analyze check"
 	@echo "  make release-patch     - Create patch release (x.x.X)"
 	@echo "  make release-minor     - Create minor release (x.X.0)"
 	@echo "  make release-major     - Create major release (X.0.0)"
@@ -344,15 +345,24 @@ update-version:
 
 # Bump build number only (used by CI, and locally before manual build)
 bump-build:
+	@make verify
 	@echo "$(BLUE)Bumping build number...$(NC)"
 	@bash scripts/version.sh bump
 	@git add $(PUBSPEC)
 	@git commit -m "chore: bump build number to $$(bash scripts/version.sh build)" || echo "$(YELLOW)Nothing to commit$(NC)"
 	@echo "$(GREEN)Build number updated$(NC)"
 
+# Verify code quality (format + analyze) — used by release and bump-build targets
+verify:
+	@echo "$(BLUE)Running code verification...$(NC)"
+	@cd $(PROJECT_DIR) && dart format --output=none --set-exit-if-changed . || (echo "$(RED)Format check failed. Run 'make format' and commit changes.$(NC)"; exit 1)
+	@cd $(PROJECT_DIR) && $(FLUTTER) analyze || (echo "$(RED)Analyze check failed. Fix warnings/errors and commit.$(NC)"; exit 1)
+	@echo "$(GREEN)Code verification passed!$(NC)"
+
 # Release targets — bump version first, then tag
 # Tag push triggers CI which auto-bumps build_number per build
 release-patch:
+	@make verify
 	@NEW_VER=$$(make -s next-patch); \
 	echo "$(BLUE)Creating patch release: $$NEW_VER$(NC)"; \
 	make update-version NEW_VERSION=$$NEW_VER; \
@@ -364,6 +374,7 @@ release-patch:
 	echo "$(YELLOW)CI will auto-increment build_number on each build$(NC)"
 
 release-minor:
+	@make verify
 	@NEW_VER=$$(make -s next-minor); \
 	echo "$(BLUE)Creating minor release: $$NEW_VER$(NC)"; \
 	make update-version NEW_VERSION=$$NEW_VER; \
@@ -375,6 +386,7 @@ release-minor:
 	echo "$(YELLOW)CI will auto-increment build_number on each build$(NC)"
 
 release-major:
+	@make verify
 	@NEW_VER=$$(make -s next-major); \
 	echo "$(BLUE)Creating major release: $$NEW_VER$(NC)"; \
 	make update-version NEW_VERSION=$$NEW_VER; \

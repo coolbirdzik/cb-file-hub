@@ -28,6 +28,9 @@ make release-major  # bump {X+1}.0.0
 git push origin main && git push origin v1.2.3
 ```
 
+> **Note:** `make release-*` automatically runs `make verify` first (`dart format` + `flutter analyze`).
+> If code checks fail, the release is blocked until fixed.
+
 CI will automatically:
 1. Validate the tag matches `pubspec.yaml` version.
 2. Increment the build number (`+1`, `+2`, ...).
@@ -46,10 +49,16 @@ make version        # shows: 1.2.3+5
 make version-info   # shows version_name, build_number separately
 ```
 
+### Verify code before commit
+
+```bash
+make verify          # dart format + flutter analyze
+```
+
 ### Bump build number manually
 
 ```bash
-make bump-build      # bumps +5 → +6, commits to git
+make bump-build      # runs verify, bumps +5 → +6, commits to git
 ```
 
 ### Update version name (creates new release point)
@@ -166,11 +175,12 @@ v1.2.3 push #3 → build_number: +4  (beta 3)
 |---|---|
 | `make version` | Show current full version |
 | `make version-info` | Show version name + build number separately |
-| `make bump-build` | Increment build number only, commit to git |
+| `make verify` | Run `dart format` + `flutter analyze` |
+| `make bump-build` | Run verify, increment build number, commit to git |
 | `make update-version NEW_VERSION=x.y.z` | Set new version name (resets build_number to +1) |
-| `make release-patch` | Bump patch, create tag, commit |
-| `make release-minor` | Bump minor, create tag, commit |
-| `make release-major` | Bump major, create tag, commit |
+| `make release-patch` | Run verify, bump patch, create tag, commit |
+| `make release-minor` | Run verify, bump minor, create tag, commit |
+| `make release-major` | Run verify, bump major, create tag, commit |
 | `make retag` | Interactive — push existing tag to trigger CI rebuild |
 | `make retag-one TAG=v1.2.3` | One-liner — push tag without prompting |
 
