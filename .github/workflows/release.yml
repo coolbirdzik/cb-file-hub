@@ -282,6 +282,7 @@ jobs:
   build-windows-msix:
     runs-on: windows-latest
     needs: generate-release-notes
+    environment: Production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
