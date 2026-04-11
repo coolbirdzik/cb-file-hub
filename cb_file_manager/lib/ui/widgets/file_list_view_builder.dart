@@ -184,6 +184,7 @@ class FileListViewBuilder {
     ValueChanged<int?>? onGridCrossAxisCountChanged,
   }) {
     return Stack(
+      key: dragSelectionController.stackKey,
       clipBehavior: Clip.none,
       children: [
         FluentBackground(
@@ -201,6 +202,12 @@ class FileListViewBuilder {
                 onSecondaryTapUp: (details) {
                   showContextMenu(context, details.globalPosition);
                 },
+                onLongPressStart: !isDesktopPlatform
+                    ? (details) {
+                        HapticFeedback.mediumImpact();
+                        showContextMenu(context, details.globalPosition);
+                      }
+                    : null,
                 onPanStart: isDesktopPlatform
                     ? (details) {
                         // Don't start drag selection if user is editing text (inline rename)
@@ -375,36 +382,21 @@ class FileListViewBuilder {
                                           width: itemWidth,
                                           height: itemHeight,
                                           child: RepaintBoundary(
-                                            child: FluentBackground.container(
-                                              context: context,
-                                              enableBlur: isDesktopPlatform,
-                                              padding: EdgeInsets.zero,
-                                              blurAmount: 5.0,
-                                              opacity: isSelected ? 0.8 : 0.6,
-                                              backgroundColor: isSelected
-                                                  ? Theme.of(context)
-                                                      .colorScheme
-                                                      .primaryContainer
-                                                      .withValues(alpha: 0.6)
-                                                  : Theme.of(context)
-                                                      .cardColor
-                                                      .withValues(alpha: 0.4),
-                                              child: folder_list_components
-                                                  .FolderGridItem(
-                                                key: ValueKey(
-                                                    'folder-grid-item-${folder.path}'),
-                                                folder: folder,
-                                                onNavigate: onNavigateToPath,
-                                                isSelected: isSelected,
-                                                toggleFolderSelection:
-                                                    toggleFolderSelection,
-                                                isDesktopMode:
-                                                    isDesktopPlatform,
-                                                lastSelectedPath: selectionState
-                                                    .lastSelectedPath,
-                                                clearSelectionMode:
-                                                    clearSelection,
-                                              ),
+                                            child: folder_list_components
+                                                .FolderGridItem(
+                                              key: ValueKey(
+                                                  'folder-grid-item-${folder.path}'),
+                                              folder: folder,
+                                              onNavigate: onNavigateToPath,
+                                              isSelected: isSelected,
+                                              toggleFolderSelection:
+                                                  toggleFolderSelection,
+                                              isDesktopMode:
+                                                  isDesktopPlatform,
+                                              lastSelectedPath: selectionState
+                                                  .lastSelectedPath,
+                                              clearSelectionMode:
+                                                  clearSelection,
                                             ),
                                           ),
                                         ),
@@ -418,24 +410,10 @@ class FileListViewBuilder {
                                           width: itemWidth,
                                           height: itemHeight,
                                           child: RepaintBoundary(
-                                            child: FluentBackground.container(
-                                              context: context,
-                                              enableBlur: isDesktopPlatform,
-                                              padding: EdgeInsets.zero,
-                                              blurAmount: 5.0,
-                                              opacity: isSelected ? 0.8 : 0.6,
-                                              backgroundColor: isSelected
-                                                  ? Theme.of(context)
-                                                      .colorScheme
-                                                      .primaryContainer
-                                                      .withValues(alpha: 0.6)
-                                                  : Theme.of(context)
-                                                      .cardColor
-                                                      .withValues(alpha: 0.4),
-                                              child: folder_list_components
-                                                  .FileGridItem(
-                                                key: ValueKey(
-                                                    'file-grid-item-${file.path}'),
+                                            child: folder_list_components
+                                                .FileGridItem(
+                                              key: ValueKey(
+                                                  'file-grid-item-${file.path}'),
                                                 file: file,
                                                 state: state,
                                                 isSelectionMode: selectionState
@@ -454,8 +432,7 @@ class FileListViewBuilder {
                                               ),
                                             ),
                                           ),
-                                        ),
-                                      );
+                                        );
                                     }
                                   },
                                 ),
@@ -495,6 +472,7 @@ class FileListViewBuilder {
     required Function(BuildContext, Offset) showContextMenu,
   }) {
     return Stack(
+      key: dragSelectionController.stackKey,
       clipBehavior: Clip.none,
       children: [
         FluentBackground(
@@ -512,6 +490,12 @@ class FileListViewBuilder {
                 onSecondaryTapUp: (details) {
                   showContextMenu(context, details.globalPosition);
                 },
+                onLongPressStart: !isDesktopPlatform
+                    ? (details) {
+                        HapticFeedback.mediumImpact();
+                        showContextMenu(context, details.globalPosition);
+                      }
+                    : null,
                 onPanStart: isDesktopPlatform
                     ? (details) {
                         // Don't start drag selection if user is editing text (inline rename)
@@ -586,6 +570,7 @@ class FileListViewBuilder {
     required Function(BuildContext, Offset) showContextMenu,
   }) {
     return Stack(
+      key: dragSelectionController.stackKey,
       clipBehavior: Clip.none,
       children: [
         FluentBackground(
@@ -603,6 +588,12 @@ class FileListViewBuilder {
                 onSecondaryTapUp: (details) {
                   showContextMenu(context, details.globalPosition);
                 },
+                onLongPressStart: !isDesktopPlatform
+                    ? (details) {
+                        HapticFeedback.mediumImpact();
+                        showContextMenu(context, details.globalPosition);
+                      }
+                    : null,
                 onPanStart: isDesktopPlatform
                     ? (details) {
                         // Don't start drag selection if user is editing text (inline rename)

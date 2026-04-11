@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/helpers/tags/tag_manager.dart';
+import 'package:cb_file_manager/ui/tab_manager/shared/screen_menu_registry.dart'
+    as shared_registry;
 
 /// Menu item cho dynamic menu system
 class ScreenMenuItem {
@@ -400,10 +402,8 @@ class _FileBrowserHelper {
     );
   }
 
-  static void createNewFile(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tạo file mới')),
-    );
+  static Future<void> createNewFile(BuildContext context) async {
+    await shared_registry.FileBrowserHelper.createNewFileWithRename(context);
   }
 
   static void pasteFiles(BuildContext context) {

@@ -1,13 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
-import 'package:cb_file_manager/helpers/files/trash_manager.dart';
+import 'package:cb_file_manager/ui/dialogs/delete_confirmation_dialog.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_bloc.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 import 'package:cb_file_manager/ui/tab_manager/components/index.dart'
     as tab_components;
-import 'package:cb_file_manager/ui/utils/route.dart';
 import 'package:cb_file_manager/utils/app_logger.dart';
 
 /// Manages all dialog operations for file/folder management
@@ -79,55 +76,30 @@ class DialogManager {
             ? (fileCount == 1 ? l10n.file : l10n.files)
             : (folderCount == 1 ? l10n.folder : l10n.folders);
 
-    return showDialog(
+    final String firstItemName = selectedFilePaths.isNotEmpty
+        ? selectedFilePaths.first.split(RegExp(r'[/\\]')).last
+        : selectedFolderPaths.first.split(RegExp(r'[/\\]')).last;
+
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.moveItemsToTrashConfirmation(totalCount, itemType)),
-        content: Text(l10n.moveItemsToTrashDescription),
-        actions: [
-          TextButton(
-            onPressed: () {
-              RouteUtils.safePopDialog(context);
-            },
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              // Delete files
-              if (fileCount > 0) {
-                BlocProvider.of<FolderListBloc>(context)
-                    .add(FolderListDeleteFiles(selectedFilePaths));
-              }
-
-              // Delete folders
-              if (folderCount > 0) {
-                for (final folderPath in selectedFolderPaths) {
-                  final folder = Directory(folderPath);
-                  try {
-                    // Check if folder exists and move to trash
-                    if (folder.existsSync()) {
-                      final trashManager = TrashManager();
-                      trashManager.moveToTrash(folderPath);
-                    }
-                  } catch (e) {
-                    debugPrint('Error moving folder to trash: $e');
-                  }
-                }
-
-                // Refresh the folder list after deletion
-                folderListBloc.add(FolderListLoad(currentPath));
-              }
-
-              RouteUtils.safePopDialog(context);
-              onClearSelection();
-            },
-            child: Text(
-              l10n.moveToTrash,
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
+      builder: (context) => DeleteConfirmationDialog(
+        title: l10n.deleteTitle,
+        message: totalCount == 1
+            ? l10n.moveToTrashConfirmMessage(firstItemName)
+            : l10n.moveItemsToTrashConfirmation(totalCount, itemType),
+        confirmText: l10n.deleteTitle,
+        cancelText: l10n.cancel,
       ),
     );
+
+    if (confirmed == true) {
+      // Dispatch through bloc so progress dialog is shown
+      folderListBloc.add(FolderListDeleteItems(
+        filePaths: selectedFilePaths,
+        folderPaths: selectedFolderPaths,
+        permanent: false,
+      ));
+      onClearSelection();
+    }
   }
 }

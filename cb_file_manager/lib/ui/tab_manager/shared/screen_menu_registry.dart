@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../config/languages/app_localizations.dart';
 import 'package:cb_file_manager/helpers/tags/tag_manager.dart';
+import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
+import 'package:cb_file_manager/ui/dialogs/create_file_dialog.dart';
+import 'package:cb_file_manager/ui/controllers/inline_rename_controller.dart';
 
 /// Menu item cho dynamic menu system
 class ScreenMenuItem {
@@ -93,27 +97,27 @@ class ScreenMenuRegistry {
       ScreenMenuItem(
         title: AppLocalizations.of(context)!.newFolder,
         icon: PhosphorIconsLight.folderPlus,
-        onTap: () => _FileBrowserHelper.createNewFolder(context),
+        onTap: () => FileBrowserHelper.createNewFolder(context),
       ),
       ScreenMenuItem(
         title: AppLocalizations.of(context)!.create,
         icon: PhosphorIconsLight.filePlus,
-        onTap: () => _FileBrowserHelper.createNewFile(context),
+        onTap: () => FileBrowserHelper.createNewFile(context),
       ),
       ScreenMenuItem(
         title: AppLocalizations.of(context)!.pasteHere,
         icon: PhosphorIconsLight.copy,
-        onTap: () => _FileBrowserHelper.pasteFiles(context),
+        onTap: () => FileBrowserHelper.pasteFiles(context),
       ),
       ScreenMenuItem(
         title: AppLocalizations.of(context)!.sort,
         icon: PhosphorIconsLight.gear,
-        onTap: () => _FileBrowserHelper.showSortOptions(context),
+        onTap: () => FileBrowserHelper.showSortOptions(context),
       ),
       ScreenMenuItem(
         title: AppLocalizations.of(context)!.featureNotImplemented,
         icon: PhosphorIconsLight.squaresFour,
-        onTap: () => _FileBrowserHelper.toggleViewMode(context),
+        onTap: () => FileBrowserHelper.toggleViewMode(context),
       ),
     ];
   }
@@ -405,7 +409,21 @@ class _TagManagementHelper {
 }
 
 /// Helper class cho File Browser menu
-class _FileBrowserHelper {
+class FileBrowserHelper {
+  /// Controller for starting inline rename after file creation.
+  /// Set by TabbedFolderListScreen when it initializes.
+  static InlineRenameController? _inlineRenameController;
+  static ValueChanged<String>? _afterFileCreated;
+
+  /// Sets the controller to use for inline rename.
+  static void setInlineRenameController(InlineRenameController? controller) {
+    _inlineRenameController = controller;
+  }
+
+  static void setAfterFileCreatedCallback(ValueChanged<String>? callback) {
+    _afterFileCreated = callback;
+  }
+
   static void createNewFolder(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Tạo thư mục mới')),
@@ -413,8 +431,36 @@ class _FileBrowserHelper {
   }
 
   static void createNewFile(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Tạo file mới')),
+    createNewFileWithRename(context);
+  }
+
+  static Future<void> createNewFileWithRename(BuildContext context) async {
+    if (!context.mounted) return;
+
+    // Get the active tab path from TabManagerBloc.
+    TabManagerBloc? tabManager;
+    try {
+      tabManager = BlocProvider.of<TabManagerBloc>(context, listen: false);
+    } catch (_) {
+      tabManager = null;
+    }
+
+    final currentPath = tabManager?.state.activeTab?.path ?? '';
+
+    // Skip virtual/system tabs
+    if (currentPath.isEmpty || currentPath.startsWith('#')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot create file in this location')),
+      );
+      return;
+    }
+
+    await CreateFileDialog.show(
+      context,
+      directoryPath: currentPath,
+      onAfterFileCreated: _afterFileCreated,
+      inlineRenameController:
+          _afterFileCreated == null ? _inlineRenameController : null,
     );
   }
 

@@ -128,4 +128,17 @@ class WindowsAppIcon {
       return false;
     }
   }
+
+  // ─── Brand Detection (for create-file dialog) ────────────────────────────────
+
+  /// Windows: Detects which office suites are installed via the native plugin.
+  static Future<Set<String>> getInstalledBrands() async {
+    if (!Platform.isWindows) return {};
+    try {
+      final result = await _channel.invokeMethod<List<dynamic>>('getInstalledAppBrands');
+      return Set<String>.from(result ?? []);
+    } catch (_) {
+      return {};
+    }
+  }
 }

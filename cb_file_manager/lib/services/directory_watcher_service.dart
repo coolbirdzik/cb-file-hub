@@ -58,6 +58,7 @@ class DirectoryWatcherService {
 
   // Batch of pending events to process
   final Set<String> _pendingEvents = {};
+  final Map<String, DateTime> _suppressedRefreshUntil = {};
 
   /// Stream of file change events
   Stream<FileChangeEvent> get onFileChanged => _changeController.stream;
@@ -173,6 +174,16 @@ class DirectoryWatcherService {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(_debounceDuration, () {
       if (_pendingEvents.isNotEmpty && _currentWatchPath != null) {
+        final suppressedUntil = _suppressedRefreshUntil[_currentWatchPath!];
+        if (suppressedUntil != null &&
+            suppressedUntil.isAfter(DateTime.now())) {
+          AppLogger.info(
+              'DirectoryWatcherService: Suppressed refresh for $_currentWatchPath');
+          _pendingEvents.clear();
+          return;
+        }
+
+        _suppressedRefreshUntil.remove(_currentWatchPath!);
         AppLogger.info(
             'DirectoryWatcherService: Triggering refresh for $_currentWatchPath (${_pendingEvents.length} changes)');
         _refreshController.add(_currentWatchPath!);
@@ -196,6 +207,7 @@ class DirectoryWatcherService {
 
     _currentWatchPath = null;
     _pendingEvents.clear();
+    _suppressedRefreshUntil.clear();
   }
 
   /// Get the currently watched path
@@ -203,6 +215,14 @@ class DirectoryWatcherService {
 
   /// Check if currently watching a directory
   bool get isWatching => _watchSubscription != null;
+
+  /// Suppress auto-refresh notifications for a specific path temporarily.
+  void suppressRefreshForPath(
+    String path, {
+    Duration duration = const Duration(seconds: 2),
+  }) {
+    _suppressedRefreshUntil[path] = DateTime.now().add(duration);
+  }
 
   /// Force a manual refresh notification
   void forceRefresh() {

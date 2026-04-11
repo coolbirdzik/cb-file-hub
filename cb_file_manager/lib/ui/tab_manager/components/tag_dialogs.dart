@@ -47,11 +47,8 @@ void showAddTagToFileDialog(BuildContext context, String filePath) {
   final double dialogWidth = screenSize.width * 0.5;
   final double dialogHeight = screenSize.height * 0.6;
   AppLogger.info('[ManageTags][Dialog] Opening dialog for $filePath');
-  debugPrint('[ManageTags][Dialog] Opening dialog for filePath=$filePath');
 
   void refreshParentUI(String filePath, {bool preserveScroll = true}) {
-    debugPrint(
-        '[ManageTags][Dialog] Refreshing parent UI for filePath=$filePath preserveScroll=$preserveScroll');
     TagManager.clearCache();
     if (preserveScroll) {
       TagManager.instance.notifyTagChanged("preserve_scroll:$filePath");
@@ -1038,7 +1035,7 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
                             '[ManageTags][BatchDialog] Save failed',
                             error: 'selectedFiles=$selectedFiles error=$e',
                           );
-                          debugPrint('Error processing batch tags: $e');
+                          AppLogger.warning('Error processing batch tags: $e');
                           try {
                             scaffoldMessenger.showSnackBar(
                               SnackBar(
@@ -1151,7 +1148,7 @@ class _RemoveTagsChipDialogState extends State<RemoveTagsChipDialog> {
 
       setState(() => _isLoading = false);
     } catch (e) {
-      debugPrint('Error loading tags for multiple files: $e');
+      AppLogger.warning('Error loading tags for multiple files: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -1222,7 +1219,7 @@ class _RemoveTagsChipDialogState extends State<RemoveTagsChipDialog> {
         widget.onTagsRemoved();
       } catch (_) {}
     } catch (e) {
-      debugPrint('Error removing tags: $e');
+      AppLogger.warning('Error removing tags: $e');
       try {
         scaffoldMessenger.showSnackBar(
           SnackBar(

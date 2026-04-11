@@ -10,6 +10,7 @@ import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/ui/widgets/thumbnail_loader.dart';
 import 'package:cb_file_manager/ui/widgets/app_progress_indicator.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
+import 'package:cb_file_manager/ui/tab_manager/shared/screen_menu_registry.dart';
 import 'package:cb_file_manager/ui/components/common/skeleton_helper.dart';
 import '../tab_manager.dart';
 import '../tab_paths.dart';
@@ -159,6 +160,8 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
 
   // Controller for inline rename on desktop
   late final InlineRenameController _inlineRenameController;
+  String? _pendingCreatedFilePath;
+  bool _allowFileExtensionRename = false;
 
   /// Actual grid crossAxisCount from the file list (for arrow up/down in grid).
   int? _gridCrossAxisCount;
@@ -234,6 +237,8 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
     _keyboardController = TabbedFolderKeyboardController();
     _previewPaneWidthNotifier = ValueNotifier<double>(previewPaneWidth);
     _inlineRenameController = InlineRenameController();
+    FileBrowserHelper.setInlineRenameController(_inlineRenameController);
+    FileBrowserHelper.setAfterFileCreatedCallback(_handleCreatedFile);
 
     // If this is a new tab with empty path (drive view), enable lazy loading
     if (_isDrivesPathValue(_currentPath)) {
@@ -285,6 +290,7 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
       if (!mounted) return;
       _previewPaneWidthNotifier.value = previewPaneWidth;
     });
+    _loadAllowFileExtensionRenamePreference();
 
     // Initialize RefreshController
     _refreshController = RefreshController(
@@ -361,6 +367,8 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
     _keyboardController.dispose();
     _previewPaneWidthNotifier.dispose();
     _inlineRenameController.dispose();
+    FileBrowserHelper.setInlineRenameController(null);
+    FileBrowserHelper.setAfterFileCreatedCallback(null);
     _pendingTasksSubscription?.cancel();
 
     // Remove mobile actions controller
@@ -430,6 +438,93 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
 
   void _clearSelection() {
     _selectionCoordinator.clearSelection();
+  }
+
+  Future<void> _loadAllowFileExtensionRenamePreference() async {
+    final prefs = UserPreferences.instance;
+    await prefs.init();
+    final allowFileExtensionRename = await prefs.getAllowFileExtensionRename();
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _allowFileExtensionRename = allowFileExtensionRename;
+    });
+    _inlineRenameController.allowFileExtensionRename = allowFileExtensionRename;
+  }
+
+  Future<void> _setAllowFileExtensionRename(bool value) async {
+    final prefs = UserPreferences.instance;
+    await prefs.init();
+    await prefs.setAllowFileExtensionRename(value);
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _allowFileExtensionRename = value;
+    });
+    _inlineRenameController.allowFileExtensionRename = value;
+
+    final controller = MobileFileActionsController.forTab(widget.tabId);
+    controller.allowFileExtensionRename = value;
+  }
+
+  void _handleCreatedFile(String createdPath) {
+    if (!mounted || !isDesktopPlatform) {
+      return;
+    }
+
+    _pendingCreatedFilePath = createdPath;
+    _maybeStartPendingCreatedFileRename(_folderListBloc.state);
+  }
+
+  void _maybeStartPendingCreatedFileRename(FolderListState folderState) {
+    final pendingPath = _pendingCreatedFilePath;
+    if (!mounted || !isDesktopPlatform || pendingPath == null) {
+      return;
+    }
+
+    if (folderState.isLoading ||
+        _normalizePath(folderState.currentPath.path) !=
+            _normalizePath(_currentPath)) {
+      return;
+    }
+
+    final normalizedPendingPath = _normalizePath(pendingPath);
+    final matchedFilePath = folderState.files
+        .map((entity) => entity.path)
+        .cast<String?>()
+        .firstWhere(
+          (entityPath) =>
+              entityPath != null &&
+              _normalizePath(entityPath) == normalizedPendingPath,
+          orElse: () => null,
+        );
+    if (matchedFilePath == null) {
+      return;
+    }
+
+    _pendingCreatedFilePath = null;
+    _toggleFileSelection(matchedFilePath);
+    _keyboardController.focusedPath = matchedFilePath;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      _inlineRenameController.startRename(
+        matchedFilePath,
+        onCancelled: () {
+          _keyboardController.focusNode.requestFocus();
+        },
+        onCommitted: () {
+          _keyboardController.focusNode.requestFocus();
+        },
+      );
+    });
   }
 
   // View mode methods are now provided by PreferencesManagerMixin
@@ -674,6 +769,7 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
   void _updatePath(String newPath) {
     if (_isHandlingPathUpdate) return;
     _isHandlingPathUpdate = true;
+    _pendingCreatedFilePath = null;
     // Defer the actual update to avoid setState-during-build when this is
     // triggered synchronously from didUpdateWidget (e.g. split-pane path change).
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -852,6 +948,8 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
             value: _folderListBloc,
             child: BlocListener<FolderListBloc, FolderListState>(
               listener: (context, folderState) {
+                _maybeStartPendingCreatedFileRename(folderState);
+
                 // Check if there are any video/image files in the current directory
                 final hasVideoOrImageFiles = _hasVideoOrImageFiles(folderState);
 
@@ -1301,6 +1399,8 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
         // This callback is now handled inside FolderBackgroundContextMenu
       },
       onSortOptionSaved: (option) => saveSortSetting(option, _currentPath),
+      inlineRenameController: _inlineRenameController,
+      onAfterFileCreated: _handleCreatedFile,
     );
   }
 
@@ -1366,6 +1466,8 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
           folderListState.currentPath.path,
         );
       },
+      allowFileExtensionRename: _allowFileExtensionRename,
+      onAllowFileExtensionRenameChanged: _setAllowFileExtensionRename,
       onGridZoomChange: handleGridZoomChange,
       onColumnSettingsPressed: () {
         showColumnVisibilityDialog(context);

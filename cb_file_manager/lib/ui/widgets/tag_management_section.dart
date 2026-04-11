@@ -18,33 +18,23 @@ class TagManagementSectionController {
   Future<void> saveChanges() async {
     final state = _state;
     if (state == null) {
-      debugPrint(
-          '[ManageTags][Controller] saveChanges called while controller is detached');
       throw StateError('TagManagementSectionController is not attached');
     }
-    debugPrint(
-        '[ManageTags][Controller] saveChanges forwarding to state filePath=${state.widget.filePath}');
     await state.saveChanges();
   }
 
   void discardChanges() {
-    debugPrint(
-        '[ManageTags][Controller] discardChanges invoked attached=$isAttached');
     _state?.discardChanges();
   }
 
   void _attach(_TagManagementSectionState state) {
     AppLogger.info(
         '[ManageTags][Controller] Attached to ${state.widget.filePath}');
-    debugPrint(
-        '[ManageTags][Controller] Attached to filePath=${state.widget.filePath}');
     _state = state;
   }
 
   void _detach(_TagManagementSectionState state) {
     if (identical(_state, state)) {
-      debugPrint(
-          '[ManageTags][Controller] Detached from filePath=${state.widget.filePath}');
       _state = null;
     }
   }
@@ -157,8 +147,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
         _originalTags.where((t) => !_selectedTags.contains(t)).length;
     _hasPendingChanges = added > 0 || removed > 0;
     _pendingChangesCount = added + removed;
-    debugPrint(
-        '[ManageTags][Section] Pending changes filePath=${widget.filePath} hasPending=$_hasPendingChanges count=$_pendingChangesCount selected=$_selectedTags original=$_originalTags');
     widget.onPendingChangesChanged?.call();
   }
 
@@ -169,7 +157,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
     _states[widget] = this;
     widget.controller?._attach(this);
     AppLogger.info('[ManageTags][Section] initState ${widget.filePath}');
-    debugPrint('[ManageTags][Section] initState filePath=${widget.filePath}');
 
     _loadTagData();
     _colorManager.addListener(_handleColorChanged);
@@ -183,8 +170,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
   void didUpdateWidget(covariant TagManagementSection oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget, widget)) {
-      debugPrint(
-          '[ManageTags][Section] didUpdateWidget oldFilePath=${oldWidget.filePath} newFilePath=${widget.filePath}');
       _states.remove(oldWidget);
       _states[widget] = this;
       if (!identical(oldWidget.controller, widget.controller)) {
@@ -200,7 +185,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
     // Unregister this state
     _states.remove(widget);
     widget.controller?._detach(this);
-    debugPrint('[ManageTags][Section] dispose filePath=${widget.filePath}');
 
     _colorManager.removeListener(_handleColorChanged);
     super.dispose();
@@ -228,11 +212,7 @@ class _TagManagementSectionState extends State<TagManagementSection> {
     bool clearDraft = true,
   }) {
     final trimmedTag = tag.trim();
-    debugPrint(
-        '[ManageTags][Section] _addSelectedTag requested filePath=${widget.filePath} tag="$trimmedTag" clearSuggestions=$clearSuggestions clearDraft=$clearDraft');
     if (trimmedTag.isEmpty || _containsTag(trimmedTag)) {
-      debugPrint(
-          '[ManageTags][Section] _addSelectedTag ignored filePath=${widget.filePath} tag="$trimmedTag" duplicateOrEmpty=${trimmedTag.isEmpty || _containsTag(trimmedTag)}');
       if (_draftTagText.isNotEmpty || (clearSuggestions && _tagSuggestions.isNotEmpty)) {
         setState(() {
           if (clearDraft) {
@@ -260,8 +240,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
 
   bool _commitDraftTag([String? rawTag]) {
     final draftTag = (rawTag ?? _draftTagText).trim();
-    debugPrint(
-        '[ManageTags][Section] _commitDraftTag filePath=${widget.filePath} raw="$rawTag" effective="$draftTag"');
     if (draftTag.isEmpty) {
       return false;
     }
@@ -278,7 +256,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
     // Use initialTags if provided, otherwise fetch from TagManager
     List<String> currentTags = [];
     AppLogger.debug('[ManageTags][Section] Loading tags for ${widget.filePath}');
-    debugPrint('[ManageTags][Section] Loading tag data filePath=${widget.filePath}');
 
     if (widget.initialTags != null) {
       currentTags = List.from(widget.initialTags!);
@@ -286,8 +263,7 @@ class _TagManagementSectionState extends State<TagManagementSection> {
       try {
         currentTags = await TagManager.getTags(widget.filePath);
       } catch (e) {
-        debugPrint(
-            '[ManageTags][Section] Loading tags failed filePath=${widget.filePath} error=$e');
+        AppLogger.warning('[ManageTags][Section] Loading tags failed for ${widget.filePath}: $e');
         currentTags = [];
       }
     }
@@ -301,8 +277,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
       });
       AppLogger.info(
           '[ManageTags][Section] Loaded ${_selectedTags.length} tags for ${widget.filePath}');
-      debugPrint(
-          '[ManageTags][Section] Loaded tag data filePath=${widget.filePath} tags=$_selectedTags');
     }
   }
 
@@ -310,11 +284,7 @@ class _TagManagementSectionState extends State<TagManagementSection> {
   Future<void> saveChanges() async {
     AppLogger.info(
         '[ManageTags][Section] saveChanges START ${widget.filePath} pending=$_pendingChangesCount');
-    debugPrint(
-        '[ManageTags][Section] saveChanges START filePath=${widget.filePath} mounted=$mounted selected=$_selectedTags original=$_originalTags draft="$_draftTagText"');
     if (!mounted) {
-      debugPrint(
-          '[ManageTags][Section] saveChanges SKIP because widget is not mounted');
       return;
     }
 
@@ -324,13 +294,9 @@ class _TagManagementSectionState extends State<TagManagementSection> {
       if (!_hasPendingChanges) {
         AppLogger.warning(
             '[ManageTags][Section] saveChanges skipped because no pending changes for ${widget.filePath}');
-        debugPrint(
-            '[ManageTags][Section] saveChanges SKIP because there are no pending changes filePath=${widget.filePath}');
         return;
       }
 
-      debugPrint(
-          '[ManageTags][Section] Persisting tags filePath=${widget.filePath} tags=$_selectedTags');
       final success = await TagManager.setTags(widget.filePath, _selectedTags);
       if (!success) {
         throw Exception('Failed to persist tags for "${widget.filePath}"');
@@ -356,23 +322,17 @@ class _TagManagementSectionState extends State<TagManagementSection> {
       await _refreshTags();
       AppLogger.info(
           '[ManageTags][Section] saveChanges DONE ${widget.filePath}');
-      debugPrint(
-          '[ManageTags][Section] saveChanges DONE filePath=${widget.filePath}');
     } catch (e) {
       AppLogger.error(
         '[ManageTags][Section] saveChanges ERROR ${widget.filePath}',
         error: e,
       );
-      debugPrint(
-          '[ManageTags][Section] saveChanges ERROR filePath=${widget.filePath} error=$e');
       rethrow;
     }
   }
 
   // Discard changes and restore original tags
   void discardChanges() {
-    debugPrint(
-        '[ManageTags][Section] discardChanges filePath=${widget.filePath}');
     setState(() {
       _selectedTags = List.from(_originalTags);
       _draftTagText = '';
@@ -382,7 +342,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
   }
 
   Future<void> _refreshTags() async {
-    debugPrint('[ManageTags][Section] _refreshTags filePath=${widget.filePath}');
     setState(() {
       _tagSuggestions = [];
     });
@@ -395,8 +354,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
   // Keep these methods for manual operations if needed, but not called from UI directly
 
   Future<void> _updateTagSuggestions(String text) async {
-    debugPrint(
-        '[ManageTags][Section] _updateTagSuggestions filePath=${widget.filePath} query="$text"');
     if (text.isEmpty) {
       setState(() {
         _tagSuggestions = [];
@@ -411,8 +368,6 @@ class _TagManagementSectionState extends State<TagManagementSection> {
         _tagSuggestions =
             suggestions.where((tag) => !_selectedTags.contains(tag)).toList();
       });
-      debugPrint(
-          '[ManageTags][Section] Suggestions updated filePath=${widget.filePath} suggestions=$_tagSuggestions');
     }
   }
 
@@ -467,22 +422,16 @@ class _TagManagementSectionState extends State<TagManagementSection> {
           ),
           style: const TextStyle(fontSize: 18),
           onChanged: (updatedTags) async {
-            debugPrint(
-                '[ManageTags][Section] ChipsInput.onChanged filePath=${widget.filePath} updatedTags=$updatedTags');
             setState(() {
               _selectedTags = List.from(updatedTags);
             });
             _updatePendingChanges();
           },
           onTextChanged: (value) {
-            debugPrint(
-                '[ManageTags][Section] ChipsInput.onTextChanged filePath=${widget.filePath} value="$value"');
             _draftTagText = value;
             _updateTagSuggestions(value);
           },
           onSubmitted: (value) {
-            debugPrint(
-                '[ManageTags][Section] ChipsInput.onSubmitted filePath=${widget.filePath} value="$value"');
             _commitDraftTag(value);
           },
           chipBuilder: (context, tag) {

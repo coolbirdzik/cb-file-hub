@@ -42,11 +42,17 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
     final active = _controller.active;
     _autoDismissTimer?.cancel();
 
+    // Reset the dialog flag synchronously when the entry is dismissed.
+    // This ensures a subsequent begin() can show a fresh dialog immediately
+    // instead of being blocked by a stale _isShowingDialog == true.
+    if (active == null) {
+      _isShowingDialog = false;
+      if (mounted) setState(() {});
+      return;
+    }
+
     // Show as a modal dialog when explicitly requested.
-    if (active != null &&
-        !active.isMinimized &&
-        active.isRunning &&
-        !_isShowingDialog) {
+    if (!active.isMinimized && active.isRunning && !_isShowingDialog) {
       if (OperationProgressOverlay._isDesktop) {
         _showDesktopWindow();
       } else {
@@ -55,8 +61,9 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
       return;
     }
 
-    if (active != null && active.isFinished) {
-      // Auto-dismiss success after a short delay, keep errors until user dismisses.
+    // Auto-dismiss only for minimized (status-bar) entries.
+    // Modal dialogs manage their own auto-dismiss timer internally.
+    if (active.isFinished && active.isMinimized) {
       if (active.status == OperationProgressStatus.success) {
         _autoDismissTimer = Timer(const Duration(seconds: 2), () {
           if (!mounted) return;

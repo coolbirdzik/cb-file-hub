@@ -60,11 +60,19 @@ class SelectItemsInRect extends SelectionEvent {
   final bool isCtrlPressed;
   final bool isShiftPressed;
 
+  /// Snapshot of selected files taken at the moment the Ctrl+drag started.
+  /// The bloc uses this to compute a stable toggle delta instead of
+  /// toggling against the live state on every pan-update frame.
+  final Set<String> preCtrlDragFiles;
+  final Set<String> preCtrlDragFolders;
+
   const SelectItemsInRect({
     required this.folderPaths,
     required this.filePaths,
     this.isCtrlPressed = false,
     this.isShiftPressed = false,
+    this.preCtrlDragFiles = const {},
+    this.preCtrlDragFolders = const {},
   });
 
   @override

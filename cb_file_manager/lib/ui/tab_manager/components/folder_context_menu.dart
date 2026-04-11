@@ -1,36 +1,31 @@
 // ignore_for_file: use_build_context_synchronously
 
-import 'dart:io';
 import 'dart:async';
-import 'dart:math' as math;
-
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_bloc.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cb_file_manager/ui/dialogs/folder_thumbnail_picker_dialog.dart';
+import 'package:cb_file_manager/ui/dialogs/create_file_dialog.dart';
+import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/ui/controllers/inline_rename_controller.dart';
+import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/helpers/media/folder_thumbnail_service.dart';
 import 'package:cb_file_manager/helpers/media/video_thumbnail_helper.dart';
+import 'package:cb_file_manager/services/desktop_new_file_service.dart';
+import 'package:cb_file_manager/services/directory_watcher_service.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
-import 'package:cb_file_manager/ui/dialogs/folder_thumbnail_picker_dialog.dart';
-import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/ui/controllers/file_operations_handler.dart';
+import 'package:cb_file_manager/ui/components/common/shared_file_context_menu.dart';
 
 /// Displays a context menu for empty areas in folder view
 class FolderContextMenu {
-  /// Currently displayed submenu overlay
-  static OverlayEntry? _submenuOverlayEntry;
-
-  /// Remove the submenu overlay if it's open
-  static void _removeSubMenu() {
-    _submenuOverlayEntry?.remove();
-    _submenuOverlayEntry = null;
-  }
-
   /// Shows the context menu for the current directory
   static Future<void> show({
     required BuildContext context,
-    required Offset globalPosition, // Renamed from position for clarity
+    required Offset globalPosition,
     required FolderListBloc folderListBloc,
     required String currentPath,
     required ViewMode currentViewMode,
@@ -38,423 +33,734 @@ class FolderContextMenu {
     required Function(ViewMode) onViewModeChanged,
     required VoidCallback onRefresh,
     required Future<void> Function(String) onCreateFolder,
-    required Future<void> Function(SortOption)
-        onSortOptionSaved, // Keep for future use or remove if not needed by caller
+    required Future<void> Function(SortOption) onSortOptionSaved,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
+  }) async {
+    final sections = await _buildSections(
+      context: context,
+      folderListBloc: folderListBloc,
+      currentPath: currentPath,
+      currentViewMode: currentViewMode,
+      currentSortOption: currentSortOption,
+      onViewModeChanged: onViewModeChanged,
+      onRefresh: onRefresh,
+      onCreateFolder: onCreateFolder,
+      onSortOptionSaved: onSortOptionSaved,
+      inlineRenameController: inlineRenameController,
+      onAfterFileCreated: onAfterFileCreated,
+    );
+
+    if (_isMobilePlatform()) {
+      await showContextMenuSheet(
+        context: context,
+        title: Directory(currentPath).path.split(Platform.pathSeparator).last,
+        icon: PhosphorIconsLight.folderOpen,
+        subtitle: currentPath,
+        sections: sections,
+      );
+      return;
+    }
+
+    await showContextMenuPopup(
+      context: context,
+      sections: sections,
+      globalPosition: globalPosition,
+    );
+  }
+
+  static Future<void> showCreateMenu({
+    required BuildContext context,
+    required String currentPath,
+    FolderListBloc? folderListBloc,
+    required Future<void> Function(String) onCreateFolder,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
+  }) async {
+    final sections = await _buildCreateSections(
+      context: context,
+      currentPath: currentPath,
+      folderListBloc: folderListBloc,
+      onCreateFolder: onCreateFolder,
+      inlineRenameController: inlineRenameController,
+      onAfterFileCreated: onAfterFileCreated,
+    );
+    await showContextMenuSheet(
+      context: context,
+      title: AppLocalizations.of(context)!.create,
+      icon: PhosphorIconsLight.plusCircle,
+      subtitle: currentPath,
+      sections: sections,
+    );
+  }
+
+  static Future<List<ContextMenuSection>> _buildSections({
+    required BuildContext context,
+    required FolderListBloc folderListBloc,
+    required String currentPath,
+    required ViewMode currentViewMode,
+    required SortOption currentSortOption,
+    required Function(ViewMode) onViewModeChanged,
+    required VoidCallback onRefresh,
+    required Future<void> Function(String) onCreateFolder,
+    required Future<void> Function(SortOption) onSortOptionSaved,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
   }) async {
     final l10n = AppLocalizations.of(context)!;
-    final RenderBox overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
-    final RelativeRect position = RelativeRect.fromRect(
-      Rect.fromPoints(globalPosition, globalPosition),
-      Offset.zero & overlay.size,
+    return [
+      ContextMenuSection(
+        actions: [
+          ContextMenuAction(
+            id: 'view_submenu',
+            label: l10n.viewModeTooltip,
+            icon: PhosphorIconsLight.eye,
+            childSections: [
+              ContextMenuSection(
+                actions: [
+                  ContextMenuAction(
+                    id: 'view_list',
+                    label: l10n.viewModeList,
+                    icon: PhosphorIconsLight.listBullets,
+                    isChecked: currentViewMode == ViewMode.list,
+                    onSelected: (_) => onViewModeChanged(ViewMode.list),
+                  ),
+                  ContextMenuAction(
+                    id: 'view_grid',
+                    label: l10n.viewModeGrid,
+                    icon: PhosphorIconsLight.squaresFour,
+                    isChecked: currentViewMode == ViewMode.grid,
+                    onSelected: (_) => onViewModeChanged(ViewMode.grid),
+                  ),
+                  ContextMenuAction(
+                    id: 'view_details',
+                    label: l10n.viewModeDetails,
+                    icon: PhosphorIconsLight.rows,
+                    isChecked: currentViewMode == ViewMode.details,
+                    onSelected: (_) => onViewModeChanged(ViewMode.details),
+                  ),
+                  if (!_isMobilePlatform())
+                    ContextMenuAction(
+                      id: 'view_grid_preview',
+                      label: l10n.viewModeGridPreview,
+                      icon: PhosphorIconsLight.layout,
+                      isChecked: currentViewMode == ViewMode.gridPreview,
+                      onSelected: (_) =>
+                          onViewModeChanged(ViewMode.gridPreview),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          ContextMenuAction(
+            id: 'sort_submenu',
+            label: l10n.sortByTooltip,
+            icon: PhosphorIconsLight.sortAscending,
+            childSections: [
+              ContextMenuSection(
+                actions: [
+                  ContextMenuAction(
+                    id: 'sort_name_asc',
+                    label: l10n.sortNameAsc,
+                    icon: PhosphorIconsLight.sortAscending,
+                    isChecked: currentSortOption == SortOption.nameAsc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.nameAsc));
+                      await onSortOptionSaved(SortOption.nameAsc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_name_desc',
+                    label: l10n.sortNameDesc,
+                    icon: PhosphorIconsLight.sortDescending,
+                    isChecked: currentSortOption == SortOption.nameDesc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.nameDesc));
+                      await onSortOptionSaved(SortOption.nameDesc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_date_desc',
+                    label: l10n.sortDateModifiedNewest,
+                    icon: PhosphorIconsLight.calendarBlank,
+                    isChecked: currentSortOption == SortOption.dateDesc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.dateDesc));
+                      await onSortOptionSaved(SortOption.dateDesc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_date_asc',
+                    label: l10n.sortDateModifiedOldest,
+                    icon: PhosphorIconsLight.calendarBlank,
+                    isChecked: currentSortOption == SortOption.dateAsc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.dateAsc));
+                      await onSortOptionSaved(SortOption.dateAsc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_size_desc',
+                    label: l10n.sortSizeLargest,
+                    icon: PhosphorIconsLight.arrowsOut,
+                    isChecked: currentSortOption == SortOption.sizeDesc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.sizeDesc));
+                      await onSortOptionSaved(SortOption.sizeDesc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_size_asc',
+                    label: l10n.sortSizeSmallest,
+                    icon: PhosphorIconsLight.arrowsIn,
+                    isChecked: currentSortOption == SortOption.sizeAsc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.sizeAsc));
+                      await onSortOptionSaved(SortOption.sizeAsc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_type_asc',
+                    label: l10n.sortTypeAsc,
+                    icon: PhosphorIconsLight.textAa,
+                    isChecked: currentSortOption == SortOption.typeAsc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.typeAsc));
+                      await onSortOptionSaved(SortOption.typeAsc);
+                    },
+                  ),
+                  ContextMenuAction(
+                    id: 'sort_type_desc',
+                    label: l10n.sortTypeDesc,
+                    icon: PhosphorIconsLight.textAa,
+                    isChecked: currentSortOption == SortOption.typeDesc,
+                    onSelected: (_) async {
+                      folderListBloc.add(const SetSortOption(SortOption.typeDesc));
+                      await onSortOptionSaved(SortOption.typeDesc);
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      ...await _buildCreateSections(
+        context: context,
+        currentPath: currentPath,
+        folderListBloc: folderListBloc,
+        onCreateFolder: onCreateFolder,
+        inlineRenameController: inlineRenameController,
+        onAfterFileCreated: onAfterFileCreated,
+      ),
+      ContextMenuSection(
+        title: l10n.moreOptions,
+        actions: [
+          ContextMenuAction(
+            id: 'paste',
+            label: l10n.pasteHere,
+            icon: PhosphorIconsLight.clipboard,
+            onSelected: (_) => FileOperationsHandler.pasteFromClipboard(
+              context: context,
+              destinationPath: currentPath,
+            ),
+          ),
+          ContextMenuAction(
+            id: 'refresh',
+            label: l10n.refresh,
+            icon: PhosphorIconsLight.arrowsClockwise,
+            onSelected: (_) => onRefresh(),
+          ),
+          ContextMenuAction(
+            id: 'properties',
+            label: l10n.properties,
+            icon: PhosphorIconsLight.info,
+            onSelected: (_) => _showFolderProperties(context, currentPath),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  static Future<List<ContextMenuSection>> _buildCreateSections({
+    required BuildContext context,
+    required String currentPath,
+    FolderListBloc? folderListBloc,
+    required Future<void> Function(String) onCreateFolder,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    if (!Platform.isWindows || _isMobilePlatform()) {
+      return [
+        ContextMenuSection(
+          title: l10n.create,
+          actions: [
+            ContextMenuAction(
+              id: 'new_folder',
+              label: l10n.newFolder,
+              icon: PhosphorIconsLight.folderPlus,
+              onSelected: (_) => _showCreateFolderDialog(
+                context,
+                currentPath,
+                onCreateFolder,
+              ),
+            ),
+            ContextMenuAction(
+              id: 'new_file',
+              label: l10n.createNewFile,
+              icon: PhosphorIconsLight.filePlus,
+              onSelected: (_) => _showCreateFileDialog(
+                context,
+                currentPath,
+                folderListBloc,
+                inlineRenameController,
+                onAfterFileCreated,
+              ),
+            ),
+          ],
+        ),
+      ];
+    }
+
+    final desktopNewFileItems =
+        await DesktopNewFileService.instance.getAvailableItems();
+    final quickCreateItems = await _resolveQuickCreateItems(desktopNewFileItems);
+
+    final quickCreateActions = <ContextMenuAction>[
+      ContextMenuAction(
+        id: 'new_folder',
+        label: l10n.newFolder,
+        icon: PhosphorIconsLight.folderPlus,
+        onSelected: (_) => _showCreateFolderDialog(
+          context,
+          currentPath,
+          onCreateFolder,
+        ),
+      ),
+    ];
+
+    for (final item in quickCreateItems) {
+      quickCreateActions.add(
+        ContextMenuAction(
+          id: 'quick_create:${item.id}',
+          label: _desktopNewFileItemLabel(context, item),
+          icon: item.icon,
+          onSelected: (_) => _createDesktopNewFile(
+            context: context,
+            currentPath: currentPath,
+            folderListBloc: folderListBloc,
+            item: item,
+            inlineRenameController: inlineRenameController,
+            onAfterFileCreated: onAfterFileCreated,
+          ),
+        ),
+      );
+    }
+
+    final utilityActions = <ContextMenuAction>[
+      ContextMenuAction(
+        id: 'new_file_more',
+        label: '${l10n.createNewFile}...',
+        icon: PhosphorIconsLight.dotsThree,
+        onSelected: (_) => _showCreateFileDialog(
+          context,
+          currentPath,
+          folderListBloc,
+          inlineRenameController,
+          onAfterFileCreated,
+        ),
+      ),
+      ContextMenuAction(
+        id: 'customize_new_menu',
+        label: 'Customize...',
+        icon: PhosphorIconsLight.slidersHorizontal,
+        onSelected: (_) => _showDesktopNewMenuCustomizationDialog(
+          context: context,
+          items: desktopNewFileItems,
+        ),
+      ),
+    ];
+
+    return [
+      ContextMenuSection(
+        title: l10n.create,
+        actions: [
+          ContextMenuAction(
+            id: 'new_submenu',
+            label: 'New',
+            icon: PhosphorIconsLight.filePlus,
+            childSections: [
+              ContextMenuSection(actions: quickCreateActions),
+              ContextMenuSection(actions: utilityActions),
+            ],
+          ),
+        ],
+      ),
+    ];
+  }
+
+  static Future<List<DesktopNewFileItem>> _resolveQuickCreateItems(
+    List<DesktopNewFileItem> items,
+  ) async {
+    final preferences = UserPreferences.instance;
+    final storedIds = await preferences.getDesktopQuickCreateItemIds();
+    final defaultIds = DesktopNewFileService.instance.buildDefaultQuickItemIds(
+      items,
     );
-    final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
+    final preferredIds = storedIds.isEmpty ? defaultIds : storedIds;
+    final itemById = <String, DesktopNewFileItem>{
+      for (final item in items) item.id: item,
+    };
 
-    await showMenu<String>(
-      context: context,
-      position: position,
-      color: menuColor,
-      items: <PopupMenuEntry<String>>[
-        _buildSubmenuPopupMenuItem(
-          context: context,
-          value: 'view',
-          title: l10n.viewModeTooltip,
-          icon: PhosphorIconsLight.eye,
-          builder: (BuildContext context) {
-            return <PopupMenuEntry<ViewMode>>[
-              _buildCheckedPopupMenuItem(
-                title: l10n.viewModeList,
-                value: ViewMode.list,
-                isChecked: currentViewMode == ViewMode.list,
-              ),
-              _buildCheckedPopupMenuItem(
-                title: l10n.viewModeGrid,
-                value: ViewMode.grid,
-                isChecked: currentViewMode == ViewMode.grid,
-              ),
-              if (!Platform.isAndroid && !Platform.isIOS)
-                _buildCheckedPopupMenuItem(
-                  title: l10n.viewModeGridPreview,
-                  value: ViewMode.gridPreview,
-                  isChecked: currentViewMode == ViewMode.gridPreview,
-                ),
-              _buildCheckedPopupMenuItem(
-                title: l10n.viewModeDetails,
-                value: ViewMode.details,
-                isChecked: currentViewMode == ViewMode.details,
-              ),
-            ];
-          },
-          onSelected: (ViewMode viewMode) {
-            onViewModeChanged(viewMode);
-          },
-        ),
-        _buildSubmenuPopupMenuItem(
-          context: context,
-          value: 'sort',
-          title: l10n.sortByTooltip,
-          icon: PhosphorIconsLight.sortAscending,
-          builder: (BuildContext context) {
-            final l10n = AppLocalizations.of(context)!;
-            return <PopupMenuEntry<SortOption>>[
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortNameAsc,
-                  value: SortOption.nameAsc,
-                  isChecked: currentSortOption == SortOption.nameAsc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortNameDesc,
-                  value: SortOption.nameDesc,
-                  isChecked: currentSortOption == SortOption.nameDesc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortDateModifiedNewest,
-                  value: SortOption.dateDesc,
-                  isChecked: currentSortOption == SortOption.dateDesc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortDateModifiedOldest,
-                  value: SortOption.dateAsc,
-                  isChecked: currentSortOption == SortOption.dateAsc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortSizeLargest,
-                  value: SortOption.sizeDesc,
-                  isChecked: currentSortOption == SortOption.sizeDesc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortSizeSmallest,
-                  value: SortOption.sizeAsc,
-                  isChecked: currentSortOption == SortOption.sizeAsc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortTypeAsc,
-                  value: SortOption.typeAsc,
-                  isChecked: currentSortOption == SortOption.typeAsc),
-              _buildCheckedPopupMenuItem(
-                  title: l10n.sortTypeDesc,
-                  value: SortOption.typeDesc,
-                  isChecked: currentSortOption == SortOption.typeDesc),
-            ];
-          },
-          onSelected: (SortOption sortOption) {
-            folderListBloc.add(SetSortOption(sortOption));
-            onSortOptionSaved(sortOption);
-          },
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          value: 'refresh',
-          child: _buildIconMenuItemContent(
-              title: l10n.refresh, icon: PhosphorIconsLight.arrowsClockwise),
-        ),
-        PopupMenuItem<String>(
-          value: 'new_folder',
-          child: _buildIconMenuItemContent(
-              title: l10n.newFolder, icon: PhosphorIconsLight.folderPlus),
-        ),
-        PopupMenuItem<String>(
-          value: 'new_file',
-          child: _buildIconMenuItemContent(
-              title: 'New File', icon: PhosphorIconsLight.filePlus),
-        ),
-        PopupMenuItem<String>(
-          value: 'paste',
-          child: _buildIconMenuItemContent(
-              title: l10n.pasteHere, icon: PhosphorIconsLight.clipboard),
-        ),
-        const PopupMenuDivider(),
-        PopupMenuItem<String>(
-          value: 'properties',
-          child: _buildIconMenuItemContent(
-              title: l10n.properties, icon: PhosphorIconsLight.info),
-        ),
-      ],
-    ).then((String? value) async {
-      // Ensure any open submenu overlay is removed when the main menu closes
-      _removeSubMenu();
-      if (value == null) return;
+    final ordered = <DesktopNewFileItem>[];
+    for (final id in preferredIds) {
+      final item = itemById[id];
+      if (item != null) {
+        ordered.add(item);
+      }
+    }
+    return ordered;
+  }
 
-      switch (value) {
-        case 'refresh':
-          onRefresh();
-          break;
-        case 'new_folder':
-          _showCreateFolderDialog(context, currentPath, onCreateFolder);
-          break;
-        case 'new_file':
-          _showCreateFileDialog(context, currentPath);
-          break;
-        case 'paste':
-          // TODO: Implement paste functionality
-          break;
-        case 'properties':
-          _showFolderProperties(context, currentPath);
-          break;
-        // 'view' and 'sort' are handled by their onSelected callbacks in _buildSubmenuPopupMenuItem
+  static Future<void> _createDesktopNewFile({
+    required BuildContext context,
+    required String currentPath,
+    required DesktopNewFileItem item,
+    FolderListBloc? folderListBloc,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
+  }) async {
+    final l10n = AppLocalizations.of(context)!;
+    final scaffoldMessenger = _maybeScaffoldMessenger(context);
+
+    DirectoryWatcherService.instance.suppressRefreshForPath(currentPath);
+    final createdPath = await DesktopNewFileService.instance.createItem(
+      directoryPath: currentPath,
+      item: item,
+      customBaseName: _defaultDesktopNewFileBaseName(context, item),
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (createdPath == null) {
+      scaffoldMessenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n.errorCreatingFile(
+              'File may already exist or the destination is not writable',
+            ),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    folderListBloc?.add(FolderListRefresh(currentPath));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (onAfterFileCreated != null) {
+        onAfterFileCreated(createdPath);
+        return;
+      }
+
+      if (inlineRenameController != null && !_isMobilePlatform()) {
+        Future<void>.delayed(const Duration(milliseconds: 100), () {
+          inlineRenameController.startRename(createdPath);
+        });
       }
     });
   }
 
-  // New helper method to encapsulate submenu opening logic
-  static void _openActualSubMenu<T>(
-    BuildContext anchorContext,
-    GlobalKey itemKey,
-    List<PopupMenuEntry<T>> Function(BuildContext) builder,
-    ValueChanged<T> onSelectedCallback, // Renamed for clarity
-    VoidCallback onSubMenuDismissedWithoutSelection, // New callback
-  ) {
-    // Remove any existing submenu overlay
-    _removeSubMenu();
-    if (itemKey.currentContext == null) return;
-    final overlayState = Overlay.of(anchorContext);
-    final RenderBox overlay =
-        overlayState.context.findRenderObject() as RenderBox;
-    final RenderBox itemRenderBox =
-        itemKey.currentContext!.findRenderObject() as RenderBox;
-    final Offset itemPosition =
-        itemRenderBox.localToGlobal(Offset.zero, ancestor: overlay);
+  static Future<void> _showDesktopNewMenuCustomizationDialog({
+    required BuildContext context,
+    required List<DesktopNewFileItem> items,
+  }) async {
+    final preferences = UserPreferences.instance;
+    final storedIds = await preferences.getDesktopQuickCreateItemIds();
+    final selectedIds = List<String>.from(
+      storedIds.isEmpty
+          ? DesktopNewFileService.instance.buildDefaultQuickItemIds(items)
+          : storedIds,
+    );
+    final allItems = _buildCustomizationOrder(items, selectedIds);
 
-    const double minSubMenuWidth = 180.0;
-    final double subMenuWidth =
-        math.max(itemRenderBox.size.width, minSubMenuWidth);
-    const double menuGap = 2.0;
-    const double verticalOffsetCorrection = -8.0;
-    double subMenuLeft;
-    if (itemPosition.dx + itemRenderBox.size.width + menuGap + subMenuWidth >
-        overlay.size.width) {
-      subMenuLeft = itemPosition.dx - subMenuWidth - menuGap;
-    } else {
-      subMenuLeft = itemPosition.dx + itemRenderBox.size.width + menuGap;
+    if (!context.mounted) {
+      return;
     }
-    final double subMenuTop =
-        math.max(0.0, itemPosition.dy + verticalOffsetCorrection);
-    final List<PopupMenuEntry<T>> items = builder(anchorContext);
-    final double subMenuHeight =
-        itemRenderBox.size.height * items.length * 1.2 + 16.0;
 
-    // Create and insert submenu overlay
-    final entry = OverlayEntry(builder: (context) {
-      return Positioned(
-        left: subMenuLeft,
-        top: subMenuTop,
-        width: subMenuWidth,
-        child: Material(
-          elevation: 0,
-          color: Theme.of(anchorContext).colorScheme.surface.withAlpha(255),
-          shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(8.0))),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxHeight: subMenuHeight),
-            child: ListView.separated(
-              padding: EdgeInsets.zero,
-              shrinkWrap: true,
-              itemCount: items.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, thickness: 1),
-              itemBuilder: (context, index) {
-                final entryItem = items[index];
-                if (entryItem is PopupMenuDivider) {
-                  return Divider(height: entryItem.height, thickness: 1);
-                } else if (entryItem is PopupMenuItem<T>) {
-                  return InkWell(
-                    onTap: () {
-                      onSelectedCallback(entryItem.value as T);
-                      _removeSubMenu();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0, vertical: 12.0),
-                      child: entryItem.child,
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
+    await _showNoAnimationDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) => AlertDialog(
+          title: const Text('Customize New Menu'),
+          content: SizedBox(
+            width: 460,
+            height: 520,
+            child: ReorderableListView.builder(
+              itemCount: allItems.length,
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) {
+                    newIndex -= 1;
+                  }
+                  final movedItem = allItems.removeAt(oldIndex);
+                  allItems.insert(newIndex, movedItem);
+                });
+              },
+              itemBuilder: (itemContext, index) {
+                final item = allItems[index];
+                final isSelected = selectedIds.contains(item.id);
+                return CheckboxListTile(
+                  key: ValueKey(item.id),
+                  value: isSelected,
+                  secondary: Icon(item.icon),
+                  title: Text(_desktopNewFileItemLabel(context, item)),
+                  subtitle: Text(item.extension.toUpperCase()),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (value) {
+                    setState(() {
+                      if (value == true) {
+                        if (!selectedIds.contains(item.id)) {
+                          selectedIds.add(item.id);
+                        }
+                      } else {
+                        selectedIds.remove(item.id);
+                      }
+                    });
+                  },
+                );
               },
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await preferences.clearDesktopQuickCreateItemIds();
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: Text(AppLocalizations.of(context)!.resetSettings),
+            ),
+            TextButton(
+              onPressed: () {
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: Text(AppLocalizations.of(context)!.cancel),
+            ),
+            TextButton(
+              onPressed: () async {
+                final orderedIds = <String>[];
+                for (final item in allItems) {
+                  if (selectedIds.contains(item.id)) {
+                    orderedIds.add(item.id);
+                  }
+                }
+                await preferences.setDesktopQuickCreateItemIds(orderedIds);
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: Text(AppLocalizations.of(context)!.save),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  static List<DesktopNewFileItem> _buildCustomizationOrder(
+    List<DesktopNewFileItem> items,
+    List<String> selectedIds,
+  ) {
+    final itemById = <String, DesktopNewFileItem>{
+      for (final item in items) item.id: item,
+    };
+    final ordered = <DesktopNewFileItem>[];
+
+    for (final id in selectedIds) {
+      final item = itemById[id];
+      if (item != null) {
+        ordered.add(item);
+      }
+    }
+
+    final remaining = items
+        .where((item) => !selectedIds.contains(item.id))
+        .toList(growable: false)
+      ..sort(
+        (a, b) => _desktopNewFileItemSortKey(a)
+            .compareTo(_desktopNewFileItemSortKey(b)),
       );
-    });
-    _submenuOverlayEntry = entry;
-    overlayState.insert(entry);
+
+    ordered.addAll(remaining);
+    return ordered;
   }
 
-  // Helper to build a PopupMenuItem that opens a submenu
-  static PopupMenuEntry<String> _buildSubmenuPopupMenuItem<T>({
-    required BuildContext context,
-    required String value,
-    required String title,
-    required IconData icon,
-    required List<PopupMenuEntry<T>> Function(BuildContext) builder,
-    required ValueChanged<T> onSelected,
-  }) {
-    final GlobalKey itemKey = GlobalKey();
-    return PopupMenuItem<String>(
-      value: value,
-      enabled: true,
-      child: MouseRegion(
-        onEnter: (_) {
-          _openActualSubMenu<T>(context, itemKey, builder, onSelected, () {
-            if (Navigator.canPop(context)) {
-              Navigator.pop(context);
-            }
-          });
-        },
-        child: _buildIconMenuItemContent(
-          key: itemKey,
-          title: title,
-          icon: icon,
-          hasTrailingArrow: true,
-        ),
-      ),
-      onTap: () {
-        _openActualSubMenu<T>(context, itemKey, builder, onSelected, () {
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-        });
-      },
-    );
+  static String _desktopNewFileItemSortKey(DesktopNewFileItem item) {
+    return '${item.extension.toLowerCase()}|${item.id.toLowerCase()}';
   }
 
-  // Helper for direct action menu items
-  static Widget _buildIconMenuItemContent({
-    Key? key, // Added key parameter
-    required String title,
-    required IconData icon,
-    bool hasTrailingArrow = false,
-  }) {
-    return Row(
-      key: key, // Assign the key to the Row
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(width: 12),
-        Expanded(child: Text(title)),
-        if (hasTrailingArrow)
-          const Icon(PhosphorIconsLight.arrowRight, size: 20),
-      ],
-    );
+  static String _desktopNewFileItemLabel(
+    BuildContext context,
+    DesktopNewFileItem item,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (item.extension.toLowerCase()) {
+      case '.txt':
+        return l10n.fileTypeTxt;
+      case '.rtf':
+        return l10n.fileTypeRtf;
+      case '.bmp':
+        return l10n.fileTypeBmp;
+      case '.png':
+        return l10n.fileTypePng;
+      case '.jpg':
+      case '.jpeg':
+        return l10n.fileTypeJpeg;
+      case '.gif':
+        return l10n.fileTypeGif;
+      case '.svg':
+        return l10n.fileTypeSvg;
+      case '.pdf':
+        return l10n.fileTypePdf;
+      case '.zip':
+        return l10n.fileTypeZip;
+      case '.rar':
+        return l10n.fileTypeRar;
+      case '.7z':
+        return l10n.fileType7z;
+      case '.md':
+        return l10n.fileTypeMarkdown;
+      case '.json':
+        return l10n.fileTypeJson;
+      case '.html':
+        return l10n.fileTypeHtml;
+      case '.css':
+        return l10n.fileTypeCss;
+      case '.dart':
+        return l10n.fileTypeDart;
+      case '.py':
+        return l10n.fileTypePython;
+      case '.js':
+        return l10n.fileTypeJavaScript;
+      case '.ts':
+        return l10n.fileTypeTypeScript;
+      case '.java':
+        return l10n.fileTypeJava;
+      case '.cpp':
+        return l10n.fileTypeCpp;
+      case '.c':
+        return l10n.fileTypeC;
+      case '.go':
+        return l10n.fileTypeGo;
+      case '.rs':
+        return l10n.fileTypeRust;
+      case '.xml':
+        return l10n.fileTypeXml;
+      case '.yaml':
+        return l10n.fileTypeYaml;
+      case '.sh':
+        return l10n.fileTypeShell;
+      case '.csv':
+        return l10n.fileTypeCsv;
+      case '.doc':
+      case '.docx':
+        return l10n.fileTypeWord;
+      case '.xls':
+      case '.xlsx':
+        return l10n.fileTypeExcel;
+      case '.ppt':
+      case '.pptx':
+        return l10n.fileTypePowerPoint;
+      case '.odt':
+        return l10n.fileTypeLibreDoc;
+      case '.ods':
+        return l10n.fileTypeLibreSheet;
+      case '.odp':
+        return l10n.fileTypeLibrePresentation;
+      case '.odg':
+        return l10n.fileTypeLibreDraw;
+      case '.odc':
+        return l10n.fileTypeLibreChart;
+      case '.odf':
+        return l10n.fileTypeLibreFormula;
+      case '.wps':
+        return l10n.fileTypeWpsDoc;
+      case '.et':
+        return l10n.fileTypeWpsSheet;
+      case '.dps':
+        return l10n.fileTypeWpsPresentation;
+      case '.gdoc':
+        return l10n.fileTypeGoogleDoc;
+      case '.gsheet':
+        return l10n.fileTypeGoogleSheet;
+      case '.gslides':
+        return l10n.fileTypeGoogleSlides;
+      case '.tar':
+        return l10n.fileTypeTar;
+      case '.gz':
+        return l10n.fileTypeGzip;
+      default:
+        return l10n.fileTypeWithExtension(
+          item.extension.replaceFirst('.', '').toUpperCase(),
+        );
+    }
   }
 
-  // Helper for items within submenus (with checkmark)
-  static PopupMenuItem<T> _buildCheckedPopupMenuItem<T>({
-    required String title,
-    required T value,
-    required bool isChecked,
-  }) {
-    return PopupMenuItem<T>(
-      value: value,
-      child: Row(
-        children: [
-          Expanded(child: Text(title)),
-          if (isChecked)
-            const Icon(PhosphorIconsLight.check, size: 18)
-          else
-            const SizedBox(width: 18),
-        ],
-      ),
-    );
+  static String _defaultDesktopNewFileBaseName(
+    BuildContext context,
+    DesktopNewFileItem item,
+  ) {
+    final label = _desktopNewFileItemLabel(context, item);
+    return label
+        .replaceAll(RegExp(r'[<>:"/\\|?*]'), '_')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
+
+  static bool _isMobilePlatform() => Platform.isAndroid || Platform.isIOS;
 
   static Future<void> _showCreateFolderDialog(
     BuildContext context,
     String currentPath,
     Future<void> Function(String) onCreateFolder,
   ) async {
-    final TextEditingController nameController = TextEditingController();
     if (!context.mounted) return;
 
     final l10n = AppLocalizations.of(context)!;
     return showDialog(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.createNewFolder),
-        content: TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            labelText: l10n.folderNameLabel,
-            border: const OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () async {
-              final String folderName = nameController.text.trim();
-              if (folderName.isNotEmpty) {
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-                await onCreateFolder(folderName);
-              }
-            },
-            child: Text(l10n.create),
-          ),
-        ],
+      builder: (dialogContext) => _CreateFolderDialog(
+        title: l10n.createNewFolder,
+        labelText: l10n.folderNameLabel,
+        cancelLabel: l10n.cancel,
+        createLabel: l10n.create,
+        onCreateFolder: onCreateFolder,
       ),
-    ).then((_) {
-      nameController.dispose();
-    });
+    );
   }
 
   static Future<void> _showCreateFileDialog(
     BuildContext context,
     String currentPath,
+    FolderListBloc? folderListBloc,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
   ) async {
-    if (!context.mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    final folderListBloc = context.read<FolderListBloc>();
-
-    final TextEditingController nameController = TextEditingController();
-
-    final l10n = AppLocalizations.of(context)!;
-    return showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(l10n.createNewFile),
-        content: TextField(
-          controller: nameController,
-          decoration: InputDecoration(
-            labelText: l10n.fileNameLabel,
-            border: const OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            },
-            child: Text(l10n.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              final String fileName = nameController.text.trim();
-              if (fileName.isNotEmpty) {
-                final String newFilePath =
-                    '$currentPath${Platform.pathSeparator}$fileName';
-
-                try {
-                  File(newFilePath).createSync();
-                  folderListBloc.add(FolderListLoad(currentPath));
-                  if (dialogContext.mounted) Navigator.pop(dialogContext);
-                } catch (error) {
-                  scaffoldMessenger.showSnackBar(
-                    SnackBar(
-                      content: Text(l10n.errorCreatingFile(error.toString())),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                  if (dialogContext.mounted) Navigator.pop(dialogContext);
-                }
-              }
-            },
-            child: Text(l10n.create),
-          ),
-        ],
-      ),
-    ).then((_) {
-      nameController.dispose();
-    });
+    await CreateFileDialog.show(
+      context,
+      directoryPath: currentPath,
+      onAfterFileCreated: onAfterFileCreated,
+      inlineRenameController: inlineRenameController,
+      folderListBloc: folderListBloc,
+    );
   }
 
   static Future<void> _showFolderProperties(
@@ -462,7 +768,7 @@ class FolderContextMenu {
     String path,
   ) async {
     if (!context.mounted) return;
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final scaffoldMessenger = _maybeScaffoldMessenger(context);
 
     try {
       final directory = Directory(path);
@@ -491,7 +797,7 @@ class FolderContextMenu {
           thumbnailService.getCustomThumbnailPath(path);
 
       final l10n = AppLocalizations.of(context)!;
-      showDialog(
+      _showNoAnimationDialog(
         context: context,
         builder: (dialogContext) => StatefulBuilder(
           builder: (dialogContext, setState) => AlertDialog(
@@ -540,7 +846,9 @@ class FolderContextMenu {
                     },
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       TextButton(
                         onPressed: () async {
@@ -559,8 +867,8 @@ class FolderContextMenu {
                               VideoThumbnailHelper.isSupportedVideoFormat(
                                   selectedPath);
                           if (!isImage && !isVideo) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                            if (context.mounted && scaffoldMessenger != null) {
+                              scaffoldMessenger.showSnackBar(
                                 SnackBar(
                                   content: Text(AppLocalizations.of(context)!
                                       .invalidThumbnailFile),
@@ -585,7 +893,6 @@ class FolderContextMenu {
                         },
                         child: Text(l10n.chooseThumbnail),
                       ),
-                      const SizedBox(width: 8),
                       TextButton(
                         onPressed: () async {
                           await thumbnailService.clearCustomThumbnail(path);
@@ -614,8 +921,8 @@ class FolderContextMenu {
         ),
       );
     } catch (e) {
-      if (scaffoldMessenger.mounted) {
-        scaffoldMessenger.showSnackBar(
+      if (scaffoldMessenger?.mounted ?? false) {
+        scaffoldMessenger?.showSnackBar(
           SnackBar(
             content: Text(AppLocalizations.of(context)!
                 .errorGettingFolderProperties(e.toString())),
@@ -639,5 +946,104 @@ class FolderContextMenu {
       final gb = sizeInBytes / (1024 * 1024 * 1024);
       return '${gb.toStringAsFixed(2)} GB';
     }
+  }
+
+  static ScaffoldMessengerState? _maybeScaffoldMessenger(BuildContext context) {
+    return ScaffoldMessenger.maybeOf(context) ??
+        ScaffoldMessenger.maybeOf(
+          Navigator.of(context, rootNavigator: true).context,
+        );
+  }
+
+  static Future<T?> _showNoAnimationDialog<T>({
+    required BuildContext context,
+    required WidgetBuilder builder,
+  }) {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final dialogContext = navigator.context;
+    return showGeneralDialog<T>(
+      context: dialogContext,
+      barrierDismissible: true,
+      barrierLabel:
+          MaterialLocalizations.of(dialogContext).modalBarrierDismissLabel,
+      barrierColor: Colors.black54,
+      transitionDuration: Duration.zero,
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return SafeArea(
+          child: Builder(builder: builder),
+        );
+      },
+    );
+  }
+}
+
+class _CreateFolderDialog extends StatefulWidget {
+  final String title;
+  final String labelText;
+  final String cancelLabel;
+  final String createLabel;
+  final Future<void> Function(String) onCreateFolder;
+
+  const _CreateFolderDialog({
+    required this.title,
+    required this.labelText,
+    required this.cancelLabel,
+    required this.createLabel,
+    required this.onCreateFolder,
+  });
+
+  @override
+  State<_CreateFolderDialog> createState() => _CreateFolderDialogState();
+}
+
+class _CreateFolderDialogState extends State<_CreateFolderDialog> {
+  late final TextEditingController _nameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final folderName = _nameController.text.trim();
+    if (folderName.isEmpty) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+    await widget.onCreateFolder(folderName);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _nameController,
+        decoration: InputDecoration(
+          labelText: widget.labelText,
+          border: const OutlineInputBorder(),
+        ),
+        autofocus: true,
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.cancelLabel),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: Text(widget.createLabel),
+        ),
+      ],
+    );
   }
 }

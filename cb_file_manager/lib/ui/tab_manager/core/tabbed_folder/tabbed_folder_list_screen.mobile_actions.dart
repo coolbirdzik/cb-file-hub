@@ -30,6 +30,11 @@ extension _TabbedFolderListMobileActions on _TabbedFolderListScreenState {
         _folderListBloc.state.currentPath.path,
       );
     };
+    // Register create folder callback - delegates to FolderContextMenu's create folder dialog
+    controller.onCreateFolder = () => _showMobileCreateFolderDialog();
+    controller.onAllowFileExtensionRenameChanged = _setAllowFileExtensionRename;
+    controller.folderListBloc = _folderListBloc;
+    controller.allowFileExtensionRename = _allowFileExtensionRename;
     // Set initial state
     controller.currentSortOption = _folderListBloc.state.sortOption;
     controller.currentViewMode = _folderListBloc.state.viewMode;
@@ -41,6 +46,8 @@ extension _TabbedFolderListMobileActions on _TabbedFolderListScreenState {
 
     // Update controller state when bloc state changes
     _folderListBloc.stream.listen((state) {
+      controller.folderListBloc = _folderListBloc;
+      controller.allowFileExtensionRename = _allowFileExtensionRename;
       controller.currentSortOption = state.sortOption;
       controller.currentViewMode = state.viewMode;
       controller.currentGridSize = state.gridZoomLevel;
@@ -85,5 +92,95 @@ extension _TabbedFolderListMobileActions on _TabbedFolderListScreenState {
       // Search by filename with recursive option
       _folderListBloc.add(SearchByFileName(query, recursive: isRecursive));
     }
+  }
+
+  /// Show create folder dialog for mobile
+  void _showMobileCreateFolderDialog() async {
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => _MobileCreateFolderDialog(
+        onCreateFolder: (folderName) => _createNewFolder(folderName),
+      ),
+    );
+  }
+
+  /// Create a new folder
+  Future<void> _createNewFolder(String folderName) async {
+    if (_currentPath.isEmpty) return;
+
+    try {
+      final newFolderPath = '$_currentPath${Platform.pathSeparator}$folderName';
+      await Directory(newFolderPath).create(recursive: true);
+      _folderListBloc.add(FolderListRefresh(_currentPath));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error creating folder: $e')),
+      );
+    }
+  }
+}
+
+class _MobileCreateFolderDialog extends StatefulWidget {
+  final Future<void> Function(String folderName) onCreateFolder;
+
+  const _MobileCreateFolderDialog({
+    required this.onCreateFolder,
+  });
+
+  @override
+  State<_MobileCreateFolderDialog> createState() =>
+      _MobileCreateFolderDialogState();
+}
+
+class _MobileCreateFolderDialogState extends State<_MobileCreateFolderDialog> {
+  late final TextEditingController _nameController;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final folderName = _nameController.text.trim();
+    if (folderName.isEmpty) {
+      return;
+    }
+
+    Navigator.of(context).pop();
+    await widget.onCreateFolder(folderName);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('New Folder'),
+      content: TextField(
+        controller: _nameController,
+        decoration: const InputDecoration(
+          labelText: 'Folder name',
+          border: OutlineInputBorder(),
+        ),
+        autofocus: true,
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: const Text('Create'),
+        ),
+      ],
+    );
   }
 }

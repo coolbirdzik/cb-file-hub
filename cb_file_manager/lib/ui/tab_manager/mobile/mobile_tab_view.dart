@@ -145,11 +145,14 @@ class MobileTabView extends StatelessWidget {
             ),
           ),
 
-          // Nút tạo tab mới nhanh (đặt trước nút số lượng tab)
+          // Nút tạo file/folder mới (thay thế nút thêm tab khi không có tab)
           IconButton(
             icon: Icon(PhosphorIconsLight.plus, color: textColor),
-            tooltip: localizations.newTab,
-            onPressed: onAddNewTab,
+            tooltip: localizations.create,
+            onPressed: () {
+              // When no tabs exist, we can't use the controller, so show a simple menu
+              _showEmptyStateCreateMenu(context);
+            },
           ),
 
           // Nút số lượng tab
@@ -201,11 +204,15 @@ class MobileTabView extends StatelessWidget {
             ),
           ),
 
-          // Nút thêm tab mới nhanh (đặt trước nút số lượng tab)
+          // Nút tạo file/folder mới (thay thế nút thêm tab)
           IconButton(
             icon: Icon(PhosphorIconsLight.plus, color: textColor),
-            tooltip: localizations.newTab,
-            onPressed: onAddNewTab,
+            tooltip: localizations.create,
+            onPressed: () {
+              final controller =
+                  MobileFileActionsController.forTab(state.activeTab!.id);
+              controller.showCreateMenu(context);
+            },
           ),
 
           // Nút số lượng tab và menu tab - đã chuyển sang bên phải thanh địa chỉ
@@ -1076,6 +1083,81 @@ extension MobileTabViewDynamicMenu on MobileTabView {
 
     // Allow local file paths and direct network paths (smb://, ftp://, etc.)
     return true;
+  }
+
+  /// Show create menu when no tabs exist (empty state)
+  void _showEmptyStateCreateMenu(BuildContext context) {
+    final theme = Theme.of(context);
+    final localizations = AppLocalizations.of(context)!;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: theme.dividerColor.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  localizations.create ?? 'Create',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(PhosphorIconsLight.folderPlus,
+                    color: Colors.blue),
+                title: Text(
+                  localizations.createNewFolder,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(localizations.pleaseCreateTabFirst)),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(PhosphorIconsLight.filePlus,
+                    color: Colors.orange),
+                title: Text(
+                  localizations.createNewFile,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(localizations.pleaseCreateTabFirst)),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

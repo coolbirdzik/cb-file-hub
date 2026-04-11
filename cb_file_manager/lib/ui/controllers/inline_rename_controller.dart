@@ -12,6 +12,8 @@ import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 /// This controller manages which entity is currently being renamed inline
 /// and provides methods for starting, committing, and cancelling renames.
 class InlineRenameController extends ChangeNotifier {
+  bool allowFileExtensionRename = false;
+
   /// The path of the entity currently being renamed, or null if none.
   String? _renamingPath;
 
@@ -60,14 +62,16 @@ class InlineRenameController extends ChangeNotifier {
     final baseName = path.basename(entityPath);
     final nameWithoutExt =
         isFile ? path.basenameWithoutExtension(entityPath) : baseName;
+    final initialValue =
+        isFile && allowFileExtensionRename ? baseName : nameWithoutExt;
 
-    _textController = TextEditingController(text: nameWithoutExt);
+    _textController = TextEditingController(text: initialValue);
     _focusNode = FocusNode();
 
     // Select all text
     _textController!.selection = TextSelection(
       baseOffset: 0,
-      extentOffset: nameWithoutExt.length,
+      extentOffset: initialValue.length,
     );
 
     notifyListeners();
@@ -98,8 +102,17 @@ class InlineRenameController extends ChangeNotifier {
     final currentBaseName = path.basename(entityPath);
     final extension = isFile ? path.extension(entityPath) : '';
 
-    // Add extension back for files
-    final finalNewName = isFile ? newName + extension : newName;
+    final finalNewName = isFile
+        ? _resolveFileRename(
+            rawName: newName,
+            extension: extension,
+          )
+        : newName;
+
+    if (finalNewName.isEmpty) {
+      cancelRename();
+      return false;
+    }
 
     // Check if name actually changed
     if (finalNewName == currentBaseName) {
@@ -156,6 +169,28 @@ class InlineRenameController extends ChangeNotifier {
   void dispose() {
     _cleanup();
     super.dispose();
+  }
+
+  String _resolveFileRename({
+    required String rawName,
+    required String extension,
+  }) {
+    if (allowFileExtensionRename) {
+      return rawName;
+    }
+
+    var baseName = rawName;
+    if (extension.isNotEmpty &&
+        rawName.toLowerCase().endsWith(extension.toLowerCase())) {
+      baseName = rawName.substring(0, rawName.length - extension.length);
+    }
+
+    baseName = baseName.trim();
+    if (baseName.isEmpty) {
+      return '';
+    }
+
+    return '$baseName$extension';
   }
 }
 

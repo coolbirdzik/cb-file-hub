@@ -10,6 +10,8 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../components/common/optimized_interaction_handler.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
 import '../../../utils/item_interaction_style.dart';
+import 'package:cb_file_manager/ui/controllers/inline_rename_controller.dart';
+import 'package:cb_file_manager/ui/widgets/inline_rename_field.dart';
 
 class FolderItem extends StatefulWidget {
   final Directory folder;
@@ -141,6 +143,9 @@ class _FolderItemState extends State<FolderItem> {
   @override
   Widget build(BuildContext context) {
     final bool isBeingCut = ItemInteractionStyle.isBeingCut(widget.folder.path);
+    final renameController = InlineRenameScope.maybeOf(context);
+    final isBeingRenamed = renameController != null &&
+        renameController.renamingPath == widget.folder.path;
 
     return ValueListenableBuilder<bool>(
       valueListenable: _isHovering,
@@ -201,17 +206,34 @@ class _FolderItemState extends State<FolderItem> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  widget.folder.basename(),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(
-                                        fontWeight: FontWeight.w500,
+                                isBeingRenamed &&
+                                        renameController.textController != null
+                                    ? InlineRenameField(
+                                        controller: renameController,
+                                        onCommit: () => renameController
+                                            .commitRename(context),
+                                        onCancel: () =>
+                                            renameController.cancelRename(),
+                                        textStyle: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                        textAlign: TextAlign.start,
+                                        maxLines: 1,
+                                      )
+                                    : Text(
+                                        widget.folder.basename(),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
                                 const SizedBox(height: 4),
                                 FutureBuilder<FileStat>(
                                   future: _folderStatFuture,
@@ -292,38 +314,48 @@ class _FolderItemState extends State<FolderItem> {
                       ),
                     ),
                     // Interactive layer cho tên (navigate)
-                    Positioned(
-                      left: 80,
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      child: OptimizedInteractionLayer(
-                        onTap: () {
-                          if (widget.isDesktopMode &&
-                              widget.toggleFolderSelection != null) {
-                            _handleFolderSelection();
-                            return;
-                          }
+                    if (!isBeingRenamed)
+                      Positioned(
+                        left: 80,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        child: OptimizedInteractionLayer(
+                          onTap: () {
+                            if (widget.isDesktopMode &&
+                                widget.toggleFolderSelection != null) {
+                              _handleFolderSelection();
+                              return;
+                            }
 
-                          if (widget.onTap != null) {
-                            widget.onTap!(widget.folder.path);
-                          }
-                        },
-                        onDoubleTap: widget.isDesktopMode
-                            ? () {
-                                if (widget.clearSelectionMode != null) {
-                                  widget.clearSelectionMode!();
+                            if (widget.onTap != null) {
+                              widget.onTap!(widget.folder.path);
+                            }
+                          },
+                          onDoubleTap: widget.isDesktopMode
+                              ? () {
+                                  if (widget.clearSelectionMode != null) {
+                                    widget.clearSelectionMode!();
+                                  }
+                                  widget.onTap?.call(widget.folder.path);
                                 }
-                                widget.onTap?.call(widget.folder.path);
-                              }
-                            : null,
-                        onTertiaryTapUp: (_) {
-                          context
-                              .read<TabManagerBloc>()
-                              .add(AddTab(path: widget.folder.path));
-                        },
+                              : null,
+                          onLongPressStart: !widget.isDesktopMode
+                              ? (details) {
+                                  HapticFeedback.mediumImpact();
+                                  _showFolderContextMenu(
+                                    context,
+                                    details.globalPosition,
+                                  );
+                                }
+                              : null,
+                          onTertiaryTapUp: (_) {
+                            context
+                                .read<TabManagerBloc>()
+                                .add(AddTab(path: widget.folder.path));
+                          },
+                        ),
                       ),
-                    ),
                     // Selection indicator
                     if (widget.isSelected)
                       Positioned(

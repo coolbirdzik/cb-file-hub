@@ -467,4 +467,55 @@ class ExternalAppHelper {
       return false;
     }
   }
+
+  // ─── Brand Detection (for create-file dialog) ────────────────────────────────
+
+  /// Android: Returns installed package names for brand detection.
+  static Future<Set<String>> getInstalledAppPackageNames() async {
+    if (!Platform.isAndroid) return {};
+    try {
+      final result = await _channel.invokeMethod<List<dynamic>>('getInstalledAppPackages');
+      return Set<String>.from(result ?? []);
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Android: Detects which office suites are installed (Microsoft, Libre, WPS, Google).
+  static Future<Set<String>> getInstalledBrands() async {
+    final packages = await getInstalledAppPackageNames();
+    final brands = <String>{};
+
+    for (final pkg in packages) {
+      final lower = pkg.toLowerCase();
+
+      // Microsoft Office
+      if (lower.contains('microsoft') ||
+          lower.contains('office') ||
+          lower.contains('winword') ||
+          lower.contains('com.microsoft.')) {
+        brands.add('microsoft');
+      }
+
+      // LibreOffice
+      if (lower.contains('libreoffice') || lower.startsWith('org.libreoffice.')) {
+        brands.add('libre');
+      }
+
+      // WPS Office
+      if (lower.contains('wps') ||
+          lower.startsWith('cn.wps.') ||
+          lower.contains('kingsoft')) {
+        brands.add('wps');
+      }
+
+      // Google Docs/Sheets/Slides
+      if (lower.contains('com.google.android.apps') ||
+          lower.contains('googleapps')) {
+        brands.add('google');
+      }
+    }
+
+    return brands;
+  }
 }

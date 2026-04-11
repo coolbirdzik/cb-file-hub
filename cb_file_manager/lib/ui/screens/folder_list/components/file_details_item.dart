@@ -419,12 +419,9 @@ class _FileDetailsItemState extends State<FileDetailsItem> {
     );
 
     if (isBeingRenamed && renameController.textController != null) {
-      return Stack(
+      return Row(
         children: [
-          // Invisible text for layout sizing
-          Opacity(opacity: 0, child: textWidget),
-          // Positioned editable field on top
-          Positioned.fill(
+          Expanded(
             child: InlineRenameField(
               controller: renameController,
               onCommit: () => renameController.commitRename(context),

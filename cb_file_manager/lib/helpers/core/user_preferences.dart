@@ -76,6 +76,10 @@ class UserPreferences {
       'last_drawer_storage_expanded';
   static const String _lastDrawerPinnedExpandedKey =
       'last_drawer_pinned_expanded';
+  static const String _desktopQuickCreateItemIdsKey =
+      'desktop_quick_create_item_ids';
+  static const String _allowFileExtensionRenameKey =
+      'allow_file_extension_rename';
 
   // Constants for grid zoom level
   static const int minGridZoomLevel = 2; // Largest thumbnails (2 per row)
@@ -690,6 +694,54 @@ class UserPreferences {
   Future<bool> setLastOpenedTabsList(List<String> paths) async {
     final jsonString = json.encode(paths);
     return await _savePreference<String>(_lastOpenedTabsListKey, jsonString);
+  }
+
+  Future<List<String>> getDesktopQuickCreateItemIds() async {
+    final raw = await _getPreference<String>(_desktopQuickCreateItemIdsKey);
+    if (raw == null || raw.trim().isEmpty) {
+      return <String>[];
+    }
+
+    try {
+      final decoded = json.decode(raw);
+      if (decoded is! List) {
+        return <String>[];
+      }
+      return decoded
+          .whereType<String>()
+          .map((value) => value.trim())
+          .where((value) => value.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return <String>[];
+    }
+  }
+
+  Future<bool> setDesktopQuickCreateItemIds(List<String> ids) async {
+    final normalized = ids
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    return await _savePreference<String>(
+      _desktopQuickCreateItemIdsKey,
+      json.encode(normalized),
+    );
+  }
+
+  Future<bool> clearDesktopQuickCreateItemIds() async {
+    return await _deletePreference(_desktopQuickCreateItemIdsKey);
+  }
+
+  Future<bool> getAllowFileExtensionRename() async {
+    return await _getPreference<bool>(
+          _allowFileExtensionRenameKey,
+          defaultValue: false,
+        ) ??
+        false;
+  }
+
+  Future<bool> setAllowFileExtensionRename(bool value) async {
+    return await _savePreference<bool>(_allowFileExtensionRenameKey, value);
   }
 
   /// Get drawer section expansion state

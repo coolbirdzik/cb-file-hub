@@ -271,6 +271,8 @@ class SharedActionBar {
   static Widget buildMoreOptionsMenu({
     required VoidCallback onSelectionModeToggled,
     VoidCallback? onManageTagsPressed,
+    bool allowFileExtensionRename = false,
+    ValueChanged<bool>? onAllowFileExtensionRenameChanged,
     Function(String)? onGallerySelected,
     String? currentPath,
   }) {
@@ -311,6 +313,35 @@ class SharedActionBar {
               );
             }
 
+            if (onAllowFileExtensionRenameChanged != null) {
+              items.add(
+                PopupMenuItem<String>(
+                  value: 'toggle_file_extension_rename',
+                  child: Row(
+                    children: [
+                      Icon(
+                        PhosphorIconsLight.textAa,
+                        size: 20,
+                        color: allowFileExtensionRename
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(l10n.allowFileExtensionRename),
+                      ),
+                      if (allowFileExtensionRename)
+                        Icon(
+                          PhosphorIconsLight.check,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
             return items;
           },
           onSelected: (String value) {
@@ -322,6 +353,10 @@ class SharedActionBar {
                 if (onManageTagsPressed != null) {
                   onManageTagsPressed();
                 }
+                break;
+              case 'toggle_file_extension_rename':
+                onAllowFileExtensionRenameChanged
+                    ?.call(!allowFileExtensionRename);
                 break;
             }
           },
@@ -342,6 +377,8 @@ class SharedActionBar {
     VoidCallback? onColumnSettingsPressed,
     required VoidCallback onSelectionModeToggled,
     VoidCallback? onManageTagsPressed,
+    bool allowFileExtensionRename = false,
+    ValueChanged<bool>? onAllowFileExtensionRenameChanged,
     Function(String)? onGallerySelected,
     String? currentPath,
     Function(ViewMode)? onViewModeSelected,
@@ -619,6 +656,8 @@ class SharedActionBar {
     actions.add(buildMoreOptionsMenu(
       onSelectionModeToggled: onSelectionModeToggled,
       onManageTagsPressed: onManageTagsPressed,
+      allowFileExtensionRename: allowFileExtensionRename,
+      onAllowFileExtensionRenameChanged: onAllowFileExtensionRenameChanged,
       onGallerySelected: onGallerySelected,
       currentPath: currentPath,
     ));

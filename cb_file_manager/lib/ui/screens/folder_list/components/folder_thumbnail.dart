@@ -330,7 +330,7 @@ class _FolderThumbnailState extends State<FolderThumbnail> {
                 ShimmerBox(
                   width: double.infinity,
                   height: double.infinity,
-                  borderRadius: BorderRadius.circular(16.0),
+                  borderRadius: BorderRadius.circular(0),
                 )
               else
                 _buildFolderIcon(context),
@@ -470,7 +470,7 @@ class _FolderThumbnailState extends State<FolderThumbnail> {
     return ShimmerBox(
       width: double.infinity,
       height: double.infinity,
-      borderRadius: BorderRadius.circular(16.0),
+      borderRadius: BorderRadius.circular(0),
     );
   }
 }

@@ -272,10 +272,20 @@ class _FolderDetailsItemState extends State<FolderDetailsItem> {
                     }
                   },
                   onLongPress: () {
-                    if (widget.toggleFolderSelection != null) {
+                    if (widget.isDesktopMode &&
+                        widget.toggleFolderSelection != null) {
                       _handleFolderSelection();
                     }
                   },
+                  onLongPressStart: !widget.isDesktopMode
+                      ? (details) {
+                          HapticFeedback.mediumImpact();
+                          _showFolderContextMenu(
+                            context,
+                            details.globalPosition,
+                          );
+                        }
+                      : null,
                 ),
               ),
             ],
@@ -313,12 +323,9 @@ class _FolderDetailsItemState extends State<FolderDetailsItem> {
     );
 
     if (isBeingRenamed && renameController.textController != null) {
-      return Stack(
+      return Row(
         children: [
-          // Invisible text for layout sizing
-          Opacity(opacity: 0, child: textWidget),
-          // Positioned editable field on top
-          Positioned.fill(
+          Expanded(
             child: InlineRenameField(
               controller: renameController,
               onCommit: () => renameController.commitRename(context),

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/ui/dialogs/delete_confirmation_dialog.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_bloc.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 import 'package:cb_file_manager/ui/tab_manager/components/tag_dialogs.dart';
 import 'package:cb_file_manager/helpers/files/file_icon_helper.dart';
+import 'package:path/path.dart' as path;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class FolderListAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -101,10 +104,30 @@ class FolderListAppBar extends StatelessWidget implements PreferredSizeWidget {
           style: TextButton.styleFrom(
             foregroundColor: Theme.of(context).colorScheme.error,
           ),
-          onPressed: () {
-            BlocProvider.of<FolderListBloc>(context)
-                .add(FolderListDeleteFiles(selectedFiles));
-            toggleSelectionMode();
+          onPressed: () async {
+            final l10n = AppLocalizations.of(context);
+            if (l10n == null) return;
+
+            final totalCount = selectedFiles.length;
+            final firstItemName = path.basename(selectedFiles.first);
+
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (context) => DeleteConfirmationDialog(
+                title: l10n.deleteTitle,
+                message: totalCount == 1
+                    ? l10n.moveToTrashConfirmMessage(firstItemName)
+                    : l10n.moveItemsToTrashConfirmation(totalCount, l10n.items),
+                confirmText: l10n.deleteTitle,
+                cancelText: l10n.cancel,
+              ),
+            );
+
+            if (confirmed == true && context.mounted) {
+              BlocProvider.of<FolderListBloc>(context)
+                  .add(FolderListDeleteFiles(selectedFiles));
+              toggleSelectionMode();
+            }
           },
         ),
         IconButton(

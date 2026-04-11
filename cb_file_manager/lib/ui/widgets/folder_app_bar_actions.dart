@@ -18,6 +18,8 @@ class FolderAppBarActions {
     required VoidCallback onSearchPressed,
     required VoidCallback onSelectionModeToggled,
     required VoidCallback onManageTagsPressed,
+    bool allowFileExtensionRename = false,
+    ValueChanged<bool>? onAllowFileExtensionRenameChanged,
     required Function(int) onGridZoomChange,
     required VoidCallback onColumnSettingsPressed,
     required Function(String)? onGallerySelected,
@@ -51,6 +53,8 @@ class FolderAppBarActions {
       showPreviewModeOption: showPreviewModeOption,
       onSelectionModeToggled: onSelectionModeToggled,
       onManageTagsPressed: onManageTagsPressed,
+      allowFileExtensionRename: allowFileExtensionRename,
+      onAllowFileExtensionRenameChanged: onAllowFileExtensionRenameChanged,
       onGallerySelected: isNetworkPath ? null : onGallerySelected,
       currentPath: currentPath,
     );

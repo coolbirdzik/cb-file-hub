@@ -20,7 +20,7 @@ import 'folder_details_item.dart';
 
 class FileView extends StatelessWidget {
   static const double _gridSpacing = 12.0;
-  static const double _gridAspectRatio = 0.8;
+  static const double _gridAspectRatio = 1.0;
   static const double _gridReferenceWidth = 960.0;
 
   static double _gridItemWidthForZoom(int zoomLevel) {

@@ -31,6 +31,8 @@ import 'package:cb_file_manager/helpers/network/streaming_helper.dart';
 import 'package:cb_file_manager/services/network_browsing/webdav_service.dart';
 import 'package:cb_file_manager/services/network_browsing/ftp_service.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/ui/controllers/inline_rename_controller.dart';
+import 'package:cb_file_manager/ui/widgets/inline_rename_field.dart';
 
 // Add this class to disable ripple effects
 class NoSplashFactory extends InteractiveInkFeatureFactory {
@@ -374,6 +376,9 @@ class _FileItemState extends State<FileItem> {
     final bool isVideo = FileTypeUtils.isVideoFile(widget.file.path);
     final bool isImage = FileTypeUtils.isImageFile(widget.file.path);
     final bool isBeingCut = ItemInteractionStyle.isBeingCut(widget.file.path);
+    final renameController = InlineRenameScope.maybeOf(context);
+    final isBeingRenamed = renameController != null &&
+        renameController.renamingPath == widget.file.path;
 
     // Use ValueListenableBuilder for hover and selection state to avoid full rebuilds
     return ValueListenableBuilder<bool>(
@@ -420,6 +425,8 @@ class _FileItemState extends State<FileItem> {
                                 widget.showAddTagToFileDialog,
                             removeTagDirectly: _removeTagDirectly,
                             showFileTags: widget.showFileTags,
+                            renameController: renameController,
+                            isBeingRenamed: isBeingRenamed,
                           ),
                         ),
                         // Interactive layer cho icon (select)
@@ -442,33 +449,36 @@ class _FileItemState extends State<FileItem> {
                           ),
                         ),
                         // Interactive layer cho tên (open)
-                        Positioned(
-                          left: 80,
-                          top: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: OptimizedInteractionLayer(
-                            onTap: () {
-                              if (widget.isDesktopMode) {
-                                _handleSelection();
-                                return;
-                              }
-                              _openFile(isVideo, isImage);
-                            },
-                            onDoubleTap: widget.isDesktopMode
-                                ? () => _openFile(isVideo, isImage)
-                                : null,
-                            onSecondaryTapUp: (details) {
-                              _showContextMenu(context, details.globalPosition);
-                            },
-                            onLongPressStart: !widget.isDesktopMode
-                                ? (d) {
-                                    HapticFeedback.mediumImpact();
-                                    _showContextMenu(context, d.globalPosition);
-                                  }
-                                : null,
+                        if (!isBeingRenamed)
+                          Positioned(
+                            left: 80,
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            child: OptimizedInteractionLayer(
+                              onTap: () {
+                                if (widget.isDesktopMode) {
+                                  _handleSelection();
+                                  return;
+                                }
+                                _openFile(isVideo, isImage);
+                              },
+                              onDoubleTap: widget.isDesktopMode
+                                  ? () => _openFile(isVideo, isImage)
+                                  : null,
+                              onSecondaryTapUp: (details) {
+                                _showContextMenu(
+                                    context, details.globalPosition);
+                              },
+                              onLongPressStart: !widget.isDesktopMode
+                                  ? (d) {
+                                      HapticFeedback.mediumImpact();
+                                      _showContextMenu(
+                                          context, d.globalPosition);
+                                    }
+                                  : null,
+                            ),
                           ),
-                        ),
                         // Selection indicator - only rebuilds when selection changes
                         if (isSelected && !widget.isDesktopMode)
                           Positioned(
@@ -509,6 +519,8 @@ class _FileItemContent extends StatefulWidget {
   final Function(BuildContext, String) showAddTagToFileDialog;
   final Function(String) removeTagDirectly;
   final bool showFileTags;
+  final InlineRenameController? renameController;
+  final bool isBeingRenamed;
 
   const _FileItemContent({
     required this.file,
@@ -518,6 +530,8 @@ class _FileItemContent extends StatefulWidget {
     required this.showAddTagToFileDialog,
     required this.removeTagDirectly,
     required this.showFileTags,
+    required this.renameController,
+    required this.isBeingRenamed,
   });
 
   @override
@@ -604,12 +618,7 @@ class _FileItemContentState extends State<_FileItemContent> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  _getDisplayName(widget.file),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
+                _buildName(context),
                 const SizedBox(height: 4),
                 _buildFileDetails(context),
               ],
@@ -849,6 +858,32 @@ class _FileItemContentState extends State<_FileItemContent> {
             ),
         ],
       ],
+    );
+  }
+
+  Widget _buildName(BuildContext context) {
+    if (widget.isBeingRenamed &&
+        widget.renameController != null &&
+        widget.renameController!.textController != null) {
+      return InlineRenameField(
+        controller: widget.renameController!,
+        onCommit: () => widget.renameController!.commitRename(context),
+        onCancel: () => widget.renameController!.cancelRename(),
+        textStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+        textAlign: TextAlign.start,
+        maxLines: 1,
+      );
+    }
+
+    return Text(
+      _getDisplayName(widget.file),
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+          ),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 

@@ -330,6 +330,70 @@ class VietnameseLocalizations implements AppLocalizations {
   @override
   String fileTypeWithExtension(String extension) => 'Tệp $extension';
 
+  // File template type names
+  @override
+  String get fileTypeMarkdown => 'Markdown';
+  @override
+  String get fileTypeJson => 'Tệp JSON';
+  @override
+  String get fileTypeHtml => 'Tài liệu HTML';
+  @override
+  String get fileTypeCss => 'Trang định kiểu CSS';
+  @override
+  String get fileTypeDart => 'Tệp Dart';
+  @override
+  String get fileTypePython => 'Script Python';
+  @override
+  String get fileTypeJavaScript => 'JavaScript';
+  @override
+  String get fileTypeTypeScript => 'TypeScript';
+  @override
+  String get fileTypeJava => 'Tệp Java';
+  @override
+  String get fileTypeCpp => 'Tệp C++';
+  @override
+  String get fileTypeC => 'Tệp C';
+  @override
+  String get fileTypeGo => 'Tệp Go';
+  @override
+  String get fileTypeRust => 'Tệp Rust';
+  @override
+  String get fileTypeXml => 'Tệp XML';
+  @override
+  String get fileTypeYaml => 'Tệp YAML';
+  @override
+  String get fileTypeShell => 'Script Shell';
+  @override
+  String get fileTypeCsv => 'Bảng tính CSV';
+  @override
+  String get fileTypeLibreDoc => 'Tài liệu LibreOffice';
+  @override
+  String get fileTypeLibreSheet => 'Bảng tính LibreOffice';
+  @override
+  String get fileTypeLibrePresentation => 'Bài thuyết trình LibreOffice';
+  @override
+  String get fileTypeLibreDraw => 'Bản vẽ LibreOffice';
+  @override
+  String get fileTypeLibreChart => 'Biểu đồ LibreOffice';
+  @override
+  String get fileTypeLibreFormula => 'Công thức LibreOffice';
+  @override
+  String get fileTypeWpsDoc => 'Tài liệu WPS';
+  @override
+  String get fileTypeWpsSheet => 'Bảng tính WPS';
+  @override
+  String get fileTypeWpsPresentation => 'Bài thuyết trình WPS';
+  @override
+  String get fileTypeGoogleDoc => 'Google Doc';
+  @override
+  String get fileTypeGoogleSheet => 'Google Sheet';
+  @override
+  String get fileTypeGoogleSlides => 'Google Slides';
+  @override
+  String get fileTypeTar => 'Tệp nén TAR';
+  @override
+  String get fileTypeGzip => 'Tệp nén GZIP';
+
   // Settings
   @override
   String get language => 'Ngôn ngữ';
@@ -1416,6 +1480,8 @@ class VietnameseLocalizations implements AppLocalizations {
   @override
   String renamedFolderTo(String newName) =>
       'Đã đổi tên thư mục thành "$newName"';
+  @override
+  String get allowFileExtensionRename => 'Cho phép sửa phần mở rộng tệp';
 
   // Downloads
   @override

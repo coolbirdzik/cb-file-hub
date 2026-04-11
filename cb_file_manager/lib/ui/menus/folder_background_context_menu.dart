@@ -5,6 +5,7 @@ import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 import 'package:cb_file_manager/ui/tab_manager/components/folder_context_menu.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/ui/controllers/inline_rename_controller.dart';
 
 /// Handles displaying context menu for folder background (empty areas)
 class FolderBackgroundContextMenu {
@@ -20,6 +21,8 @@ class FolderBackgroundContextMenu {
     required VoidCallback onRefresh,
     required Function(String) onCreateFolder,
     required Future<void> Function(SortOption) onSortOptionSaved,
+    InlineRenameController? inlineRenameController,
+    ValueChanged<String>? onAfterFileCreated,
   }) {
     FolderContextMenu.show(
       context: context,
@@ -51,6 +54,8 @@ class FolderBackgroundContextMenu {
         }
       },
       onSortOptionSaved: onSortOptionSaved,
+      inlineRenameController: inlineRenameController,
+      onAfterFileCreated: onAfterFileCreated,
     );
   }
 }

@@ -101,6 +101,9 @@ class MainActivity : FlutterActivity() {
                     val filePath = call.argument<String>("filePath") ?: ""
                     result.success(getApkInstalledAppInfo(filePath))
                 }
+                "getInstalledAppPackages" -> {
+                    result.success(getInstalledAppPackages())
+                }
                 "testApkInfo" -> {
                     val filePath = call.argument<String>("filePath") ?: ""
                     result.success(testApkInfo(filePath))
@@ -309,6 +312,13 @@ class MainActivity : FlutterActivity() {
             try { pipPlayer?.volume = volume.coerceIn(0f, 1f) } catch (_: Throwable) {}
         }
         pipPlayer?.playWhenReady = play
+    }
+
+    private fun getInstalledAppPackages(): List<String> {
+        val pm = packageManager
+        return pm.getInstalledApplications(PackageManager.GET_META_DATA)
+            .map { it.packageName }
+            .filter { !it.startsWith("com.android.") && !it.startsWith("com.google.") }
     }
 
     private fun getInstalledAppsForFile(filePath: String, extension: String): List<Map<String, Any>> {

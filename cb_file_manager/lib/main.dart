@@ -46,17 +46,7 @@ import 'dev/dev_overlay.dart';
 // Global access to test the video thumbnail screen (for development)
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
-const List<String> _debugLogAllowList = <String>[
-  'VideoPlayer',
-  'VLC',
-  'TAG_RENAME',
-  'SEED_DIRECT',
-  '[DevTools]',
-  '[TagManager]',
-  '[SQLite]',
-];
-
-// Error patterns to suppress (Flutter engine-level issues that don't affect functionality)
+// Error patterns to suppress (Flutter engine-level noise that doesn't affect functionality)
 const List<String> _debugLogSuppressList = <String>[
   'accessibility_bridge.cc', // Windows AXTree update errors
   'Failed to update ui::AXTree',
@@ -98,25 +88,8 @@ Future<void> _handleAndroidLaunchVideo() async {
   } catch (_) {}
 }
 
-void _configureDebugPrintFiltering() {
-  debugPrint = (String? message, {int? wrapWidth}) {
-    if (message == null) return;
-    for (final token in _debugLogAllowList) {
-      if (message.contains(token)) {
-        debugPrintThrottled(message, wrapWidth: wrapWidth);
-        return;
-      }
-    }
-  };
-}
-
-bool _shouldAllowLog(String message) {
+bool _shouldSuppressLog(String message) {
   for (final token in _debugLogSuppressList) {
-    if (message.contains(token)) {
-      return false;
-    }
-  }
-  for (final token in _debugLogAllowList) {
     if (message.contains(token)) {
       return true;
     }
@@ -148,7 +121,6 @@ void main(List<String> args) async {
   _launchPaths = List.from(args);
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
-    _configureDebugPrintFiltering();
     final env = Platform.environment;
     final isDesktopPlatform =
         Platform.isWindows || Platform.isLinux || Platform.isMacOS;
@@ -411,7 +383,7 @@ void main(List<String> args) async {
   }, (error, stackTrace) {
     debugPrint('Error during app initialization: $error');
   }, zoneSpecification: ZoneSpecification(print: (self, parent, zone, line) {
-    if (_shouldAllowLog(line)) {
+    if (!_shouldSuppressLog(line)) {
       parent.print(zone, line);
     }
   }));

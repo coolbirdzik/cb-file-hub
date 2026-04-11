@@ -81,6 +81,15 @@ class OperationProgressController extends ChangeNotifier {
     bool isIndeterminate = false,
     bool showModal = false,
   }) {
+    // Force-dismiss previous entry so the UI resets cleanly.
+    // This gives listeners (e.g. dialog overlay) a chance to pop the old
+    // dialog and reset their _isShowingDialog flag before the new entry
+    // triggers a fresh dialog.
+    if (_active != null) {
+      _active = null;
+      notifyListeners();
+    }
+
     final id = _newId();
     _active = OperationProgressEntry(
       id: id,

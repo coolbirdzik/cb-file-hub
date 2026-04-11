@@ -187,22 +187,35 @@ class SelectionBloc extends Bloc<SelectionEvent, SelectionState> {
       final Set<String> newSelectedFolders;
 
       if (event.isCtrlPressed) {
-        // With Ctrl: toggle selection of items in rect
-        newSelectedFiles = {...state.selectedFilePaths};
-        newSelectedFolders = {...state.selectedFolderPaths};
+        // With Ctrl+drag: toggle items relative to the pre-drag snapshot so
+        // that each item's final state is determined once (at drag-start) and
+        // doesn't flicker as the mouse moves over the same item each frame.
+        //
+        // If a pre-drag snapshot was provided (rubber-band drag), use it as
+        // the baseline. Otherwise fall back to the live state (Ctrl+click).
+        final baseFiles = event.preCtrlDragFiles.isNotEmpty ||
+                event.preCtrlDragFolders.isNotEmpty
+            ? event.preCtrlDragFiles
+            : state.selectedFilePaths;
+        final baseFolders = event.preCtrlDragFiles.isNotEmpty ||
+                event.preCtrlDragFolders.isNotEmpty
+            ? event.preCtrlDragFolders
+            : state.selectedFolderPaths;
 
-        // Toggle files in the rect
+        // Start from the snapshot, then apply toggle for items currently in rect.
+        newSelectedFiles = Set.of(baseFiles);
+        newSelectedFolders = Set.of(baseFolders);
+
         for (final filePath in event.filePaths) {
-          if (newSelectedFiles.contains(filePath)) {
+          if (baseFiles.contains(filePath)) {
             newSelectedFiles.remove(filePath);
           } else {
             newSelectedFiles.add(filePath);
           }
         }
 
-        // Toggle folders in the rect
         for (final folderPath in event.folderPaths) {
-          if (newSelectedFolders.contains(folderPath)) {
+          if (baseFolders.contains(folderPath)) {
             newSelectedFolders.remove(folderPath);
           } else {
             newSelectedFolders.add(folderPath);

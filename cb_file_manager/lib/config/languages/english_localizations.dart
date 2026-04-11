@@ -334,6 +334,70 @@ class EnglishLocalizations implements AppLocalizations {
   @override
   String fileTypeWithExtension(String extension) => '$extension File';
 
+  // File template type names
+  @override
+  String get fileTypeMarkdown => 'Markdown';
+  @override
+  String get fileTypeJson => 'JSON File';
+  @override
+  String get fileTypeHtml => 'HTML Document';
+  @override
+  String get fileTypeCss => 'CSS Stylesheet';
+  @override
+  String get fileTypeDart => 'Dart File';
+  @override
+  String get fileTypePython => 'Python Script';
+  @override
+  String get fileTypeJavaScript => 'JavaScript';
+  @override
+  String get fileTypeTypeScript => 'TypeScript';
+  @override
+  String get fileTypeJava => 'Java File';
+  @override
+  String get fileTypeCpp => 'C++ File';
+  @override
+  String get fileTypeC => 'C File';
+  @override
+  String get fileTypeGo => 'Go File';
+  @override
+  String get fileTypeRust => 'Rust File';
+  @override
+  String get fileTypeXml => 'XML File';
+  @override
+  String get fileTypeYaml => 'YAML File';
+  @override
+  String get fileTypeShell => 'Shell Script';
+  @override
+  String get fileTypeCsv => 'CSV Spreadsheet';
+  @override
+  String get fileTypeLibreDoc => 'LibreOffice Document';
+  @override
+  String get fileTypeLibreSheet => 'LibreOffice Spreadsheet';
+  @override
+  String get fileTypeLibrePresentation => 'LibreOffice Presentation';
+  @override
+  String get fileTypeLibreDraw => 'LibreOffice Drawing';
+  @override
+  String get fileTypeLibreChart => 'LibreOffice Chart';
+  @override
+  String get fileTypeLibreFormula => 'LibreOffice Formula';
+  @override
+  String get fileTypeWpsDoc => 'WPS Document';
+  @override
+  String get fileTypeWpsSheet => 'WPS Spreadsheet';
+  @override
+  String get fileTypeWpsPresentation => 'WPS Presentation';
+  @override
+  String get fileTypeGoogleDoc => 'Google Doc';
+  @override
+  String get fileTypeGoogleSheet => 'Google Sheet';
+  @override
+  String get fileTypeGoogleSlides => 'Google Slides';
+  @override
+  String get fileTypeTar => 'TAR Archive';
+  @override
+  String get fileTypeGzip => 'GZIP Archive';
+
   // Settings
   @override
   String get language => 'Language';
@@ -1414,6 +1478,8 @@ class EnglishLocalizations implements AppLocalizations {
   String renamedFileTo(String newName) => 'Renamed file to "$newName"';
   @override
   String renamedFolderTo(String newName) => 'Renamed folder to "$newName"';
+  @override
+  String get allowFileExtensionRename => 'Allow editing file extensions';
 
   // Downloads
   @override

@@ -178,6 +178,39 @@ abstract class AppLocalizations {
   String get fileType7z;
   String fileTypeWithExtension(String extension);
 
+  // File template type names (for create-file dialog)
+  String get fileTypeMarkdown;
+  String get fileTypeJson;
+  String get fileTypeHtml;
+  String get fileTypeCss;
+  String get fileTypeDart;
+  String get fileTypePython;
+  String get fileTypeJavaScript;
+  String get fileTypeTypeScript;
+  String get fileTypeJava;
+  String get fileTypeCpp;
+  String get fileTypeC;
+  String get fileTypeGo;
+  String get fileTypeRust;
+  String get fileTypeXml;
+  String get fileTypeYaml;
+  String get fileTypeShell;
+  String get fileTypeCsv;
+  String get fileTypeLibreDoc;
+  String get fileTypeLibreSheet;
+  String get fileTypeLibrePresentation;
+  String get fileTypeLibreDraw;
+  String get fileTypeLibreChart;
+  String get fileTypeLibreFormula;
+  String get fileTypeWpsDoc;
+  String get fileTypeWpsSheet;
+  String get fileTypeWpsPresentation;
+  String get fileTypeGoogleDoc;
+  String get fileTypeGoogleSheet;
+  String get fileTypeGoogleSlides;
+  String get fileTypeTar;
+  String get fileTypeGzip;
+
   // Settings
   String get language;
   String get theme;
@@ -523,6 +556,7 @@ abstract class AppLocalizations {
   String get newNameLabel;
   String renamedFileTo(String newName);
   String renamedFolderTo(String newName);
+  String get allowFileExtensionRename;
 
   // Downloads
   String downloadedTo(String location);

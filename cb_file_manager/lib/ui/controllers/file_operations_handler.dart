@@ -173,13 +173,11 @@ class FileOperationsHandler {
     }
 
     if (filesToDelete.isEmpty && foldersToDelete.isEmpty) {
-      debugPrint('FileOperationsHandler.handleDelete - no items to delete');
       return;
     }
 
     final localizations = AppLocalizations.of(context);
     if (localizations == null) {
-      debugPrint('FileOperationsHandler.handleDelete - localizations is null!');
       return;
     }
 
@@ -198,13 +196,8 @@ class FileOperationsHandler {
         ? path.basename(filesToDelete.first)
         : path.basename(foldersToDelete.first);
 
-    debugPrint(
-        'FileOperationsHandler.handleDelete - permanent: $permanent, totalCount: $totalCount');
-    debugPrint('  First item: $firstItemName');
-
     if (permanent) {
       // Show permanent delete dialog with keyboard support
-      debugPrint('Showing permanent delete dialog');
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => DeleteConfirmationDialog(
@@ -216,8 +209,6 @@ class FileOperationsHandler {
           cancelText: localizations.cancel,
         ),
       );
-
-      debugPrint('Permanent delete dialog result: $confirmed');
 
       if (confirmed == true) {
         folderListBloc.add(FolderListDeleteItems(
@@ -259,8 +250,6 @@ class FileOperationsHandler {
           cancelText: localizations.cancel,
         ),
       );
-
-      debugPrint('Trash delete dialog result: $confirmed');
 
       if (confirmed == true) {
         folderListBloc.add(FolderListDeleteItems(
@@ -372,85 +361,100 @@ class FileOperationsHandler {
     required FileSystemEntity entity,
     FolderListBloc? folderListBloc,
   }) async {
-    final bloc = folderListBloc ?? context.read<FolderListBloc>();
-    final l10n = AppLocalizations.of(context)!;
-    final currentName = _entityBaseName(entity);
-    final isFile = entity is File;
-
-    final controller = TextEditingController(
-      text: isFile ? path.basenameWithoutExtension(currentName) : currentName,
-    );
-
-    if (isFile) {
-      controller.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: controller.text.length,
-      );
+    FolderListBloc? bloc = folderListBloc;
+    if (bloc == null) {
+      try {
+        bloc = context.read<FolderListBloc>();
+      } catch (_) {
+        bloc = null;
+      }
+    }
+    if (bloc == null) {
+      return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final l10n = AppLocalizations.of(context)!;
+    final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
+    final preferences = UserPreferences.instance;
+    await preferences.init();
+    final allowFileExtensionRename =
+        await preferences.getAllowFileExtensionRename();
+    if (!context.mounted) {
+      return;
+    }
+    final currentName = _entityBaseName(entity);
+    final isFile = entity is File;
+    final initialValue = isFile && allowFileExtensionRename
+        ? currentName
+        : path.basenameWithoutExtension(currentName);
+
+    final rawName = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isFile ? l10n.renameFileTitle : l10n.renameFolderTitle),
-        content: isFile
-            ? Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(l10n.currentNameLabel(currentName)),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      labelText: l10n.newNameLabel,
-                      border: const OutlineInputBorder(),
-                    ),
-                    autofocus: true,
-                  ),
-                ],
-              )
-            : TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  labelText: l10n.newNameLabel,
-                  border: const OutlineInputBorder(),
-                ),
-                autofocus: true,
-              ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n.cancel.toUpperCase()),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.rename.toUpperCase()),
-          ),
-        ],
+      builder: (dialogContext) => _RenameEntityDialog(
+        title: isFile ? l10n.renameFileTitle : l10n.renameFolderTitle,
+        currentNameLabel: isFile ? l10n.currentNameLabel(currentName) : null,
+        newNameLabel: l10n.newNameLabel,
+        cancelLabel: l10n.cancel.toUpperCase(),
+        confirmLabel: l10n.rename.toUpperCase(),
+        initialValue: isFile ? initialValue : currentName,
       ),
     );
 
-    if (confirmed != true) return;
-
-    // Pre-extract ScaffoldMessenger before async gap (showDialog is an async op above)
-    // ignore: use_build_context_synchronously
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-
-    final rawName = controller.text.trim();
-    final newName = isFile ? rawName + path.extension(currentName) : rawName;
-
-    if (newName.isEmpty || newName == currentName) return;
-
-    bloc.add(RenameFileOrFolder(entity, newName));
+    if (rawName == null) {
+      return;
+    }
 
     try {
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text(isFile
-              ? l10n.renamedFileTo(newName)
-              : l10n.renamedFolderTo(newName)),
-        ),
+      final newName = _resolveRenameTargetName(
+        rawName: rawName.trim(),
+        currentName: currentName,
+        isFile: isFile,
+        allowFileExtensionRename: allowFileExtensionRename,
       );
-    } catch (_) {}
+
+      if (newName.isEmpty || newName == currentName) return;
+
+      bloc.add(RenameFileOrFolder(entity, newName));
+
+      try {
+        scaffoldMessenger?.showSnackBar(
+          SnackBar(
+            content: Text(isFile
+                ? l10n.renamedFileTo(newName)
+                : l10n.renamedFolderTo(newName)),
+          ),
+        );
+      } catch (_) {}
+    } finally {}
+  }
+
+  static String _resolveRenameTargetName({
+    required String rawName,
+    required String currentName,
+    required bool isFile,
+    required bool allowFileExtensionRename,
+  }) {
+    if (!isFile) {
+      return rawName;
+    }
+
+    if (allowFileExtensionRename) {
+      return rawName;
+    }
+
+    final extension = path.extension(currentName);
+    var baseName = rawName;
+    if (extension.isNotEmpty &&
+        rawName.toLowerCase().endsWith(extension.toLowerCase())) {
+      baseName = rawName.substring(0, rawName.length - extension.length);
+    }
+
+    baseName = baseName.trim();
+    if (baseName.isEmpty) {
+      return '';
+    }
+
+    return '$baseName$extension';
   }
 
   /// Handle file tap - opens the file with the appropriate viewer based on file type
@@ -576,5 +580,87 @@ class FileOperationsHandler {
         }
       });
     }
+  }
+}
+
+class _RenameEntityDialog extends StatefulWidget {
+  final String title;
+  final String? currentNameLabel;
+  final String newNameLabel;
+  final String cancelLabel;
+  final String confirmLabel;
+  final String initialValue;
+
+  const _RenameEntityDialog({
+    required this.title,
+    required this.newNameLabel,
+    required this.cancelLabel,
+    required this.confirmLabel,
+    required this.initialValue,
+    this.currentNameLabel,
+  });
+
+  @override
+  State<_RenameEntityDialog> createState() => _RenameEntityDialogState();
+}
+
+class _RenameEntityDialogState extends State<_RenameEntityDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _controller.text.length,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.pop(context, _controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textField = TextField(
+      controller: _controller,
+      decoration: InputDecoration(
+        labelText: widget.newNameLabel,
+        border: const OutlineInputBorder(),
+      ),
+      autofocus: true,
+      onSubmitted: (_) => _submit(),
+    );
+
+    return AlertDialog(
+      title: Text(widget.title),
+      content: widget.currentNameLabel != null
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(widget.currentNameLabel!),
+                const SizedBox(height: 16),
+                textField,
+              ],
+            )
+          : textField,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(widget.cancelLabel),
+        ),
+        TextButton(
+          onPressed: _submit,
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
   }
 }

@@ -24,6 +24,7 @@ static std::string ResolveExeViaApplicationsKey(const std::string& exeName);
 static std::string ResolveProgIdToExe(const std::wstring& progId);
 
 static bool SetSelfAsDefaultForVideo(const std::string& exePath);
+static std::vector<std::string> GetInstalledAppBrands();
 
 // static
 void AppIconPlugin::RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar) {
@@ -122,6 +123,14 @@ void AppIconPlugin::HandleMethodCall(
       }
     }
     result->Error("INVALID_ARGUMENTS", "Invalid or missing extension");
+    return;
+  } else if (method_call.method_name().compare("getInstalledAppBrands") == 0) {
+    auto brands = GetInstalledAppBrands();
+    flutter::EncodableList list;
+    for (const auto& b : brands) {
+      list.push_back(flutter::EncodableValue(b));
+    }
+    result->Success(flutter::EncodableValue(list));
     return;
   } else if (method_call.method_name().compare("setSelfAsDefaultForVideo") == 0) {
     const auto* arguments = std::get_if<flutter::EncodableMap>(method_call.arguments());
@@ -514,6 +523,68 @@ std::vector<std::pair<std::string, std::string>> AppIconPlugin::GetAppsForExtens
   enumOpenWithProgids(HKEY_CURRENT_USER);
 
   return results;
+}
+
+/// Scans registry for known office suite installations and returns brand identifiers.
+static std::vector<std::string> GetInstalledAppBrands() {
+  std::vector<std::string> brands;
+
+  // Helper: check if a registry key exists (non-leaf key).
+  auto keyExists = [](HKEY root, const wchar_t* path) -> bool {
+    HKEY hKey = NULL;
+    bool ok = RegOpenKeyExW(root, path, 0, KEY_READ, &hKey) == ERROR_SUCCESS;
+    if (ok) RegCloseKey(hKey);
+    return ok;
+  };
+
+  // Helper: check if a file path exists.
+  auto fileExists = [](const wchar_t* path) -> bool {
+    DWORD attrs = GetFileAttributesW(path);
+    return attrs != INVALID_FILE_ATTRIBUTES &&
+           !(attrs & FILE_ATTRIBUTE_DIRECTORY);
+  };
+
+  // Microsoft Office: check InstallRoot registry key or known paths.
+  bool hasMicrosoft = false;
+  const wchar_t* msPaths[] = {
+    L"SOFTWARE\\Microsoft\\Office\\16.0\\Word\\InstallRoot",
+    L"SOFTWARE\\Microsoft\\Office\\15.0\\Word\\InstallRoot",
+    L"SOFTWARE\\Microsoft\\Office\\14.0\\Word\\InstallRoot",
+    L"SOFTWARE\\Microsoft\\Office",
+  };
+  for (auto p : msPaths) {
+    if (keyExists(HKEY_LOCAL_MACHINE, p) || keyExists(HKEY_CURRENT_USER, p)) {
+      hasMicrosoft = true;
+      break;
+    }
+  }
+  if (!hasMicrosoft) {
+    wchar_t winwordPath[MAX_PATH] = {0};
+    if (SearchPathW(NULL, L"winword.exe", NULL, MAX_PATH, winwordPath, NULL) > 0) {
+      hasMicrosoft = true;
+    }
+  }
+  if (hasMicrosoft) brands.push_back("microsoft");
+
+  // LibreOffice: check registry or soffice.exe in PATH.
+  bool hasLibre = keyExists(HKEY_LOCAL_MACHINE, L"SOFTWARE\\LibreOffice\\InstallPath") ||
+                  keyExists(HKEY_CURRENT_USER, L"SOFTWARE\\LibreOffice\\InstallPath") ||
+                  keyExists(HKEY_LOCAL_MACHINE, L"SOFTWARE\\WOW6432Node\\LibreOffice\\InstallPath");
+  if (!hasLibre) {
+    wchar_t sofficePath[MAX_PATH] = {0};
+    if (SearchPathW(NULL, L"soffice.exe", NULL, MAX_PATH, sofficePath, NULL) > 0) {
+      hasLibre = true;
+    }
+  }
+  if (hasLibre) brands.push_back("libre");
+
+  // WPS Office: check registry paths.
+  bool hasWps = keyExists(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Kingsoft\\Office") ||
+                keyExists(HKEY_CURRENT_USER, L"SOFTWARE\\Kingsoft\\Office") ||
+                keyExists(HKEY_LOCAL_MACHINE, L"SOFTWARE\\WPS Office");
+  if (hasWps) brands.push_back("wps");
+
+  return brands;
 }
 
 static bool SetSelfAsDefaultForVideo(const std::string& exePath) {

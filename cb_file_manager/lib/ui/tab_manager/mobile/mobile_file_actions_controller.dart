@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
+import 'package:cb_file_manager/ui/screens/folder_list/folder_list_bloc.dart';
+import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/ui/tab_manager/components/folder_context_menu.dart';
 
 enum MobileActionBarProfile {
   full,
@@ -30,6 +35,10 @@ class MobileFileActionsController {
   VoidCallback? onForward;
   // Masonry (Pinterest-like) layout toggle
   VoidCallback? onMasonryToggled;
+  // Callback for creating a new folder
+  VoidCallback? onCreateFolder;
+  ValueChanged<bool>? onAllowFileExtensionRenameChanged;
+  FolderListBloc? folderListBloc;
 
   // Current state
   SortOption? currentSortOption;
@@ -39,6 +48,7 @@ class MobileFileActionsController {
   String? currentSearchQuery;
   bool isRecursiveSearch = true; // Default to recursive search
   bool isMasonryLayout = false; // Current masonry layout state
+  bool allowFileExtensionRename = false;
   MobileActionBarProfile actionBarProfile = MobileActionBarProfile.full;
 
   MobileFileActionsController(this.tabId);
@@ -215,11 +225,20 @@ class MobileFileActionsController {
 
                 const Divider(height: 1),
 
-                // View mode options (mobile only: list & grid)
+                // View mode options
                 _buildViewModeOption(context, ViewMode.list,
                     localizations.viewModeList, PhosphorIconsLight.listBullets),
                 _buildViewModeOption(context, ViewMode.grid,
                     localizations.viewModeGrid, PhosphorIconsLight.squaresFour),
+                if (!(Platform.isAndroid || Platform.isIOS))
+                  _buildViewModeOption(
+                    context,
+                    ViewMode.gridPreview,
+                    localizations.viewModeGridPreview,
+                    PhosphorIconsLight.layout,
+                  ),
+                _buildViewModeOption(context, ViewMode.details,
+                    localizations.viewModeDetails, PhosphorIconsLight.rows),
 
                 const SizedBox(height: 16),
               ],
@@ -333,6 +352,29 @@ class MobileFileActionsController {
                 },
               ),
 
+            if (onAllowFileExtensionRenameChanged != null)
+              ListTile(
+                leading: Icon(
+                  PhosphorIconsLight.textAa,
+                  color: allowFileExtensionRename
+                      ? theme.colorScheme.primary
+                      : theme.iconTheme.color,
+                ),
+                title: Text(localizations.allowFileExtensionRename),
+                trailing: allowFileExtensionRename
+                    ? Icon(
+                        PhosphorIconsLight.check,
+                        color: theme.colorScheme.primary,
+                      )
+                    : null,
+                onTap: () {
+                  Navigator.pop(context);
+                  allowFileExtensionRename = !allowFileExtensionRename;
+                  onAllowFileExtensionRenameChanged
+                      ?.call(allowFileExtensionRename);
+                },
+              ),
+
             // Masonry toggle option
             ListTile(
               leading: Icon(
@@ -367,13 +409,7 @@ class MobileFileActionsController {
 
     final theme = Theme.of(context);
     final localizations = AppLocalizations.of(context)!;
-    // On mobile, convert details mode to list mode (details not supported on mobile)
-    var effectiveViewMode = viewMode ?? currentViewMode ?? ViewMode.grid;
-    if (effectiveViewMode == ViewMode.details) {
-      effectiveViewMode = ViewMode.list;
-    } else if (effectiveViewMode == ViewMode.gridPreview) {
-      effectiveViewMode = ViewMode.grid;
-    }
+    final effectiveViewMode = viewMode ?? currentViewMode ?? ViewMode.grid;
 
     final isDrivesMinimal =
         actionBarProfile == MobileActionBarProfile.drivesMinimal;
@@ -406,13 +442,8 @@ class MobileFileActionsController {
                   onPressed: onForward,
                 ),
                 IconButton(
-                  icon: Icon(
-                    effectiveViewMode == ViewMode.grid
-                        ? PhosphorIconsLight.listBullets
-                        : PhosphorIconsLight.squaresFour,
-                    size: 20,
-                  ),
-                  tooltip: localizations.listViewMode,
+                  icon: Icon(_viewModeIcon(effectiveViewMode), size: 20),
+                  tooltip: localizations.viewModeTooltip,
                   padding: EdgeInsets.zero,
                   constraints:
                       const BoxConstraints(minWidth: 40, minHeight: 40),
@@ -458,13 +489,8 @@ class MobileFileActionsController {
 
                 // View mode button
                 IconButton(
-                  icon: Icon(
-                    effectiveViewMode == ViewMode.grid
-                        ? PhosphorIconsLight.listBullets
-                        : PhosphorIconsLight.squaresFour,
-                    size: 20,
-                  ),
-                  tooltip: localizations.listViewMode,
+                  icon: Icon(_viewModeIcon(effectiveViewMode), size: 20),
+                  tooltip: localizations.viewModeTooltip,
                   padding: EdgeInsets.zero,
                   constraints:
                       const BoxConstraints(minWidth: 40, minHeight: 40),
@@ -473,22 +499,15 @@ class MobileFileActionsController {
                   },
                 ),
 
-                // Masonry layout toggle
+                // Create menu
                 IconButton(
-                  icon: Icon(
-                    PhosphorIconsLight.gridFour,
-                    size: 20,
-                    color: isMasonryLayout
-                        ? theme.colorScheme.primary
-                        : theme.iconTheme.color,
-                  ),
-                  tooltip: localizations.masonryLayout,
+                  icon: const Icon(PhosphorIconsLight.plus, size: 20),
+                  tooltip: localizations.create,
                   padding: EdgeInsets.zero,
                   constraints:
                       const BoxConstraints(minWidth: 40, minHeight: 40),
                   onPressed: () {
-                    isMasonryLayout = !isMasonryLayout;
-                    onMasonryToggled?.call();
+                    showCreateMenu(context);
                   },
                 ),
 
@@ -617,5 +636,49 @@ class MobileFileActionsController {
         ),
       ),
     );
+  }
+
+  /// Show create menu (New Folder, New File) as bottom sheet
+  void showCreateMenu(BuildContext context) {
+    if (currentPath == null || currentPath!.isEmpty) return;
+    final path = currentPath!;
+    final bloc = folderListBloc;
+
+    Future<void> createFolder(String folderName) async {
+      final newFolderPath = '$path${Platform.pathSeparator}$folderName';
+      await Directory(newFolderPath).create(recursive: true);
+      if (bloc != null) {
+        bloc.add(FolderListRefresh(path));
+      } else {
+        onRefresh?.call();
+      }
+    }
+
+    FolderContextMenu.showCreateMenu(
+      context: context,
+      currentPath: path,
+      folderListBloc: bloc,
+      onCreateFolder: createFolder,
+      onAfterFileCreated: (_) {
+        if (bloc != null) {
+          bloc.add(FolderListRefresh(path));
+        } else {
+          onRefresh?.call();
+        }
+      },
+    );
+  }
+
+  IconData _viewModeIcon(ViewMode mode) {
+    switch (mode) {
+      case ViewMode.list:
+        return PhosphorIconsLight.listBullets;
+      case ViewMode.grid:
+        return PhosphorIconsLight.squaresFour;
+      case ViewMode.details:
+        return PhosphorIconsLight.rows;
+      case ViewMode.gridPreview:
+        return PhosphorIconsLight.layout;
+    }
   }
 }

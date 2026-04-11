@@ -10,6 +10,7 @@ import 'package:cb_file_manager/ui/components/common/soft_checkbox.dart';
 import 'package:cb_file_manager/ui/widgets/selection_rectangle_painter.dart';
 import 'package:cb_file_manager/core/service_locator.dart';
 import 'package:cb_file_manager/ui/controllers/operation_progress_controller.dart';
+import 'package:cb_file_manager/utils/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -185,10 +186,6 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     try {
       await TagManager.initialize();
       final Set<String> tags = await TagManager.getAllUniqueTags("");
-      final standaloneTags = await TagManager.getStandaloneTags();
-
-      debugPrint(
-          'TagManagementScreen: Found ${tags.length} unique tags (${standaloneTags.length} standalone)');
 
       if (mounted) {
         // Use addPostFrameCallback to ensure skeleton shows first
@@ -205,7 +202,6 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
         });
       }
     } catch (e) {
-      debugPrint('TagManagementScreen: Error loading tags: $e');
       if (mounted) {
         final theme = Theme.of(context);
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -228,8 +224,6 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     if (!mounted) return;
 
     final String query = _searchController.text.toLowerCase().trim();
-    debugPrint('TagManagementScreen: Filtering tags with query: "$query"');
-    debugPrint('TagManagementScreen: _allTags count: ${_allTags.length}');
 
     setState(() {
       if (query.isEmpty) {
@@ -239,14 +233,8 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
             _allTags.where((tag) => tag.toLowerCase().contains(query)).toList();
       }
 
-      debugPrint(
-          'TagManagementScreen: _filteredTags count: ${_filteredTags.length}');
-
       _sortTags();
       _updatePagination();
-
-      debugPrint(
-          'TagManagementScreen: _currentPageTags count: ${_currentPageTags.length}');
     });
   }
 
@@ -312,7 +300,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
         });
       }
     } catch (e) {
-      debugPrint('TagManagementScreen: Error sorting by $_sortCriteria: $e');
+      AppLogger.warning('TagManagementScreen: Error sorting by $_sortCriteria: $e');
     }
   }
 
@@ -343,8 +331,6 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
       _currentPageTags = [];
     }
 
-    debugPrint(
-        'TagManagementScreen: Pagination - _filteredTags: ${_filteredTags.length}, _tagsPerPage: $_tagsPerPage, _totalPages: $_totalPages, _currentPage: $_currentPage, _currentPageTags: ${_currentPageTags.length}');
   }
 
   void _goToPage(int page) {
@@ -400,7 +386,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
         );
       }
     } catch (e) {
-      debugPrint('Error opening tag in new tab: $e');
+      AppLogger.warning('Error opening tag in new tab: $e');
     }
   }
 
@@ -569,7 +555,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading files for tag: $e');
+      AppLogger.warning('Error loading files for tag: $e');
       if (mounted) {
         setState(() {
           _filesBySelectedTag = [];
@@ -671,7 +657,6 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
 
   /// Start inline rename for desktop
   void _startTagRename(String tag) {
-    debugPrint('[TAG_RENAME] _startTagRename called with tag="$tag"');
     setState(() {
       _editingTag = tag;
       _editingTagController = TextEditingController(text: tag);
@@ -680,15 +665,9 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
 
   /// Commit tag rename
   Future<void> _commitTagRename(String oldTag) async {
-    debugPrint(
-        '[TAG_RENAME] _commitTagRename called with oldTag="$oldTag", _editingTag=$_editingTag, controller=${_editingTagController != null ? "exists" : "null"}');
-    if (_editingTagController == null || _editingTag == null) {
-      debugPrint('[TAG_RENAME] EARLY RETURN: controller or editingTag is null');
-      return;
-    }
+    if (_editingTagController == null || _editingTag == null) return;
 
     final newTag = _editingTagController!.text.trim();
-    debugPrint('[TAG_RENAME] newTag="$newTag", oldTag="$oldTag"');
 
     // Clear editing state FIRST to prevent the next tag at the same index
     // from entering edit mode when the list rebuilds after rename.
@@ -698,17 +677,13 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     setState(() {});
     controller?.dispose();
 
-    if (newTag.isEmpty || newTag == oldTag) {
-      debugPrint('[TAG_RENAME] No change or empty, skipping rename');
-      return;
-    }
+    if (newTag.isEmpty || newTag == oldTag) return;
 
     final localizations = AppLocalizations.of(context)!;
 
     // Check if tag already exists
     final allTagsLowercase = _allTags.map((t) => t.toLowerCase()).toSet();
     if (allTagsLowercase.contains(newTag.toLowerCase())) {
-      debugPrint('[TAG_RENAME] Tag already exists: $newTag');
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(localizations.tagAlreadyExists(newTag))),
@@ -717,20 +692,17 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
       return;
     }
 
-    debugPrint('[TAG_RENAME] Proceeding with rename: "$oldTag" -> "$newTag"');
     setState(() {
       _isLoading = true;
     });
 
     try {
       final success = await TagManager.renameTag(oldTag, newTag);
-      debugPrint('[TAG_RENAME] TagManager.renameTag returned: $success');
       if (success) {
         // Rename the color as well
         final oldColor = TagColorManager.instance.getTagColor(oldTag);
         await TagColorManager.instance.setTagColor(newTag, oldColor);
         await TagColorManager.instance.removeTagColor(oldTag);
-
         await _loadAllTags();
 
         if (mounted) {
@@ -738,11 +710,9 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
             SnackBar(content: Text(localizations.tagRenamed(oldTag, newTag))),
           );
         }
-      } else {
-        debugPrint('[TAG_RENAME] TagManager.renameTag FAILED');
       }
     } catch (e) {
-      debugPrint('[TAG_RENAME] EXCEPTION: $e');
+      AppLogger.warning('[TAG] Rename failed: "$oldTag" -> "$newTag": $e');
     } finally {
       if (mounted) {
         setState(() {
@@ -2907,7 +2877,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
         return;
       }
     } catch (e) {
-      debugPrint('Error saving standalone tag: $e');
+      AppLogger.warning('Error saving standalone tag: $e');
       if (mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
