@@ -33,7 +33,6 @@ import 'package:path/path.dart' as p;
 import 'e2e_helpers.dart';
 import 'e2e_keys.dart';
 import 'e2e_report.dart';
-import 'package:cb_file_manager/ui/screens/media_gallery/video_player_full_screen.dart';
 import 'package:cb_file_manager/ui/components/video/video_player/video_player.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -498,8 +497,9 @@ void main() {
 
         await dismissDialog(tester);
 
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] unsupported extension check — SUCCESS');
+        }
       } finally {
         await et.screenshot('result');
         await e2eTearDown(tester, dir);

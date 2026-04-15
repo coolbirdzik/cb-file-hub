@@ -27,7 +27,6 @@ import 'package:cb_file_manager/ui/screens/folder_list/components/file_grid_item
 import 'package:cb_file_manager/ui/screens/folder_list/components/file_item.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/components/folder_grid_item.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/components/folder_item.dart';
-import 'package:path/path.dart' as p;
 
 import 'e2e_helpers.dart';
 import 'e2e_keys.dart';
@@ -98,8 +97,9 @@ void main() {
         await et.init('open subfolder shows file inside');
 
         expectFolderRowVisible(sub.path);
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] Folder found, navigating into: ${sub.path}');
+        }
         await et.tapFolderRow(sub.path, detail: 'navigate_into_innerdir');
         await et.pumpAndSettle(const Duration(seconds: 5));
         expectFileRowVisible(innerFile.path);
@@ -176,8 +176,9 @@ void main() {
         // Verify back in parent folder
         expectFileRowVisible(rootFile.path);
         expectFolderRowVisible(sub.path);
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] navigate back with Backspace — SUCCESS');
+        }
       } finally {
         await et.screenshot('result');
         await e2eTearDown(tester, dir);
@@ -265,8 +266,9 @@ void main() {
         // Right-click the file to open context menu
         await et.rightClickFileRow(srcFile.path, detail: 'open_context_menu');
         await et.tapContextMenuItem('copy', detail: 'copy');
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] File copied, navigating to subfolder');
+        }
 
         // Navigate into dest_folder
         await et.tapFolderRow(sub.path, detail: 'navigate_to_dest');
@@ -493,8 +495,9 @@ void main() {
         expect(File(srcFile.path).existsSync(), isFalse,
             reason:
                 'Source file should be deleted after Ctrl+X + Ctrl+V (move)');
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] cut+move via keyboard shortcuts — SUCCESS');
+        }
       } finally {
         await et.screenshot('result');
         await e2eTearDown(tester, dir);
@@ -787,8 +790,9 @@ void main() {
         final newFile =
             File('${dir.path}${Platform.pathSeparator}externally_added.txt')
               ..writeAsStringSync('added outside app');
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] Created file externally: ${newFile.path}');
+        }
         await et.screenshot('before F5 refresh');
 
         // Press F5 to force refresh the listing
@@ -882,8 +886,9 @@ void main() {
         // App should handle Enter key (may open file preview or show details)
         // The test verifies no crash occurs
         await et.screenshot('after_enter_key');
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] Enter key handled without crash — SUCCESS');
+        }
       } finally {
         await et.screenshot('result');
         await e2eTearDown(tester, dir);
@@ -935,9 +940,10 @@ void main() {
           expectFileRowVisible(targetFile.path);
         } else {
           // Search may be implemented differently - verify current state
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint(
                 '[E2E] Search icon not found, skipping search interaction');
+          }
         }
         if (kDebugMode) debugPrint('[E2E] search test — SUCCESS');
       } finally {
@@ -1290,8 +1296,9 @@ void main() {
               reason: 'File should still exist after cancelling delete');
         } else {
           // If no cancel button, dialog might auto-dismiss or use different UI
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint('[E2E] No cancel button found, checking file state');
+          }
           // File should still exist
           expectFileRowVisible(targetFile.path);
         }
@@ -1414,8 +1421,9 @@ void main() {
 
         // File should still be visible (app handled gracefully)
         expectFileRowVisible(file.path);
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('[E2E] nav to missing folder handled — SUCCESS');
+        }
       } finally {
         await et.screenshot('result');
         await e2eTearDown(tester, dir);

@@ -1033,13 +1033,15 @@ class _RawDataDialogState extends State<_RawDataDialog> {
             onPressed: _totalRows == 0
                 ? null
                 : () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final copiedMsg = context.tr.jsonCopiedToClipboard;
                     final data = await _loadAllRows();
                     await Clipboard.setData(
                       ClipboardData(text: _encodeJson(data)),
                     );
                     if (!mounted) return;
-                    ScaffoldMessenger.of(this.context).showSnackBar(
-                      SnackBar(content: Text(context.tr.jsonCopiedToClipboard)),
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(copiedMsg)),
                     );
                   },
             tooltip: context.tr.copyJson,

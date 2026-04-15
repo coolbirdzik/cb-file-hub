@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/components/common/shared_action_bar.dart';
-import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
 
 /// Builder for folder app bar actions
 class FolderAppBarActions {

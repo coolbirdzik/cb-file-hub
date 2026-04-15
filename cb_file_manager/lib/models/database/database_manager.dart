@@ -651,7 +651,7 @@ class DatabaseManager implements IDatabaseProvider {
             serialized = value.toString();
           } else if (value is List) {
             typeStr = 'List';
-            serialized = (value as List).join('\x00'); // null-byte separator
+            serialized = value.join('\x00'); // null-byte separator
           }
 
           await backupDb.execute(

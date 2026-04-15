@@ -1115,7 +1115,7 @@ extension MobileTabViewDynamicMenu on MobileTabView {
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Text(
-                  localizations.create ?? 'Create',
+                  localizations.create,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,

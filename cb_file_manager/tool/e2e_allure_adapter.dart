@@ -188,11 +188,11 @@ List<AllureTestResult> parseFlutterJsonLog(String logContent,
       message: error?.message,
       trace: error?.trace,
       labels: [
-        AllureLabel('package', 'cb_file_manager.e2e'),
+        const AllureLabel('package', 'cb_file_manager.e2e'),
         AllureLabel('testClass', suiteLabel),
         AllureLabel('suite', suiteLabel),
         AllureLabel('feature', suiteLabel),
-        AllureLabel('severity', 'critical'),
+        const AllureLabel('severity', 'critical'),
       ],
       attachments: attachments,
     ));
@@ -292,7 +292,7 @@ String? _screenshotForTest(String name, String buildDir) {
 
   // Try both the exact name and the failure-suffixed variant
   final candidates = [
-    '${candidateBase}.png',
+    '$candidateBase.png',
     '${candidateBase}_failure.png',
   ];
 
@@ -390,7 +390,7 @@ Future<void> main(List<String> args) async {
   }
 
   // Also copy screenshots into allure-results/
-  final resultsDir = _kAllureResultsDir;
+  const resultsDir = _kAllureResultsDir;
   final resultsDirObj = Directory(resultsDir);
   if (!await resultsDirObj.exists()) {
     await resultsDirObj.create(recursive: true);

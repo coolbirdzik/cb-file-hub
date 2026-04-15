@@ -315,8 +315,8 @@ Future<void> _runSingleFile({
 
   final stopwatch = Stopwatch()..start();
 
-  final jsonlOut = 'build/e2e_report.jsonl';
-  final logOut = 'build/e2e_last_run.log';
+  const jsonlOut = 'build/e2e_report.jsonl';
+  const logOut = 'build/e2e_last_run.log';
   final jsonlFile = File(jsonlOut);
   final jsonlSink = jsonlFile.openWrite();
   final logFile = File(logOut);

@@ -570,7 +570,7 @@ String generateHtml(TestReport report, String screenshotsDir) {
         <span class="bar-pct">${passRate.toStringAsFixed(1)}%</span>
       </div>
       <div class="bar-track">
-        <div class="bar-fill-pass" style="width: ${passRate}%"></div>
+        <div class="bar-fill-pass" style="width: $passRate%"></div>
         ${failed > 0 ? '<div class="bar-fill-fail" style="width: ${100 - passRate}%"></div>' : ''}
       </div>
     </div>
