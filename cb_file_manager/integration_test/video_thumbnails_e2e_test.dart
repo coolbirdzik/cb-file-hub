@@ -49,13 +49,14 @@ void main() {
   // ---------------------------------------------------------------------------
 
   /// Absolute path to the real sample video (18 MB MP4) in integration_test/samples/.
-    String sampleVideoPath() {
+  String sampleVideoPath() {
     try {
       final scriptStr = Platform.script.toString();
       final scriptPath = scriptStr.startsWith('file:///')
           ? Uri.parse(scriptStr).toFilePath()
           : scriptStr;
-      return p.join(p.dirname(scriptPath), 'samples', 'file_example_MP4_1920_18MG.mp4');
+      return p.join(
+          p.dirname(scriptPath), 'samples', 'file_example_MP4_1920_18MG.mp4');
     } catch (_) {
       return '';
     }
@@ -63,9 +64,9 @@ void main() {
 
   /// Copies the sample video into [dir] with the given [name].
   /// Falls back to a minimal stub if the sample file doesn't exist.
-    File copySampleVideo(String dir, String name) {
+  File copySampleVideo(String dir, String name) {
     final dest = File('$dir${Platform.pathSeparator}$name');
-      final sample = File(sampleVideoPath());
+    final sample = File(sampleVideoPath());
     if (sample.existsSync()) {
       sample.copySync(dest.path);
       return dest;
@@ -74,9 +75,26 @@ void main() {
     // App detects video by extension, so this still triggers video-specific UI.
     final file = File('$dir${Platform.pathSeparator}$name');
     final mp4Header = <int>[
-      0x00, 0x00, 0x00, 0x0C, 0x66, 0x74, 0x79, 0x70,
-      0x69, 0x73, 0x6F, 0x6D, 0x00, 0x00, 0x00, 0x08,
-      0x6D, 0x64, 0x61, 0x74,
+      0x00,
+      0x00,
+      0x00,
+      0x0C,
+      0x66,
+      0x74,
+      0x79,
+      0x70,
+      0x69,
+      0x73,
+      0x6F,
+      0x6D,
+      0x00,
+      0x00,
+      0x00,
+      0x08,
+      0x6D,
+      0x64,
+      0x61,
+      0x74,
     ];
     file.writeAsBytesSync(mp4Header);
     return file;
@@ -158,7 +176,8 @@ void main() {
     testWidgets('video context menu shows Play video action (list view)',
         (WidgetTester tester) async {
       final et = E2ETester(tester);
-      final dir = await Directory.systemTemp.createTemp('cb_e2e_videomenulist_');
+      final dir =
+          await Directory.systemTemp.createTemp('cb_e2e_videomenulist_');
       final videoFile = copySampleVideo(dir.path, 'clip_list.mp4');
 
       CbE2EConfig.startupPayload = WindowStartupPayload(
@@ -180,7 +199,8 @@ void main() {
         // "Play video" should be visible
         final playFinder = find.text('Play video');
         expect(playFinder, findsAtLeastNWidgets(1),
-            reason: '"Play video" should appear in list view video context menu');
+            reason:
+                '"Play video" should appear in list view video context menu');
 
         await dismissDialog(tester);
 
@@ -478,7 +498,8 @@ void main() {
 
         await dismissDialog(tester);
 
-        if (kDebugMode) debugPrint('[E2E] unsupported extension check — SUCCESS');
+        if (kDebugMode)
+          debugPrint('[E2E] unsupported extension check — SUCCESS');
       } finally {
         await et.screenshot('result');
         await e2eTearDown(tester, dir);

@@ -41,7 +41,8 @@ Future<void> main(List<String> args) async {
     if (File(resolved).existsSync()) {
       testFile = resolved;
     } else {
-      print('[Allure E2E] WARNING: file not found "$resolved" — using default.');
+      print(
+          '[Allure E2E] WARNING: file not found "$resolved" — using default.');
     }
   }
 

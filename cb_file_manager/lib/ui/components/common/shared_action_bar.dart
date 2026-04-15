@@ -8,7 +8,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../config/languages/app_localizations.dart';
 import '../../utils/grid_zoom_constraints.dart';
 
-
 class SharedActionBar {
   /// Tạo popup menu item cho các tùy chọn sắp xếp
   static PopupMenuItem<SortOption> buildSortMenuItem(
@@ -104,9 +103,7 @@ class SharedActionBar {
                   leading: Icon(
                     PhosphorIconsLight.squaresFour,
                     size: 20,
-                    color: i == currentGridSize
-                        ? colorScheme.primary
-                        : null,
+                    color: i == currentGridSize ? colorScheme.primary : null,
                   ),
                   title: Text(
                     l10n.gridSizeLabel(i),
@@ -114,9 +111,7 @@ class SharedActionBar {
                       fontWeight: i == currentGridSize
                           ? FontWeight.bold
                           : FontWeight.normal,
-                      color: i == currentGridSize
-                          ? colorScheme.primary
-                          : null,
+                      color: i == currentGridSize ? colorScheme.primary : null,
                     ),
                   ),
                   trailing: i == currentGridSize
@@ -864,10 +859,10 @@ class _GridSizeSliderMenuState extends State<_GridSizeSliderMenu> {
                   child: SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       trackHeight: 3,
-                      thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 7),
-                      overlayShape: const RoundSliderOverlayShape(
-                          overlayRadius: 14),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 7),
+                      overlayShape:
+                          const RoundSliderOverlayShape(overlayRadius: 14),
                     ),
                     child: Slider(
                       value: _value.toDouble(),

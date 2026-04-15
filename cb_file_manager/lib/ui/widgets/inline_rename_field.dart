@@ -62,7 +62,9 @@ class _InlineRenameFieldState extends State<InlineRenameField> {
         // Height: bounded → use it; infinite → clamp to 60px (2-line field).
         final BoxConstraints ec = BoxConstraints(
           minWidth: 40,
-          maxWidth: constraints.hasBoundedWidth ? constraints.maxWidth : double.infinity,
+          maxWidth: constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : double.infinity,
           minHeight: 24,
           maxHeight: constraints.hasBoundedHeight ? constraints.maxHeight : 60,
         );

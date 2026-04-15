@@ -78,15 +78,12 @@ class FileNavigationState extends Equatable {
       folders: folders ?? this.folders,
       files: files ?? this.files,
       searchResults: searchResults ?? this.searchResults,
-      hasMoreSearchResults:
-          hasMoreSearchResults ?? this.hasMoreSearchResults,
+      hasMoreSearchResults: hasMoreSearchResults ?? this.hasMoreSearchResults,
       isLoadingMoreSearchResults:
           isLoadingMoreSearchResults ?? this.isLoadingMoreSearchResults,
       searchResultsTotal: searchResultsTotal is int
           ? searchResultsTotal
-          : (searchResultsTotal == _unset
-              ? this.searchResultsTotal
-              : null),
+          : (searchResultsTotal == _unset ? this.searchResultsTotal : null),
       filteredFiles: filteredFiles ?? this.filteredFiles,
       currentFilter: currentFilter is String
           ? currentFilter

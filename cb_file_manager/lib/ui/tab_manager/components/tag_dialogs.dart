@@ -240,7 +240,8 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
           error: 'filePath=${widget.filePath} tags=$tagsToPersist');
 
       if (_hasChanges || _draftTagText.trim().isNotEmpty) {
-        final success = await TagManager.setTags(widget.filePath, tagsToPersist);
+        final success =
+            await TagManager.setTags(widget.filePath, tagsToPersist);
         if (!success) {
           throw Exception('Failed to persist tags for "${widget.filePath}"');
         }
@@ -382,7 +383,8 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.32),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.32),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.35),
@@ -460,11 +462,12 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color:
-                    theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.24),
+                color: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.24),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
+                  color:
+                      theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
                 ),
               ),
               child: Row(
@@ -966,8 +969,8 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
 
                           TagManager.clearCache();
 
-                          final commonTags =
-                              await batchTagManager.findCommonTags(selectedFiles);
+                          final commonTags = await batchTagManager
+                              .findCommonTags(selectedFiles);
 
                           int tagsAdded = 0;
                           int tagsRemoved = 0;

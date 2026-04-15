@@ -300,7 +300,8 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
         });
       }
     } catch (e) {
-      AppLogger.warning('TagManagementScreen: Error sorting by $_sortCriteria: $e');
+      AppLogger.warning(
+          'TagManagementScreen: Error sorting by $_sortCriteria: $e');
     }
   }
 
@@ -330,7 +331,6 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     } else {
       _currentPageTags = [];
     }
-
   }
 
   void _goToPage(int page) {
@@ -972,7 +972,10 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
                       pickerAreaHeightPercent: 0.8,
                       enableAlpha: false,
                       displayThumbColor: true,
-                      labelTypes: const [ColorLabelType.rgb, ColorLabelType.hsv],
+                      labelTypes: const [
+                        ColorLabelType.rgb,
+                        ColorLabelType.hsv
+                      ],
                       pickerAreaBorderRadius:
                           const BorderRadius.all(Radius.circular(12)),
                     ),
@@ -2304,14 +2307,15 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
                                                 style: TextStyle(
                                                     fontSize: fontSize,
                                                     fontWeight: FontWeight.w600,
-                                                    color: theme.colorScheme
-                                                        .onSurface),
+                                                    color: theme
+                                                        .colorScheme.onSurface),
                                                 textAlign: TextAlign.center,
                                                 maxLines: 2,
                                                 decoration: InputDecoration(
                                                   isDense: true,
                                                   contentPadding:
-                                                      const EdgeInsets.symmetric(
+                                                      const EdgeInsets
+                                                          .symmetric(
                                                           horizontal: 4,
                                                           vertical: 2),
                                                   border: OutlineInputBorder(

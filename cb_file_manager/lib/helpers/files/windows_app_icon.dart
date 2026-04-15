@@ -135,7 +135,8 @@ class WindowsAppIcon {
   static Future<Set<String>> getInstalledBrands() async {
     if (!Platform.isWindows) return {};
     try {
-      final result = await _channel.invokeMethod<List<dynamic>>('getInstalledAppBrands');
+      final result =
+          await _channel.invokeMethod<List<dynamic>>('getInstalledAppBrands');
       return Set<String>.from(result ?? []);
     } catch (_) {
       return {};

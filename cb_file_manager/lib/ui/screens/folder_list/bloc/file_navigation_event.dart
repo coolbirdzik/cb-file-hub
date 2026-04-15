@@ -28,7 +28,8 @@ class FileNavigationRefresh extends FileNavigationEvent {
   final String path;
   final bool forceRegenerateThumbnails;
 
-  const FileNavigationRefresh(this.path, {this.forceRegenerateThumbnails = false});
+  const FileNavigationRefresh(this.path,
+      {this.forceRegenerateThumbnails = false});
 
   @override
   List<Object> get props => [path, forceRegenerateThumbnails];
@@ -108,4 +109,3 @@ class FileNavigationClearSearchAndFilters extends FileNavigationEvent {
 class FileNavigationLoadMoreSearchResults extends FileNavigationEvent {
   const FileNavigationLoadMoreSearchResults();
 }
-

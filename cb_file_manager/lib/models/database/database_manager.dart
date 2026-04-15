@@ -586,7 +586,8 @@ class DatabaseManager implements IDatabaseProvider {
       }
 
       if (dbPath.isEmpty) {
-        debugPrint('exportAsSqlite: Database path not available (not opened yet)');
+        debugPrint(
+            'exportAsSqlite: Database path not available (not opened yet)');
         return null;
       }
 
@@ -597,7 +598,8 @@ class DatabaseManager implements IDatabaseProvider {
       } else {
         final directory = await getApplicationDocumentsDirectory();
         final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-        destPath = path.join(directory.path, 'cb_file_hub_backup_$timestamp.db');
+        destPath =
+            path.join(directory.path, 'cb_file_hub_backup_$timestamp.db');
       }
 
       // Copy the live DB file to destination
@@ -659,7 +661,8 @@ class DatabaseManager implements IDatabaseProvider {
         }
 
         await backupDb.close();
-        debugPrint('exportAsSqlite: Preferences written, file saved at $destPath');
+        debugPrint(
+            'exportAsSqlite: Preferences written, file saved at $destPath');
       }
 
       return destPath;
@@ -831,7 +834,8 @@ class DatabaseManager implements IDatabaseProvider {
             for (final filePathEntry in files) {
               if (filePathEntry is String) {
                 try {
-                  if (skipFileExistenceCheck || File(filePathEntry).existsSync()) {
+                  if (skipFileExistenceCheck ||
+                      File(filePathEntry).existsSync()) {
                     final success = await addTagToFile(filePathEntry, tag);
                     if (success) {
                       importedTagCount++;

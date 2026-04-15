@@ -213,7 +213,8 @@ class _TagManagementSectionState extends State<TagManagementSection> {
   }) {
     final trimmedTag = tag.trim();
     if (trimmedTag.isEmpty || _containsTag(trimmedTag)) {
-      if (_draftTagText.isNotEmpty || (clearSuggestions && _tagSuggestions.isNotEmpty)) {
+      if (_draftTagText.isNotEmpty ||
+          (clearSuggestions && _tagSuggestions.isNotEmpty)) {
         setState(() {
           if (clearDraft) {
             _draftTagText = '';
@@ -255,7 +256,8 @@ class _TagManagementSectionState extends State<TagManagementSection> {
   void _loadTagData() async {
     // Use initialTags if provided, otherwise fetch from TagManager
     List<String> currentTags = [];
-    AppLogger.debug('[ManageTags][Section] Loading tags for ${widget.filePath}');
+    AppLogger.debug(
+        '[ManageTags][Section] Loading tags for ${widget.filePath}');
 
     if (widget.initialTags != null) {
       currentTags = List.from(widget.initialTags!);
@@ -263,7 +265,8 @@ class _TagManagementSectionState extends State<TagManagementSection> {
       try {
         currentTags = await TagManager.getTags(widget.filePath);
       } catch (e) {
-        AppLogger.warning('[ManageTags][Section] Loading tags failed for ${widget.filePath}: $e');
+        AppLogger.warning(
+            '[ManageTags][Section] Loading tags failed for ${widget.filePath}: $e');
         currentTags = [];
       }
     }
@@ -512,7 +515,8 @@ class _TagManagementSectionState extends State<TagManagementSection> {
             child: ListView.builder(
               shrinkWrap: true,
               physics: const ClampingScrollPhysics(),
-              itemCount: _tagSuggestions.length > 6 ? 6 : _tagSuggestions.length,
+              itemCount:
+                  _tagSuggestions.length > 6 ? 6 : _tagSuggestions.length,
               itemBuilder: (context, index) {
                 final suggestion = _tagSuggestions[index];
                 return InkWell(
@@ -546,8 +550,7 @@ class _TagManagementSectionState extends State<TagManagementSection> {
                         suggestion,
                         style: TextStyle(
                           fontSize: 16,
-                          color:
-                              isDarkMode ? Colors.white : Colors.black87,
+                          color: isDarkMode ? Colors.white : Colors.black87,
                         ),
                       ),
                     ),

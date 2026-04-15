@@ -91,7 +91,8 @@ Future<void> main(List<String> args) async {
       testFile = resolved;
       fileMode = true;
     } else {
-      print('[Parallel E2E] WARNING: file not found "$resolved" — using default.');
+      print(
+          '[Parallel E2E] WARNING: file not found "$resolved" — using default.');
     }
   }
 
@@ -138,9 +139,8 @@ Future<void> main(List<String> args) async {
   if (fileMode) {
     print('[Parallel E2E] Running file: $testFile');
     // Build extra args (plain name filter if provided)
-    final extraArgs = plainNameArg != null
-        ? ['--plain-name', plainNameArg]
-        : <String>[];
+    final extraArgs =
+        plainNameArg != null ? ['--plain-name', plainNameArg] : <String>[];
 
     await _runSingleFile(
       testFile: testFile,

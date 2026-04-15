@@ -474,7 +474,8 @@ class ExternalAppHelper {
   static Future<Set<String>> getInstalledAppPackageNames() async {
     if (!Platform.isAndroid) return {};
     try {
-      final result = await _channel.invokeMethod<List<dynamic>>('getInstalledAppPackages');
+      final result =
+          await _channel.invokeMethod<List<dynamic>>('getInstalledAppPackages');
       return Set<String>.from(result ?? []);
     } catch (_) {
       return {};
@@ -498,7 +499,8 @@ class ExternalAppHelper {
       }
 
       // LibreOffice
-      if (lower.contains('libreoffice') || lower.startsWith('org.libreoffice.')) {
+      if (lower.contains('libreoffice') ||
+          lower.startsWith('org.libreoffice.')) {
         brands.add('libre');
       }
 

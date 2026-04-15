@@ -78,7 +78,8 @@ class DesktopNewFileService {
 
     final items = <DesktopNewFileItem>[];
 
-    for (final template in FileTemplateService.instance.getAvailableTemplates()) {
+    for (final template
+        in FileTemplateService.instance.getAvailableTemplates()) {
       if (shellNewByExtension.containsKey(template.extension)) {
         continue;
       }
@@ -327,8 +328,8 @@ class DesktopNewFileService {
         continue;
       }
 
-      final match = RegExp(r'^\s*([^\s]+)\s+REG_[A-Z_]+\s+(.+)$')
-          .firstMatch(rawLine);
+      final match =
+          RegExp(r'^\s*([^\s]+)\s+REG_[A-Z_]+\s+(.+)$').firstMatch(rawLine);
       if (match == null) {
         continue;
       }

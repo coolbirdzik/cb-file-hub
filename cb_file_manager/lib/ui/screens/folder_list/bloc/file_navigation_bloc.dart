@@ -16,7 +16,8 @@ import 'file_navigation_event.dart';
 import 'file_navigation_state.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 
-class FileNavigationBloc extends Bloc<FileNavigationEvent, FileNavigationState> {
+class FileNavigationBloc
+    extends Bloc<FileNavigationEvent, FileNavigationState> {
   StreamSubscription<String>? _directoryWatcherSubscription;
   final DirectoryWatcherService _directoryWatcher =
       DirectoryWatcherService.instance;
@@ -605,11 +606,15 @@ class FileNavigationBloc extends Bloc<FileNavigationEvent, FileNavigationState> 
 
     switch (option) {
       case SortOption.nameAsc:
-        return (a, b) =>
-            pathlib.basename(a.path).toLowerCase().compareTo(pathlib.basename(b.path).toLowerCase());
+        return (a, b) => pathlib
+            .basename(a.path)
+            .toLowerCase()
+            .compareTo(pathlib.basename(b.path).toLowerCase());
       case SortOption.nameDesc:
-        return (a, b) =>
-            pathlib.basename(b.path).toLowerCase().compareTo(pathlib.basename(a.path).toLowerCase());
+        return (a, b) => pathlib
+            .basename(b.path)
+            .toLowerCase()
+            .compareTo(pathlib.basename(a.path).toLowerCase());
       case SortOption.dateAsc:
         return (a, b) => modifiedFor(a).compareTo(modifiedFor(b));
       case SortOption.dateDesc:
@@ -620,12 +625,16 @@ class FileNavigationBloc extends Bloc<FileNavigationEvent, FileNavigationState> 
         return (a, b) => sizeFor(b).compareTo(sizeFor(a));
       case SortOption.typeAsc:
       case SortOption.extensionAsc:
-        return (a, b) =>
-            pathlib.extension(a.path).toLowerCase().compareTo(pathlib.extension(b.path).toLowerCase());
+        return (a, b) => pathlib
+            .extension(a.path)
+            .toLowerCase()
+            .compareTo(pathlib.extension(b.path).toLowerCase());
       case SortOption.typeDesc:
       case SortOption.extensionDesc:
-        return (a, b) =>
-            pathlib.extension(b.path).toLowerCase().compareTo(pathlib.extension(a.path).toLowerCase());
+        return (a, b) => pathlib
+            .extension(b.path)
+            .toLowerCase()
+            .compareTo(pathlib.extension(a.path).toLowerCase());
       case SortOption.dateCreatedAsc:
         return (a, b) => changedFor(a).compareTo(changedFor(b));
       case SortOption.dateCreatedDesc:
@@ -644,7 +653,8 @@ class FileNavigationBloc extends Bloc<FileNavigationEvent, FileNavigationState> 
     RegExp? regex,
   ) async {
     try {
-      await for (final entity in dir.list(recursive: false, followLinks: false)) {
+      await for (final entity
+          in dir.list(recursive: false, followLinks: false)) {
         try {
           final name = pathlib.basename(entity.path);
           if (_matchesQuery(name, query, regex)) {
@@ -671,7 +681,8 @@ class FileNavigationBloc extends Bloc<FileNavigationEvent, FileNavigationState> 
         .toList();
     if (videoPaths.isEmpty) return;
     VideoThumbnailHelper.setCurrentDirectory(dirPath);
-    VideoThumbnailHelper.proactiveGenerateAll(videoPaths, directoryPath: dirPath);
+    VideoThumbnailHelper.proactiveGenerateAll(videoPaths,
+        directoryPath: dirPath);
   }
 
   void _emitPermissionError(

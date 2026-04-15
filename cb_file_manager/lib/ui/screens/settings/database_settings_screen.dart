@@ -446,8 +446,10 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
         await _loadStatistics();
 
         if (mounted) {
-          final tagMsg = context.tr.tagsImported(summary['importedTagCount'] as int);
-          final prefMsg = context.tr.settingsRestored(summary['preferencesCount'] as int);
+          final tagMsg =
+              context.tr.tagsImported(summary['importedTagCount'] as int);
+          final prefMsg =
+              context.tr.settingsRestored(summary['preferencesCount'] as int);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('$tagMsg, $prefMsg.'),
@@ -668,7 +670,8 @@ class _SharedPreferencesDialog extends StatefulWidget {
   const _SharedPreferencesDialog({this.onDeleted});
 
   @override
-  State<_SharedPreferencesDialog> createState() => _SharedPreferencesDialogState();
+  State<_SharedPreferencesDialog> createState() =>
+      _SharedPreferencesDialogState();
 }
 
 class _SharedPreferencesDialogState extends State<_SharedPreferencesDialog> {
@@ -850,8 +853,7 @@ class _SharedPreferencesDialogState extends State<_SharedPreferencesDialog> {
     if (value == null) {
       displayValue = 'null';
     } else if (value is String) {
-      displayValue =
-          value.length > 80 ? '${value.substring(0, 80)}...' : value;
+      displayValue = value.length > 80 ? '${value.substring(0, 80)}...' : value;
     } else if (value is List) {
       displayValue = '[${value.length} items]';
     } else {
@@ -883,7 +885,7 @@ class _SharedPreferencesDialogState extends State<_SharedPreferencesDialog> {
         children: [
           IconButton(
             icon: const Icon(PhosphorIconsLight.copy, size: 16),
-              tooltip: context.tr.copyValue,
+            tooltip: context.tr.copyValue,
             onPressed: () {
               Clipboard.setData(ClipboardData(text: '$value'));
               ScaffoldMessenger.of(context).showSnackBar(
@@ -901,7 +903,7 @@ class _SharedPreferencesDialogState extends State<_SharedPreferencesDialog> {
               size: 16,
               color: Theme.of(context).colorScheme.error,
             ),
-              tooltip: context.tr.deleteKey,
+            tooltip: context.tr.deleteKey,
             onPressed: () => _deleteKey(key),
           ),
         ],

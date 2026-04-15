@@ -80,14 +80,14 @@ final List<FileTemplate> allFileTemplates = [
       PhosphorIconsLight.code),
   _generic('css', 'text/css', FileTemplateCategory.code, 'fileTypeCss',
       PhosphorIconsLight.paintBrush),
-  _generic('dart', 'application/dart', FileTemplateCategory.code, 'fileTypeDart',
-      PhosphorIconsLight.code),
+  _generic('dart', 'application/dart', FileTemplateCategory.code,
+      'fileTypeDart', PhosphorIconsLight.code),
   _generic('py', 'text/x-python', FileTemplateCategory.code, 'fileTypePython',
       PhosphorIconsLight.fileCode),
   _generic('js', 'application/javascript', FileTemplateCategory.code,
       'fileTypeJavaScript', PhosphorIconsLight.code),
-  _generic('ts', 'text/typescript', FileTemplateCategory.code, 'fileTypeTypeScript',
-      PhosphorIconsLight.code),
+  _generic('ts', 'text/typescript', FileTemplateCategory.code,
+      'fileTypeTypeScript', PhosphorIconsLight.code),
   _generic('java', 'text/x-java', FileTemplateCategory.code, 'fileTypeJava',
       PhosphorIconsLight.code),
   _generic('cpp', 'text/x-c++src', FileTemplateCategory.code, 'fileTypeCpp',
@@ -130,36 +130,49 @@ final List<FileTemplate> allFileTemplates = [
       PhosphorIconsLight.videoCamera),
   _generic('mov', 'video/quicktime', FileTemplateCategory.video, 'fileTypeMov',
       PhosphorIconsLight.videoCamera),
-  _generic('zip', 'application/zip', FileTemplateCategory.archive, 'fileTypeZip',
-      PhosphorIconsLight.fileZip),
+  _generic('zip', 'application/zip', FileTemplateCategory.archive,
+      'fileTypeZip', PhosphorIconsLight.fileZip),
   _generic('rar', 'application/x-rar-compressed', FileTemplateCategory.archive,
       'fileTypeRar', PhosphorIconsLight.fileZip),
   _generic('7z', 'application/x-7z-compressed', FileTemplateCategory.archive,
       'fileType7z', PhosphorIconsLight.fileZip),
   _generic('tar', 'application/x-tar', FileTemplateCategory.archive,
       'fileTypeTar', PhosphorIconsLight.fileZip),
-  _generic('gz', 'application/gzip', FileTemplateCategory.archive, 'fileTypeGzip',
-      PhosphorIconsLight.fileZip),
+  _generic('gz', 'application/gzip', FileTemplateCategory.archive,
+      'fileTypeGzip', PhosphorIconsLight.fileZip),
 
   // ── PDF ────────────────────────────────────────────────────────────────────
   _generic('pdf', 'application/pdf', FileTemplateCategory.pdf, 'fileTypePdf',
       PhosphorIconsLight.filePdf),
 
   // ── Microsoft Office (brand-specific) ──────────────────────────────────────
-  _ms('docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Word Document', 'fileTypeWord'),
-  _ms('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Excel Spreadsheet', 'fileTypeExcel'),
-  _ms('pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'PowerPoint Presentation', 'fileTypePowerPoint'),
+  _ms(
+      'docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'Word Document',
+      'fileTypeWord'),
+  _ms(
+      'xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Excel Spreadsheet',
+      'fileTypeExcel'),
+  _ms(
+      'pptx',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'PowerPoint Presentation',
+      'fileTypePowerPoint'),
   _ms('doc', 'application/msword', 'Word Document (Legacy)', 'fileTypeWord'),
-  _ms('xls', 'application/vnd.ms-excel', 'Excel Spreadsheet (Legacy)', 'fileTypeExcel'),
-  _ms('ppt', 'application/vnd.ms-powerpoint', 'PowerPoint (Legacy)', 'fileTypePowerPoint'),
+  _ms('xls', 'application/vnd.ms-excel', 'Excel Spreadsheet (Legacy)',
+      'fileTypeExcel'),
+  _ms('ppt', 'application/vnd.ms-powerpoint', 'PowerPoint (Legacy)',
+      'fileTypePowerPoint'),
 
   // ── LibreOffice (brand-specific) ───────────────────────────────────────────
   _libre('odt', 'application/vnd.oasis.opendocument.text', 'ODT Document'),
-  _libre('ods', 'application/vnd.oasis.opendocument.spreadsheet', 'ODS Spreadsheet'),
-  _libre('odp', 'application/vnd.oasis.opendocument.presentation', 'ODP Presentation'),
+  _libre('ods', 'application/vnd.oasis.opendocument.spreadsheet',
+      'ODS Spreadsheet'),
+  _libre('odp', 'application/vnd.oasis.opendocument.presentation',
+      'ODP Presentation'),
   _libre('odg', 'application/vnd.oasis.opendocument.graphics', 'ODG Drawing'),
   _libre('odc', 'application/vnd.oasis.opendocument.chart', 'ODC Chart'),
   _libre('odf', 'application/vnd.oasis.opendocument.formula', 'ODF Formula'),
@@ -172,7 +185,8 @@ final List<FileTemplate> allFileTemplates = [
   // ── Google Docs/Sheets (brand-specific) ─────────────────────────────────────
   _google('gdoc', 'application/vnd.google-apps.document', 'Google Doc'),
   _google('gsheet', 'application/vnd.google-apps.spreadsheet', 'Google Sheet'),
-  _google('gslides', 'application/vnd.google-apps.presentation', 'Google Slides'),
+  _google(
+      'gslides', 'application/vnd.google-apps.presentation', 'Google Slides'),
 ];
 
 // Helper factories
@@ -195,8 +209,8 @@ FileTemplate _generic(
   );
 }
 
-FileTemplate _ms(String ext, String mimeType, String displayName,
-    String displayNameKey) {
+FileTemplate _ms(
+    String ext, String mimeType, String displayName, String displayNameKey) {
   return FileTemplate(
     extension: '.$ext',
     mimeType: mimeType,
@@ -222,13 +236,20 @@ FileTemplate _libre(String ext, String mimeType, String displayName) {
 
 String _libreKey(String ext) {
   switch (ext) {
-    case 'odt': return 'fileTypeLibreDoc';
-    case 'ods': return 'fileTypeLibreSheet';
-    case 'odp': return 'fileTypeLibrePresentation';
-    case 'odg': return 'fileTypeLibreDraw';
-    case 'odc': return 'fileTypeLibreChart';
-    case 'odf': return 'fileTypeLibreFormula';
-    default: return 'fileTypeLibreDoc';
+    case 'odt':
+      return 'fileTypeLibreDoc';
+    case 'ods':
+      return 'fileTypeLibreSheet';
+    case 'odp':
+      return 'fileTypeLibrePresentation';
+    case 'odg':
+      return 'fileTypeLibreDraw';
+    case 'odc':
+      return 'fileTypeLibreChart';
+    case 'odf':
+      return 'fileTypeLibreFormula';
+    default:
+      return 'fileTypeLibreDoc';
   }
 }
 
@@ -246,10 +267,14 @@ FileTemplate _wps(String ext, String mimeType, String displayName) {
 
 String _wpsKey(String ext) {
   switch (ext) {
-    case 'wps': return 'fileTypeWpsDoc';
-    case 'et': return 'fileTypeWpsSheet';
-    case 'dps': return 'fileTypeWpsPresentation';
-    default: return 'fileTypeWpsDoc';
+    case 'wps':
+      return 'fileTypeWpsDoc';
+    case 'et':
+      return 'fileTypeWpsSheet';
+    case 'dps':
+      return 'fileTypeWpsPresentation';
+    default:
+      return 'fileTypeWpsDoc';
   }
 }
 
@@ -267,10 +292,14 @@ FileTemplate _google(String ext, String mimeType, String displayName) {
 
 String _googleKey(String ext) {
   switch (ext) {
-    case 'gdoc': return 'fileTypeGoogleDoc';
-    case 'gsheet': return 'fileTypeGoogleSheet';
-    case 'gslides': return 'fileTypeGoogleSlides';
-    default: return 'fileTypeGoogleDoc';
+    case 'gdoc':
+      return 'fileTypeGoogleDoc';
+    case 'gsheet':
+      return 'fileTypeGoogleSheet';
+    case 'gslides':
+      return 'fileTypeGoogleSlides';
+    default:
+      return 'fileTypeGoogleDoc';
   }
 }
 
@@ -310,13 +339,28 @@ List<String> _msKeywords(String ext) {
   switch (ext) {
     case 'docx':
     case 'doc':
-      return ['winword', 'office', 'microsoft.word', 'com.microsoft.office.word'];
+      return [
+        'winword',
+        'office',
+        'microsoft.word',
+        'com.microsoft.office.word'
+      ];
     case 'xlsx':
     case 'xls':
-      return ['excel', 'office', 'microsoft.excel', 'com.microsoft.office.excel'];
+      return [
+        'excel',
+        'office',
+        'microsoft.excel',
+        'com.microsoft.office.excel'
+      ];
     case 'pptx':
     case 'ppt':
-      return ['powerpnt', 'office', 'microsoft.powerpoint', 'com.microsoft.office.powerpoint'];
+      return [
+        'powerpnt',
+        'office',
+        'microsoft.powerpoint',
+        'com.microsoft.office.powerpoint'
+      ];
     default:
       return ['office', 'microsoft'];
   }

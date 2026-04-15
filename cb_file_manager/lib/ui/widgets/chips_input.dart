@@ -298,7 +298,8 @@ class _TagInputChipState extends State<TagInputChip>
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: isDeleting ? null : () => widget.onSelected(widget.tag),
+                    onTap:
+                        isDeleting ? null : () => widget.onSelected(widget.tag),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 6),

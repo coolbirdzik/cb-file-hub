@@ -348,7 +348,8 @@ class FileOperationsHandler {
   static void _showSnackBarSafe(BuildContext context, String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) {
-      debugPrint('FileOperationsHandler: ScaffoldMessenger unavailable — $message');
+      debugPrint(
+          'FileOperationsHandler: ScaffoldMessenger unavailable — $message');
       return;
     }
     messenger.showSnackBar(SnackBar(content: Text(message)));

@@ -174,8 +174,7 @@ class _FileGridItemState extends State<FileGridItem> {
                       child: OptimizedInteractionLayer(
                         onTap: () {
                           final keyboard = HardwareKeyboard.instance;
-                          final bool isShiftPressed =
-                              keyboard.isShiftPressed;
+                          final bool isShiftPressed = keyboard.isShiftPressed;
                           final bool isCtrlPressed =
                               keyboard.isControlPressed ||
                                   keyboard.isMetaPressed;
@@ -200,8 +199,7 @@ class _FileGridItemState extends State<FileGridItem> {
                             return;
                           }
 
-                          widget.onFileTap
-                              ?.call(widget.file as File, isVideo);
+                          widget.onFileTap?.call(widget.file as File, isVideo);
                         },
                         onDoubleTap: () {
                           if (widget.isDesktopMode) {
@@ -218,8 +216,7 @@ class _FileGridItemState extends State<FileGridItem> {
                         onLongPress: widget.isDesktopMode
                             ? () {
                                 HapticFeedback.mediumImpact();
-                                widget
-                                    .toggleFileSelection(widget.file.path);
+                                widget.toggleFileSelection(widget.file.path);
                                 if (!widget.isSelectionMode) {
                                   widget.toggleSelectionMode();
                                 }
@@ -253,8 +250,7 @@ class _FileGridItemState extends State<FileGridItem> {
               ),
               // Filename (and optional tags) below icon - Windows Explorer style
               Padding(
-                padding:
-                    const EdgeInsets.only(top: 4.0, left: 4.0, right: 4.0),
+                padding: const EdgeInsets.only(top: 4.0, left: 4.0, right: 4.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [

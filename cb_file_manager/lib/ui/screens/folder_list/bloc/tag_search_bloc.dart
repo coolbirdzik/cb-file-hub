@@ -75,7 +75,8 @@ class TagSearchState extends Equatable {
 class TagSearchBloc extends Bloc<TagSearchEvent, TagSearchState> {
   final FileNavigationBloc navigationBloc;
 
-  TagSearchBloc({required this.navigationBloc}) : super(const TagSearchState()) {
+  TagSearchBloc({required this.navigationBloc})
+      : super(const TagSearchState()) {
     on<TagSearchLoadTagsForFile>(_onLoadTagsForFile);
     on<TagSearchLoadTagsForFiles>(_onLoadTagsForFiles);
     on<TagSearchLoadAllTags>(_onLoadAllTags);
@@ -265,7 +266,9 @@ class TagSearchBloc extends Bloc<TagSearchEvent, TagSearchState> {
         currentSearchTag: event.tag,
         isGlobalSearch: true,
         searchResultsTotal: validPaths.length,
-        error: validPaths.isEmpty ? 'No files found globally with tag "${event.tag}"' : null,
+        error: validPaths.isEmpty
+            ? 'No files found globally with tag "${event.tag}"'
+            : null,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -308,7 +311,9 @@ class TagSearchBloc extends Bloc<TagSearchEvent, TagSearchState> {
         searchResultPaths: paths,
         currentSearchTag: event.tags.join(', '),
         isGlobalSearch: false,
-        error: paths.isEmpty ? 'No files found with tags "${event.tags.join(', ')}"' : null,
+        error: paths.isEmpty
+            ? 'No files found with tags "${event.tags.join(', ')}"'
+            : null,
       ));
     } catch (e) {
       emit(state.copyWith(
@@ -354,7 +359,9 @@ class TagSearchBloc extends Bloc<TagSearchEvent, TagSearchState> {
         currentSearchTag: event.tags.join(', '),
         isGlobalSearch: true,
         searchResultsTotal: validPaths.length,
-        error: validPaths.isEmpty ? 'No files found globally with tags "${event.tags.join(', ')}"' : null,
+        error: validPaths.isEmpty
+            ? 'No files found globally with tags "${event.tags.join(', ')}"'
+            : null,
       ));
     } catch (e) {
       emit(state.copyWith(

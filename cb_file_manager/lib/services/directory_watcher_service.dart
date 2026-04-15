@@ -212,8 +212,7 @@ class DirectoryWatcherService {
     _suppressedRefreshUntil.clear();
 
     if (previousPath != null) {
-      AppLogger.info(
-          'DirectoryWatcherService: Stopped watching $previousPath');
+      AppLogger.info('DirectoryWatcherService: Stopped watching $previousPath');
     }
   }
 

@@ -86,7 +86,8 @@ class UserPreferences {
 
   // Constants for grid zoom level
   static const int minGridZoomLevel = 2; // Largest thumbnails (2 per row)
-  static const int maxGridZoomLevel = 20; // Smallest thumbnails (up to 20 per row, screen-size dependent)
+  static const int maxGridZoomLevel =
+      20; // Smallest thumbnails (up to 20 per row, screen-size dependent)
   static const int defaultGridZoomLevel = 4; // Default (4 per row)
   static const double defaultPreviewPaneWidth = 360.0;
 

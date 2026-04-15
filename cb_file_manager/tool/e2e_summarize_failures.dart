@@ -97,7 +97,8 @@ void _printBox(List<String> failed) {
   }
   out.writeln(bar);
   out.writeln('Full log: cb_file_manager/build/e2e_last_run.log');
-  out.writeln('Quick grep: findstr /C:"[E]" build\\e2e_last_run.log   (PowerShell: Select-String)');
+  out.writeln(
+      'Quick grep: findstr /C:"[E]" build\\e2e_last_run.log   (PowerShell: Select-String)');
   out.writeln('JSON log:   make dev-test-e2e-json  → build/e2e_report.jsonl');
   out.writeln('');
 }

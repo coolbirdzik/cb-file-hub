@@ -391,8 +391,7 @@ class FileListViewBuilder {
                                               isSelected: isSelected,
                                               toggleFolderSelection:
                                                   toggleFolderSelection,
-                                              isDesktopMode:
-                                                  isDesktopPlatform,
+                                              isDesktopMode: isDesktopPlatform,
                                               lastSelectedPath: selectionState
                                                   .lastSelectedPath,
                                               clearSelectionMode:
@@ -414,25 +413,24 @@ class FileListViewBuilder {
                                                 .FileGridItem(
                                               key: ValueKey(
                                                   'file-grid-item-${file.path}'),
-                                                file: file,
-                                                state: state,
-                                                isSelectionMode: selectionState
-                                                    .isSelectionMode,
-                                                isSelected: isSelected,
-                                                toggleFileSelection:
-                                                    toggleFileSelection,
-                                                toggleSelectionMode:
-                                                    toggleSelectionMode,
-                                                onFileTap: onFileTap,
-                                                isDesktopMode:
-                                                    isDesktopPlatform,
-                                                lastSelectedPath: selectionState
-                                                    .lastSelectedPath,
-                                                showFileTags: showFileTags,
-                                              ),
+                                              file: file,
+                                              state: state,
+                                              isSelectionMode: selectionState
+                                                  .isSelectionMode,
+                                              isSelected: isSelected,
+                                              toggleFileSelection:
+                                                  toggleFileSelection,
+                                              toggleSelectionMode:
+                                                  toggleSelectionMode,
+                                              onFileTap: onFileTap,
+                                              isDesktopMode: isDesktopPlatform,
+                                              lastSelectedPath: selectionState
+                                                  .lastSelectedPath,
+                                              showFileTags: showFileTags,
                                             ),
                                           ),
-                                        );
+                                        ),
+                                      );
                                     }
                                   },
                                 ),
