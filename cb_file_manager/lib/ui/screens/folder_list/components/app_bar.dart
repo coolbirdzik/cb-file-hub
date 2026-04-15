@@ -181,7 +181,6 @@ class FolderListAppBar extends StatelessWidget implements PreferredSizeWidget {
         // More actions menu
         PopupMenuButton<String>(
           icon: const Icon(PhosphorIconsLight.dotsThreeVertical, size: 24),
-          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),

@@ -450,6 +450,35 @@ abstract class AppLocalizations {
   String get importCancelled;
   String get errorExporting;
   String get errorImporting;
+  String get backupAndRestore;
+  String get backupRestoreHint;
+  String get exportSqlite;
+  String get exportSqliteDesc;
+  String get exportJson;
+  String get exportJsonDesc;
+  String get importBackup;
+  String get importBackupDesc;
+  String get exporting;
+  String get importing;
+  String get sharedPreferences;
+  String get sharedPreferencesDesc;
+  String get clearSharedPreferencesConfirm;
+  String get deleteKeyConfirm;
+  String get clear;
+  String get sharedPreferencesCleared;
+  String get deletedKey;
+  String get copied;
+  String tagsImported(int count);
+  String settingsRestored(int count);
+  String get saveBackup;
+  String get exportPreferencesAsJson;
+  String get sharedPreferencesKeyRemoved;
+  String get jsonCopiedToClipboard;
+  String get copyValue;
+  String get deleteKey;
+  String get copyJson;
+  String get viewJson;
+  String get clearAll;
 
   // Video thumbnails
   String get videoThumbnails;
@@ -615,6 +644,8 @@ abstract class AppLocalizations {
   String errorLoadingTrashItemsWithError(String error);
   String get restoreTooltip;
   String get deletePermanentlyTooltip;
+  String get columnDateDeleted;
+  String get columnOriginalPath;
 
   // Misc helper labels
   String get networkFile;

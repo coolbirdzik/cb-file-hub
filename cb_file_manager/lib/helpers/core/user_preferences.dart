@@ -80,10 +80,13 @@ class UserPreferences {
       'desktop_quick_create_item_ids';
   static const String _allowFileExtensionRenameKey =
       'allow_file_extension_rename';
+  static const String _trashViewModeKey = 'trash_view_mode';
+  static const String _trashSortOptionKey = 'trash_sort_option';
+  static const String _trashGridZoomLevelKey = 'trash_grid_zoom_level';
 
   // Constants for grid zoom level
   static const int minGridZoomLevel = 2; // Largest thumbnails (2 per row)
-  static const int maxGridZoomLevel = 15; // Smallest thumbnails (15 per row)
+  static const int maxGridZoomLevel = 20; // Smallest thumbnails (up to 20 per row, screen-size dependent)
   static const int defaultGridZoomLevel = 4; // Default (4 per row)
   static const double defaultPreviewPaneWidth = 360.0;
 
@@ -744,6 +747,55 @@ class UserPreferences {
     return await _savePreference<bool>(_allowFileExtensionRenameKey, value);
   }
 
+  /// Get trash bin view mode preference
+  Future<ViewMode> getTrashViewMode() async {
+    int index = await _getPreference<int>(
+          _trashViewModeKey,
+          defaultValue: ViewMode.list.index,
+        ) ??
+        ViewMode.list.index;
+    if (index < 0 || index >= ViewMode.values.length) {
+      return ViewMode.list;
+    }
+    return ViewMode.values[index];
+  }
+
+  /// Save trash bin view mode preference
+  Future<bool> setTrashViewMode(ViewMode viewMode) async {
+    return await _savePreference<int>(_trashViewModeKey, viewMode.index);
+  }
+
+  /// Get trash bin sort option preference
+  Future<SortOption> getTrashSortOption() async {
+    int index = await _getPreference<int>(
+          _trashSortOptionKey,
+          defaultValue: SortOption.dateDesc.index,
+        ) ??
+        SortOption.dateDesc.index;
+    if (index < 0 || index >= SortOption.values.length) {
+      return SortOption.dateDesc;
+    }
+    return SortOption.values[index];
+  }
+
+  /// Save trash bin sort option preference
+  Future<bool> setTrashSortOption(SortOption sortOption) async {
+    return await _savePreference<int>(_trashSortOptionKey, sortOption.index);
+  }
+
+  /// Get trash bin grid zoom level preference
+  Future<int> getTrashGridZoomLevel() async {
+    final raw = await _getPreference<int>(_trashGridZoomLevelKey);
+    return (raw ?? defaultGridZoomLevel)
+        .clamp(minGridZoomLevel, maxGridZoomLevel);
+  }
+
+  /// Save trash bin grid zoom level preference
+  Future<bool> setTrashGridZoomLevel(int level) async {
+    final valid = level.clamp(minGridZoomLevel, maxGridZoomLevel);
+    return await _savePreference<int>(_trashGridZoomLevelKey, valid);
+  }
+
   /// Get drawer section expansion state
   Future<bool?> getDrawerSectionExpanded({
     required String tabId,
@@ -1339,6 +1391,27 @@ class UserPreferences {
     }
 
     return settings;
+  }
+
+  /// Restore preferences from a map (used by unified import).
+  Future<void> restoreAllFrom(Map<String, Object?> prefs) async {
+    if (_preferences == null) return;
+    for (final entry in prefs.entries) {
+      final value = entry.value;
+      if (value == null) {
+        await _preferences!.remove(entry.key);
+      } else if (value is String) {
+        await _preferences!.setString(entry.key, value);
+      } else if (value is int) {
+        await _preferences!.setInt(entry.key, value);
+      } else if (value is double) {
+        await _preferences!.setDouble(entry.key, value);
+      } else if (value is bool) {
+        await _preferences!.setBool(entry.key, value);
+      } else if (value is List) {
+        await _preferences!.setStringList(entry.key, value.cast<String>());
+      }
+    }
   }
 
   /// Dispose resources

@@ -174,27 +174,72 @@ class _ThemeOnboardingScreenState extends State<ThemeOnboardingScreen> {
                           const SizedBox(height: 30),
                           SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: _saving ? null : _continue,
-                              child: _saving
-                                  ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                            context.tr.themeOnboardingContinue),
-                                        const SizedBox(width: 8),
-                                        const Icon(
-                                          PhosphorIconsLight.arrowRight,
-                                          size: 18,
-                                        ),
-                                      ],
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _saving ? null : _continue,
+                                borderRadius: BorderRadius.circular(16),
+                                hoverColor: theme.colorScheme.primary
+                                    .withValues(alpha: 0.14),
+                                splashColor: theme.colorScheme.primary
+                                    .withValues(alpha: 0.08),
+                                highlightColor: Colors.transparent,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOutCubic,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 14,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _saving
+                                        ? theme.colorScheme.primary
+                                            .withValues(alpha: 0.06)
+                                        : theme.colorScheme.primary
+                                            .withValues(alpha: 0.10),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: theme.colorScheme.primary
+                                          .withValues(alpha: 0.08),
+                                      width: 1,
                                     ),
+                                  ),
+                                  child: _saving
+                                      ? Center(
+                                          child: SizedBox(
+                                            height: 18,
+                                            width: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                          ),
+                                        )
+                                      : Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              context
+                                                  .tr.themeOnboardingContinue,
+                                              style: theme.textTheme.titleSmall
+                                                  ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                                color:
+                                                    theme.colorScheme.primary,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(
+                                              PhosphorIconsLight.arrowRight,
+                                              size: 18,
+                                              color: theme.colorScheme.primary,
+                                            ),
+                                          ],
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
@@ -213,7 +258,11 @@ class _ThemeOnboardingScreenState extends State<ThemeOnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     if (widget.embedded) {
-      return _buildBody(context);
+      final theme = Theme.of(context);
+      final bg = (theme.dialogTheme.backgroundColor ??
+              theme.colorScheme.surfaceContainerHigh)
+          .withValues(alpha: 1);
+      return ColoredBox(color: bg, child: _buildBody(context));
     }
     return Scaffold(
       body: SafeArea(child: _buildBody(context)),
@@ -273,19 +322,6 @@ class _ThemeCircleOption extends StatelessWidget {
                     color: selected
                         ? theme.colorScheme.primary
                         : theme.colorScheme.onSurfaceVariant,
-                  ),
-                  Positioned(
-                    right: 14,
-                    bottom: 14,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 150),
-                      opacity: selected ? 1 : 0,
-                      child: Icon(
-                        PhosphorIconsLight.checkCircle,
-                        size: 20,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
                   ),
                 ],
               ),

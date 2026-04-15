@@ -782,6 +782,67 @@ class VietnameseLocalizations implements AppLocalizations {
   String get errorExporting => 'Lỗi khi xuất: ';
   @override
   String get errorImporting => 'Lỗi khi nhập: ';
+  @override
+  String get backupAndRestore => 'Sao lưu & Khôi phục';
+  @override
+  String get backupRestoreHint =>
+      'Sao lưu thẻ và cài đặt vào file .db (nhanh, mở rộng được), hoặc xuất cài đặt ra JSON (đọc được bằng văn bản).';
+  @override
+  String get exportSqlite => 'Xuất SQLite';
+  @override
+  String get exportSqliteDesc => 'Sao lưu nhanh (.db) — thẻ + cài đặt';
+  @override
+  String get exportJson => 'Xuất JSON';
+  @override
+  String get exportJsonDesc => 'Xuất cài đặt ra JSON có thể đọc được';
+  @override
+  String get importBackup => 'Nhập bản sao lưu';
+  @override
+  String get importBackupDesc => 'Tự động nhận diện file .db hoặc .json';
+  @override
+  String get exporting => 'Đang xuất...';
+  @override
+  String get importing => 'Đang nhập...';
+  @override
+  String get sharedPreferences => 'SharedPreferences';
+  @override
+  String get sharedPreferencesDesc =>
+      'Xem và xóa cài đặt ứng dụng dạng key-value';
+  @override
+  String get clearSharedPreferencesConfirm => 'Xóa toàn bộ SharedPreferences?';
+  @override
+  String get deleteKeyConfirm => 'Xóa key này?';
+  @override
+  String get clear => 'Xóa';
+  @override
+  String get sharedPreferencesCleared => 'Đã xóa SharedPreferences.';
+  @override
+  String get deletedKey => 'Đã xóa: ';
+  @override
+  String get copied => 'Đã sao chép: ';
+  @override
+  String tagsImported(int count) => '$count thẻ đã nhập';
+  @override
+  String settingsRestored(int count) => '$count cài đặt đã khôi phục';
+  @override
+  String get saveBackup => 'Lưu bản sao lưu';
+  @override
+  String get exportPreferencesAsJson => 'Xuất cài đặt ra JSON';
+  @override
+  String get sharedPreferencesKeyRemoved =>
+      'Đã xóa cài đặt khỏi SharedPreferences.';
+  @override
+  String get jsonCopiedToClipboard => 'Đã sao chép JSON vào bảng nhớ tạm';
+  @override
+  String get copyValue => 'Sao chép giá trị';
+  @override
+  String get deleteKey => 'Xóa key';
+  @override
+  String get copyJson => 'Sao chép JSON';
+  @override
+  String get viewJson => 'Xem JSON';
+  @override
+  String get clearAll => 'Xóa tất cả';
 
   // Video thumbnails
   @override
@@ -1614,6 +1675,10 @@ class VietnameseLocalizations implements AppLocalizations {
   String get restoreTooltip => 'Khôi phục';
   @override
   String get deletePermanentlyTooltip => 'Xóa vĩnh viễn';
+  @override
+  String get columnDateDeleted => 'Ngày xóa';
+  @override
+  String get columnOriginalPath => 'Đường dẫn gốc';
 
   // Misc helper labels
   @override

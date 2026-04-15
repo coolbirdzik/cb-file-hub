@@ -78,6 +78,9 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
   // Drawer state variables
   bool _isDrawerPinned = false;
   String? _lastPersistedTabPath;
+  // True until the initial tab-restore check completes.
+  // Prevents mobile's "add home tab" fallback from racing with restoration.
+  bool _isRestoringTabs = true;
 
   // Key for the scaffold to control drawer programmatically
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
@@ -243,6 +246,9 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
       final lastActivePath = await prefs.getLastOpenedTabPath();
 
       if (!mounted) return;
+      // Guard against a race with startupPayload tabs (desktop secondary window).
+      // On mobile this check is safe because _isRestoringTabs prevents the
+      // '#home' fallback from firing before this function completes.
       if (tabBloc.state.tabs.isNotEmpty) return;
 
       if (lastOpenedTabs.isNotEmpty) {
@@ -264,6 +270,14 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
       }
     } catch (e) {
       debugPrint('Error restoring last opened tab: $e');
+    } finally {
+      // Signal that the restore check is done so the mobile '#home' fallback
+      // can fire on the next build if no tabs were restored.
+      if (mounted) {
+        setState(() => _isRestoringTabs = false);
+      } else {
+        _isRestoringTabs = false;
+      }
     }
   }
 
@@ -940,8 +954,10 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
     }
     // Giao diện cho mobile luôn sử dụng kiểu Chrome, ngay cả khi không có tab
     else {
-      // On mobile, ensure we always have a home tab for navigation history
-      if (state.tabs.isEmpty) {
+      // On mobile, ensure we always have a home tab for navigation history.
+      // Only do this after the restore check completes (_isRestoringTabs = false)
+      // to avoid racing with _restoreLastOpenedTabIfNeeded and corrupting saved data.
+      if (state.tabs.isEmpty && !_isRestoringTabs) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
             final tabBloc = context.read<TabManagerBloc>();

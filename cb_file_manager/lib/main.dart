@@ -673,8 +673,9 @@ class _CBFileAppState extends State<CBFileApp>
     final cardColor =
         effectiveContainerBase.withValues(alpha: containerOpacity);
     final dialogColor = effectiveContainerBase;
-    final menuColor =
-        effectiveContainerBase.withValues(alpha: containerOpacity);
+    // Menu: acrylic style using theme surface colors + slight transparency
+    final Color menuColor =
+        effectiveContainerBase.withValues(alpha: isLightMode ? 0.97 : 0.94);
 
     return baseTheme.copyWith(
       colorScheme: bridgedColorScheme,
@@ -690,6 +691,18 @@ class _CBFileAppState extends State<CBFileApp>
       ),
       popupMenuTheme: baseTheme.popupMenuTheme.copyWith(
         color: menuColor,
+        elevation: 4,
+        shadowColor: Colors.black54,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: isLightMode
+                ? Colors.black.withValues(alpha: 0.08)
+                : Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
       ),
       bottomSheetTheme: baseTheme.bottomSheetTheme.copyWith(
         backgroundColor: dialogColor,

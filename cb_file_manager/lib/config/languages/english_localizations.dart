@@ -759,6 +759,66 @@ class EnglishLocalizations implements AppLocalizations {
   String get errorExporting => 'Error exporting: ';
   @override
   String get errorImporting => 'Error importing: ';
+  @override
+  String get backupAndRestore => 'Backup & Restore';
+  @override
+  String get backupRestoreHint =>
+      'Backup tags and preferences to a .db file (fast, scalable), or export preferences to JSON (human-readable).';
+  @override
+  String get exportSqlite => 'Export SQLite';
+  @override
+  String get exportSqliteDesc => 'Fast backup (.db) — tags + preferences';
+  @override
+  String get exportJson => 'Export JSON';
+  @override
+  String get exportJsonDesc => 'Export preferences as readable JSON';
+  @override
+  String get importBackup => 'Import Backup';
+  @override
+  String get importBackupDesc => 'Auto-detects .db or .json file';
+  @override
+  String get exporting => 'Exporting...';
+  @override
+  String get importing => 'Importing...';
+  @override
+  String get sharedPreferences => 'SharedPreferences';
+  @override
+  String get sharedPreferencesDesc => 'View and clear app key-value settings';
+  @override
+  String get clearSharedPreferencesConfirm => 'Clear all SharedPreferences?';
+  @override
+  String get deleteKeyConfirm => 'Delete this key?';
+  @override
+  String get clear => 'Clear';
+  @override
+  String get sharedPreferencesCleared => 'SharedPreferences cleared.';
+  @override
+  String get deletedKey => 'Deleted: ';
+  @override
+  String get copied => 'Copied: ';
+  @override
+  String tagsImported(int count) => '$count tags imported';
+  @override
+  String settingsRestored(int count) => '$count settings restored';
+  @override
+  String get saveBackup => 'Save backup';
+  @override
+  String get exportPreferencesAsJson => 'Export preferences as JSON';
+  @override
+  String get sharedPreferencesKeyRemoved =>
+      'Setting removed from SharedPreferences.';
+  @override
+  String get jsonCopiedToClipboard => 'JSON copied to clipboard';
+  @override
+  String get copyValue => 'Copy value';
+  @override
+  String get deleteKey => 'Delete key';
+  @override
+  String get copyJson => 'Copy JSON';
+  @override
+  String get viewJson => 'View JSON';
+  @override
+  String get clearAll => 'Clear all';
 
   // Video thumbnails
   @override
@@ -1616,6 +1676,10 @@ class EnglishLocalizations implements AppLocalizations {
   String get restoreTooltip => 'Restore';
   @override
   String get deletePermanentlyTooltip => 'Delete permanently';
+  @override
+  String get columnDateDeleted => 'Date Deleted';
+  @override
+  String get columnOriginalPath => 'Original Path';
 
   // Misc helper labels
   @override

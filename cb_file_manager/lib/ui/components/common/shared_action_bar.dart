@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import '../../../helpers/core/user_preferences.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../config/languages/app_localizations.dart';
 import '../../utils/grid_zoom_constraints.dart';
+
 
 class SharedActionBar {
   /// Tạo popup menu item cho các tùy chọn sắp xếp
@@ -47,6 +49,7 @@ class SharedActionBar {
     );
   }
 
+  /// Shows grid size selector as a modal bottom sheet (for mobile callers).
   static void showGridSizeDialog(
     BuildContext context, {
     required int currentGridSize,
@@ -69,61 +72,105 @@ class SharedActionBar {
       minValue: minGridSize,
       maxValue: maxGridSize,
     );
-    int size = currentGridSize.clamp(minGridSize, dynamicMax).toInt();
+    final int clampedMax = math.min(maxGridSize, dynamicMax);
     final l10n = AppLocalizations.of(context)!;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
       builder: (BuildContext context) {
-        return StatefulBuilder(builder: (context, setState) {
-          final sliderMax = math.max(minGridSize, dynamicMax).toInt();
-          final sliderDivisions = math.max(1, sliderMax - minGridSize).toInt();
-          return AlertDialog(
-            title: Text(l10n.adjustGridSizeTitle),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Slider(
-                  value: size.toDouble(),
-                  min: minGridSize.toDouble(),
-                  max: sliderMax.toDouble(),
-                  divisions: sliderDivisions,
-                  label: l10n.gridSizeLabel(size.round()),
-                  onChanged: (double value) {
-                    setState(() {
-                      size =
-                          value.round().clamp(minGridSize, sliderMax).toInt();
-                    });
+        final colorScheme = Theme.of(context).colorScheme;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Row(
+                  children: [
+                    Icon(PhosphorIconsLight.squaresFour,
+                        size: 22, color: colorScheme.primary),
+                    const SizedBox(width: 10),
+                    Text(
+                      l10n.adjustGridSizeTitle,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              for (int i = minGridSize; i <= clampedMax; i++)
+                ListTile(
+                  leading: Icon(
+                    PhosphorIconsLight.squaresFour,
+                    size: 20,
+                    color: i == currentGridSize
+                        ? colorScheme.primary
+                        : null,
+                  ),
+                  title: Text(
+                    l10n.gridSizeLabel(i),
+                    style: TextStyle(
+                      fontWeight: i == currentGridSize
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: i == currentGridSize
+                          ? colorScheme.primary
+                          : null,
+                    ),
+                  ),
+                  trailing: i == currentGridSize
+                      ? Icon(PhosphorIconsLight.check,
+                          color: colorScheme.primary, size: 20)
+                      : null,
+                  onTap: () {
+                    onApply(i);
+                    Navigator.pop(context);
                   },
                 ),
-                Text(
-                  l10n.gridSizeInstructions,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: Text(l10n.cancel.toUpperCase()),
-              ),
-              TextButton(
-                onPressed: () {
-                  onApply(size);
-                  Navigator.pop(context);
-                },
-                child: Text(l10n.apply),
-              ),
+              const SizedBox(height: 8),
             ],
-          );
-        });
+          ),
+        );
       },
+    );
+  }
+
+  /// Builds a PopupMenuItem for grid size selection (used in popover).
+  static PopupMenuItem<int> buildGridSizeMenuItem(
+    BuildContext context,
+    int size,
+    int currentSize,
+  ) {
+    final l10n = AppLocalizations.of(context)!;
+    return PopupMenuItem<int>(
+      value: size,
+      child: Row(
+        children: [
+          Icon(
+            PhosphorIconsLight.squaresFour,
+            size: 20,
+            color: size == currentSize
+                ? Theme.of(context).colorScheme.primary
+                : null,
+          ),
+          const SizedBox(width: 10),
+          Text(
+            l10n.gridSizeLabel(size),
+            style: TextStyle(
+              fontWeight:
+                  size == currentSize ? FontWeight.bold : FontWeight.normal,
+              color: size == currentSize
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
+            ),
+          ),
+          const Spacer(),
+          if (size == currentSize)
+            Icon(PhosphorIconsLight.check,
+                color: Theme.of(context).colorScheme.primary, size: 20),
+        ],
+      ),
     );
   }
 
@@ -275,6 +322,8 @@ class SharedActionBar {
     ValueChanged<bool>? onAllowFileExtensionRenameChanged,
     Function(String)? onGallerySelected,
     String? currentPath,
+    List<PopupMenuEntry<String>>? additionalMoreOptions,
+    Function(String)? onAdditionalMoreOptionSelected,
   }) {
     return Builder(
       builder: (context) {
@@ -342,6 +391,11 @@ class SharedActionBar {
               );
             }
 
+            if (additionalMoreOptions != null &&
+                additionalMoreOptions.isNotEmpty) {
+              items.addAll(additionalMoreOptions);
+            }
+
             return items;
           },
           onSelected: (String value) {
@@ -358,6 +412,9 @@ class SharedActionBar {
                 onAllowFileExtensionRenameChanged
                     ?.call(!allowFileExtensionRename);
                 break;
+              default:
+                onAdditionalMoreOptionSelected?.call(value);
+                break;
             }
           },
         );
@@ -373,7 +430,12 @@ class SharedActionBar {
     required ViewMode viewMode,
     required VoidCallback onViewModeToggled,
     required VoidCallback onRefresh,
+    @Deprecated('Use currentGridZoomLevel + onGridZoomChanged instead')
     VoidCallback? onGridSizePressed,
+    int? currentGridZoomLevel,
+    Function(int)? onGridZoomChanged,
+    int gridMinSize = UserPreferences.minGridZoomLevel,
+    int gridMaxSize = UserPreferences.maxGridZoomLevel,
     VoidCallback? onColumnSettingsPressed,
     required VoidCallback onSelectionModeToggled,
     VoidCallback? onManageTagsPressed,
@@ -385,6 +447,8 @@ class SharedActionBar {
     VoidCallback? onPreviewPaneToggled,
     bool isPreviewPaneVisible = true,
     bool showPreviewModeOption = false,
+    List<PopupMenuEntry<String>>? additionalMoreOptions,
+    Function(String)? onAdditionalMoreOptionSelected,
   }) {
     final l10n = AppLocalizations.of(context)!;
     List<Widget> actions = [];
@@ -468,9 +532,56 @@ class SharedActionBar {
       ),
     );
 
-    // Add grid size button if in grid mode
+    // Add grid size popover if in grid mode
     if ((viewMode == ViewMode.grid || viewMode == ViewMode.gridPreview) &&
+        currentGridZoomLevel != null &&
+        onGridZoomChanged != null) {
+      final bool isMobile = Platform.isAndroid || Platform.isIOS;
+      final int dynamicMax = GridZoomConstraints.maxGridSizeForContext(
+        context,
+        minValue: gridMinSize,
+        maxValue: gridMaxSize,
+      );
+      final int clampedMax = math.min(gridMaxSize, dynamicMax);
+      if (isMobile) {
+        // Mobile: button that opens bottom sheet
+        actions.add(
+          IconButton(
+            icon: const Icon(PhosphorIconsLight.squaresFour),
+            tooltip: l10n.adjustGridSizeTooltip,
+            onPressed: () => showGridSizeDialog(
+              context,
+              currentGridSize: currentGridZoomLevel,
+              onApply: onGridZoomChanged,
+            ),
+          ),
+        );
+      } else {
+        // Desktop: slider popover like sort/viewmode
+        actions.add(
+          PopupMenuButton<void>(
+            icon: const Icon(PhosphorIconsLight.squaresFour),
+            tooltip: l10n.adjustGridSizeTooltip,
+            offset: const Offset(0, 50),
+            itemBuilder: (context) => [
+              PopupMenuItem<void>(
+                enabled: false,
+                padding: EdgeInsets.zero,
+                child: _GridSizeSliderMenu(
+                  currentValue: currentGridZoomLevel,
+                  minValue: gridMinSize,
+                  maxValue: clampedMax,
+                  onChanged: onGridZoomChanged,
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } else if ((viewMode == ViewMode.grid ||
+            viewMode == ViewMode.gridPreview) &&
         onGridSizePressed != null) {
+      // Legacy fallback
       actions.add(
         IconButton(
           icon: const Icon(PhosphorIconsLight.squaresFour),
@@ -660,8 +771,126 @@ class SharedActionBar {
       onAllowFileExtensionRenameChanged: onAllowFileExtensionRenameChanged,
       onGallerySelected: onGallerySelected,
       currentPath: currentPath,
+      additionalMoreOptions: additionalMoreOptions,
+      onAdditionalMoreOptionSelected: onAdditionalMoreOptionSelected,
     ));
 
     return actions;
+  }
+}
+
+/// Slider widget rendered inside a PopupMenu popover for grid size control.
+/// Uses its own state so it can update reactively while the menu stays open.
+class _GridSizeSliderMenu extends StatefulWidget {
+  const _GridSizeSliderMenu({
+    required this.currentValue,
+    required this.minValue,
+    required this.maxValue,
+    required this.onChanged,
+  });
+
+  final int currentValue;
+  final int minValue;
+  final int maxValue;
+  final Function(int) onChanged;
+
+  @override
+  State<_GridSizeSliderMenu> createState() => _GridSizeSliderMenuState();
+}
+
+class _GridSizeSliderMenuState extends State<_GridSizeSliderMenu> {
+  late int _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.currentValue.clamp(widget.minValue, widget.maxValue);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    final divisions = math.max(1, widget.maxValue - widget.minValue);
+
+    return SizedBox(
+      width: 260,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: icon + current value
+            Row(
+              children: [
+                Icon(PhosphorIconsLight.squaresFour,
+                    size: 18, color: colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.adjustGridSizeTitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$_value',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Horizontal slider with min/max icons
+            Row(
+              children: [
+                Icon(PhosphorIconsLight.minus,
+                    size: 14, color: colorScheme.onSurfaceVariant),
+                Expanded(
+                  child: SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      trackHeight: 3,
+                      thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 7),
+                      overlayShape: const RoundSliderOverlayShape(
+                          overlayRadius: 14),
+                    ),
+                    child: Slider(
+                      value: _value.toDouble(),
+                      min: widget.minValue.toDouble(),
+                      max: widget.maxValue.toDouble(),
+                      divisions: divisions,
+                      onChanged: (v) {
+                        final newVal = v.round();
+                        if (newVal != _value) {
+                          setState(() => _value = newVal);
+                          widget.onChanged(newVal);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                Icon(PhosphorIconsLight.plus,
+                    size: 14, color: colorScheme.onSurfaceVariant),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -13,6 +13,7 @@ import 'package:cb_file_manager/models/objectbox/video_library.dart';
 import 'package:cb_file_manager/services/video_library_service.dart';
 import 'package:cb_file_manager/ui/components/common/shared_action_bar.dart';
 import 'package:cb_file_manager/ui/components/common/screen_scaffold.dart';
+import 'package:cb_file_manager/ui/components/common/file_view_shell.dart';
 import 'package:cb_file_manager/ui/dialogs/delete_confirmation_dialog.dart';
 import 'package:cb_file_manager/helpers/files/external_app_helper.dart';
 import 'package:cb_file_manager/ui/dialogs/open_with_dialog.dart';
@@ -137,7 +138,7 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
       _isSorting = files.isNotEmpty;
     });
     await _applyFilters();
-    
+
     // Start proactive thumbnail generation after loading videos
     if (files.isNotEmpty) {
       _startProactiveThumbnailGeneration();
@@ -180,11 +181,12 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
   void _startProactiveThumbnailGeneration() {
     // Only generate for video files
     if (_allVideos.isEmpty) return;
-    
+
     final paths = _allVideos.map((f) => f.path).toList();
     final libraryPath = '#video-library/${widget.library.id}';
     VideoThumbnailHelper.setCurrentDirectory(libraryPath);
-    VideoThumbnailHelper.proactiveGenerateAll(paths, directoryPath: libraryPath);
+    VideoThumbnailHelper.proactiveGenerateAll(paths,
+        directoryPath: libraryPath);
   }
 
   Future<void> _saveViewMode(ViewMode mode) async {
@@ -544,7 +546,26 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
 
     return ScreenScaffold(
       selectionState: selectionState,
-      body: _buildBody(l10n),
+      body: FileViewShell(
+        viewMode: _viewMode,
+        // onGridZoomDelta is intentionally null here: FileView handles
+        // Ctrl+scroll internally via its own Listener and calls onZoomChanged.
+        onGridZoomDelta: null,
+        onRefresh: () {
+          _loadVideos();
+        },
+        onEscape: isSelectionMode
+            ? exitSelectionMode
+            : _showSearchBar
+                ? _closeSearchBar
+                : null,
+        onDelete: ({required bool permanent}) {
+          if (isSelectionMode && selectedPaths.isNotEmpty) {
+            _showDeleteConfirmationDialog(context);
+          }
+        },
+        child: _buildBody(l10n),
+      ),
       isNetworkPath: false,
       onClearSelection: _clearSelection,
       showRemoveTagsDialog: _showRemoveTagsDialog,
@@ -565,14 +586,9 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
         onViewModeToggled: _toggleViewMode,
         onViewModeSelected: _setViewMode,
         onRefresh: _loadVideos,
-        onGridSizePressed: _viewMode == ViewMode.grid
-            ? () => SharedActionBar.showGridSizeDialog(
-                  context,
-                  currentGridSize: _gridZoomLevel,
-                  onApply: _setGridZoomLevel,
-                  sizeMode: GridSizeMode.referenceWidth,
-                )
-            : null,
+        currentGridZoomLevel:
+            _viewMode == ViewMode.grid ? _gridZoomLevel : null,
+        onGridZoomChanged: _setGridZoomLevel,
         onColumnSettingsPressed:
             _viewMode == ViewMode.details ? _showColumnSettings : null,
         onSelectionModeToggled: toggleSelectionMode,

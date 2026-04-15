@@ -85,7 +85,7 @@ class SystemScreenRouter {
       case '#auto-rules':
         return const AutoRulesScreen();
       case '#trash':
-        return const TrashBinScreen();
+        return TrashBinScreen(tabId: tabId);
       case '#settings':
         return const SettingsScreen();
       case '#network':

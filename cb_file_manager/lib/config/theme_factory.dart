@@ -132,8 +132,10 @@ class ThemeFactory {
 
       // PopupMenu Theme
       popupMenuTheme: PopupMenuThemeData(
-        color: cardColor,
-        elevation: opts.elevation > 0 ? 2 : opts.elevation,
+        color: isLight
+            ? colorScheme.surfaceContainerHigh
+            : colorScheme.surfaceContainerHigh,
+        elevation: 8,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),

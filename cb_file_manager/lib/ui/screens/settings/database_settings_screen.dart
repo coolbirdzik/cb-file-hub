@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cb_file_manager/models/database/database_manager.dart';
 import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/helpers/tags/tag_manager.dart';
@@ -25,10 +27,7 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
   final DatabaseManager _databaseManager = DatabaseManager.getInstance();
 
   bool _isUsingDatabase = true;
-  bool _isCloudSyncEnabled = false;
   bool _isLoading = true;
-  bool _isSyncing = false;
-// Add this line
 
   Set<String> _uniqueTags = {};
   Map<String, int> _popularTags = {};
@@ -49,9 +48,6 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
     try {
       await _loadPreferences();
       await _databaseManager.initialize();
-
-      // Load settings
-      _isCloudSyncEnabled = _databaseManager.isCloudSyncEnabled();
 
       // Load statistics
       await _loadStatistics();
@@ -172,139 +168,6 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
     }
   }
 
-  Future<void> _toggleCloudSyncEnabled(bool value) async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      _databaseManager.setCloudSyncEnabled(value);
-      await _preferences.setCloudSyncEnabled(value);
-      _isCloudSyncEnabled = value;
-
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error toggling cloud sync: $e');
-
-      // Revert the change
-      _databaseManager.setCloudSyncEnabled(!value);
-      await _preferences.setCloudSyncEnabled(!value);
-      _isCloudSyncEnabled = !value;
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _syncToCloud() async {
-    if (!_isCloudSyncEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cloud sync is not enabled')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSyncing = true;
-    });
-
-    try {
-      final success = await _databaseManager.syncToCloud();
-
-      if (mounted) {
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Data synced to cloud successfully')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error syncing to cloud')),
-          );
-        }
-
-        setState(() {
-          _isSyncing = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error syncing to cloud: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-
-        setState(() {
-          _isSyncing = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _syncFromCloud() async {
-    if (!_isCloudSyncEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cloud sync is not enabled')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isSyncing = true;
-    });
-
-    try {
-      final success = await _databaseManager.syncFromCloud();
-
-      if (success) {
-        // Reload statistics
-        await _loadStatistics();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-                content: Text('Data synced from cloud successfully')),
-          );
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Error syncing from cloud')),
-          );
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _isSyncing = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error syncing from cloud: $e');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-
-        setState(() {
-          _isSyncing = false;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return BaseScreen(
@@ -315,8 +178,6 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
               children: [
                 const SizedBox(height: 16),
                 _buildDatabaseTypeSection(),
-                const Divider(),
-                _buildCloudSyncSection(),
                 const Divider(),
                 _buildImportExportSection(),
                 const Divider(),
@@ -380,80 +241,6 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
     );
   }
 
-  Widget _buildCloudSyncSection() {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                const Icon(PhosphorIconsLight.cloudArrowUp, size: 24),
-                const SizedBox(width: 16),
-                Text(
-                  context.tr.cloudSync,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SwitchListTile(
-            title: Text(context.tr.enableCloudSync),
-            subtitle: Text(context.tr.cloudSyncDescription),
-            value: _isCloudSyncEnabled,
-            onChanged: _isUsingDatabase ? _toggleCloudSyncEnabled : null,
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              _isUsingDatabase
-                  ? (_isCloudSyncEnabled
-                      ? context.tr.cloudSyncEnabled
-                      : context.tr.cloudSyncDisabled)
-                  : context.tr.enableDatabaseForCloud,
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                ElevatedButton.icon(
-                  icon: const Icon(PhosphorIconsLight.cloudArrowUp),
-                  label: Text(context.tr.syncToCloud),
-                  onPressed:
-                      _isCloudSyncEnabled && !_isSyncing ? _syncToCloud : null,
-                ),
-                ElevatedButton.icon(
-                  icon: const Icon(PhosphorIconsLight.cloudArrowDown),
-                  label: Text(context.tr.syncFromCloud),
-                  onPressed: _isCloudSyncEnabled && !_isSyncing
-                      ? _syncFromCloud
-                      : null,
-                ),
-              ],
-            ),
-          ),
-          _isSyncing
-              ? const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
   Widget _buildImportExportSection() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -467,7 +254,7 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
                 const Icon(PhosphorIconsLight.arrowsDownUp, size: 24),
                 const SizedBox(width: 16),
                 Text(
-                  context.tr.importExportDatabase,
+                  context.tr.backupAndRestore,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -477,170 +264,220 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              context.tr.backupRestoreDescription,
+              context.tr.backupRestoreHint,
               style: TextStyle(
                 fontSize: 14,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
+          const SizedBox(height: 12),
           ListTile(
-            title: Text(context.tr.exportDatabase),
-            subtitle: Text(context.tr.exportDescription),
-            leading: const Icon(PhosphorIconsLight.uploadSimple),
-            onTap: () async {
-              try {
-                // Ask the user to choose where to save the file
-                String? saveLocation = await FilePicker.platform.saveFile(
-                  dialogTitle: context.tr.saveDatabaseExport,
-                  fileName:
-                      'cb_file_hub_db_export_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.json',
-                  type: FileType.custom,
-                  allowedExtensions: ['json'],
-                );
-
-                if (saveLocation != null) {
-                  final filePath = await _databaseManager.exportDatabase(
-                      customPath: saveLocation);
-                  if (filePath != null) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(context.tr.exportSuccess + filePath),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(context.tr.exportFailed),
-                          behavior: SnackBarBehavior.floating,
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                      );
-                    }
-                  }
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(context.tr.errorExporting + e.toString()),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-              }
-            },
+            title: Text(context.tr.exportSqlite),
+            subtitle: Text(context.tr.exportSqliteDesc),
+            leading: const Icon(PhosphorIconsLight.database),
+            onTap: _exportSqlite,
           ),
           ListTile(
-            title: Text(context.tr.importDatabase),
-            subtitle: Text(context.tr.importDescription),
+            title: Text(context.tr.exportJson),
+            subtitle: Text(context.tr.exportJsonDesc),
+            leading: const Icon(PhosphorIconsLight.fileDoc),
+            onTap: _exportPreferencesJson,
+          ),
+          const Divider(),
+          ListTile(
+            title: Text(context.tr.importBackup),
+            subtitle: Text(context.tr.importBackupDesc),
             leading: const Icon(PhosphorIconsLight.downloadSimple),
-            onTap: () async {
-              try {
-                // Open file picker to select the database export file
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.custom,
-                  allowedExtensions: ['json'],
-                );
-
-                if (result != null && result.files.single.path != null) {
-                  final filePath = result.files.single.path!;
-
-                  // Show loading indicator
-                  if (!mounted) return;
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (dialogContext) => const AlertDialog(
-                      content: Row(
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(width: 20),
-                          Text('Importing database...'),
-                        ],
-                      ),
-                    ),
-                  );
-
-                  // Use skipFileExistenceCheck: true to allow importing tags for files
-                  // that don't exist yet (e.g., network drives)
-                  final success = await _databaseManager.importDatabase(
-                    filePath,
-                    skipFileExistenceCheck: true,
-                  );
-
-                  // Close loading dialog
-                  if (mounted) {
-                    Navigator.of(context).pop();
-                  }
-
-                  if (success) {
-                    // Clear TagManager cache after successful import to ensure UI refreshes
-                    // This fixes the issue where background shows empty after import
-                    try {
-                      TagManager.clearCache();
-                      debugPrint(
-                          'DatabaseSettingsScreen: Cleared TagManager cache after import');
-                    } catch (e) {
-                      debugPrint(
-                          'DatabaseSettingsScreen: Error clearing cache: $e');
-                    }
-
-                    // Reload statistics after import
-                    await _loadStatistics();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(context.tr.importSuccess),
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(context.tr.importFailed),
-                          behavior: SnackBarBehavior.floating,
-                          backgroundColor: Theme.of(context).colorScheme.error,
-                        ),
-                      );
-                    }
-                  }
-                } else {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(context.tr.importCancelled),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  }
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(context.tr.errorImporting + e.toString()),
-                      behavior: SnackBarBehavior.floating,
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  );
-                }
-              }
-            },
+            onTap: _importUnified,
           ),
           const SizedBox(height: 8),
         ],
       ),
     );
+  }
+
+  Future<void> _exportSqlite() async {
+    try {
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final saveLocation = await FilePicker.platform.saveFile(
+        dialogTitle: context.tr.saveBackup,
+        fileName: 'cb_file_hub_backup_$timestamp.db',
+        type: FileType.custom,
+        allowedExtensions: ['db'],
+      );
+
+      if (saveLocation == null) return;
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 20),
+              Text(context.tr.exporting),
+            ],
+          ),
+        ),
+      );
+
+      final prefs = _preferences.getAllSettings();
+      final filePath = await _databaseManager.exportAsSqlite(
+        preferences: prefs,
+        customPath: saveLocation,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (filePath != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Exported to: $filePath'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.tr.exportFailed),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${context.tr.errorExporting}$e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportPreferencesJson() async {
+    try {
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final saveLocation = await FilePicker.platform.saveFile(
+        dialogTitle: context.tr.exportPreferencesAsJson,
+        fileName: 'cb_file_hub_preferences_$timestamp.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (saveLocation == null) return;
+
+      final prefs = _preferences.getAllSettings();
+      final jsonString = const JsonEncoder.withIndent('  ').convert(prefs);
+      await io.File(saveLocation).writeAsString(jsonString);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exported preferences to: $saveLocation'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${context.tr.errorExporting}$e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importUnified() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['db', 'json'],
+      );
+
+      if (result == null || result.files.single.path == null) return;
+
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          content: Row(
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(width: 20),
+              Text(context.tr.importing),
+            ],
+          ),
+        ),
+      );
+
+      final summary = await _databaseManager.importUnified(
+        filePath: result.files.single.path!,
+        skipFileExistenceCheck: true,
+        onRestorePreferences: (prefs) async {
+          await _preferences.restoreAllFrom(prefs);
+        },
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (summary != null) {
+        try {
+          TagManager.clearCache();
+        } catch (_) {}
+        await _loadStatistics();
+
+        if (mounted) {
+          final tagMsg = context.tr.tagsImported(summary['importedTagCount'] as int);
+          final prefMsg = context.tr.settingsRestored(summary['preferencesCount'] as int);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$tagMsg, $prefMsg.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(context.tr.importFailed),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${context.tr.errorImporting}$e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildStatisticsSection() {
@@ -789,6 +626,12 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
             leading: const Icon(PhosphorIconsLight.tag),
             onTap: () => _showRawDataDialog(context.tr.rawDataTags, 'tags'),
           ),
+          ListTile(
+            title: Text(context.tr.sharedPreferences),
+            subtitle: Text(context.tr.sharedPreferencesDesc),
+            leading: const Icon(PhosphorIconsLight.floppyDisk),
+            onTap: _showSharedPreferencesDialog,
+          ),
           const SizedBox(height: 8),
         ],
       ),
@@ -804,6 +647,286 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
         databaseManager: _databaseManager,
       ),
     );
+  }
+
+  void _showSharedPreferencesDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => _SharedPreferencesDialog(
+        onDeleted: () {
+          // Refresh raw data dialog if open
+        },
+      ),
+    );
+  }
+}
+
+/// Dialog for viewing SharedPreferences keys/values
+class _SharedPreferencesDialog extends StatefulWidget {
+  final VoidCallback? onDeleted;
+
+  const _SharedPreferencesDialog({this.onDeleted});
+
+  @override
+  State<_SharedPreferencesDialog> createState() => _SharedPreferencesDialogState();
+}
+
+class _SharedPreferencesDialogState extends State<_SharedPreferencesDialog> {
+  Map<String, Object?> _prefs = {};
+  bool _isLoading = true;
+  bool _isClearing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    setState(() => _isLoading = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _prefs = Map<String, Object?>.fromEntries(
+        prefs.getKeys().map((key) => MapEntry(key, prefs.get(key))),
+      );
+    } catch (e) {
+      debugPrint('Error loading SharedPreferences: $e');
+    }
+    if (mounted) setState(() => _isLoading = false);
+  }
+
+  Future<void> _clearAll() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.tr.clearSharedPreferencesConfirm),
+        content: const Text(
+          'This will delete all app settings including theme, language, '
+          'and view preferences. The app may restart.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.tr.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: Text(context.tr.clear),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isClearing = true);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+      widget.onDeleted?.call();
+      await _loadPrefs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr.sharedPreferencesCleared)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+    if (mounted) setState(() => _isClearing = false);
+  }
+
+  Future<void> _deleteKey(String key) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(context.tr.deleteKeyConfirm),
+        content: Text(context.tr.sharedPreferencesKeyRemoved),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(context.tr.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            child: Text(context.tr.delete),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(key);
+      await _loadPrefs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr.deletedKey + key)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedEntries = _prefs.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Text(context.tr.sharedPreferences),
+          const Spacer(),
+          if (_isClearing)
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else ...[
+            IconButton(
+              icon: const Icon(PhosphorIconsLight.trash),
+              tooltip: context.tr.clearAll,
+              onPressed: _clearAll,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            IconButton(
+              icon: const Icon(PhosphorIconsLight.arrowsClockwise),
+              tooltip: context.tr.refresh,
+              onPressed: _loadPrefs,
+            ),
+          ],
+        ],
+      ),
+      content: SizedBox(
+        width: MediaQuery.of(context).size.width * 0.7,
+        height: MediaQuery.of(context).size.height * 0.65,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _prefs.isEmpty
+                ? const Center(child: Text('No preferences stored.'))
+                : ListView.builder(
+                    itemCount: sortedEntries.length,
+                    itemBuilder: (ctx, i) {
+                      final entry = sortedEntries[i];
+                      return _buildPrefTile(entry.key, entry.value);
+                    },
+                  ),
+      ),
+      actions: [
+        Text(
+          '${_prefs.length} keys',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const Spacer(),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrefTile(String key, Object? value) {
+    String displayValue;
+    if (value == null) {
+      displayValue = 'null';
+    } else if (value is String) {
+      displayValue =
+          value.length > 80 ? '${value.substring(0, 80)}...' : value;
+    } else if (value is List) {
+      displayValue = '[${value.length} items]';
+    } else {
+      displayValue = value.toString();
+    }
+
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        _iconForValue(value),
+        size: 18,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      title: Text(
+        key,
+        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        displayValue,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(PhosphorIconsLight.copy, size: 16),
+              tooltip: context.tr.copyValue,
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: '$value'));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(context.tr.copied + value.toString()),
+                  behavior: SnackBarBehavior.floating,
+                  duration: const Duration(seconds: 1),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(
+              PhosphorIconsLight.trash,
+              size: 16,
+              color: Theme.of(context).colorScheme.error,
+            ),
+              tooltip: context.tr.deleteKey,
+            onPressed: () => _deleteKey(key),
+          ),
+        ],
+      ),
+      onLongPress: () {
+        Clipboard.setData(ClipboardData(text: '$key: $value'));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${context.tr.copied}$key: $value'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      },
+    );
+  }
+
+  IconData _iconForValue(Object? value) {
+    if (value == null) return PhosphorIconsLight.minus;
+    if (value is String) return PhosphorIconsLight.textT;
+    if (value is int) return PhosphorIconsLight.hash;
+    if (value is bool) return PhosphorIconsLight.checkSquare;
+    if (value is double) return PhosphorIconsLight.percent;
+    if (value is List) return PhosphorIconsLight.list;
+    return PhosphorIconsLight.plugsConnected;
   }
 }
 
@@ -914,10 +1037,10 @@ class _RawDataDialogState extends State<_RawDataDialog> {
                     );
                     if (!mounted) return;
                     ScaffoldMessenger.of(this.context).showSnackBar(
-                      const SnackBar(content: Text('JSON copied to clipboard')),
+                      SnackBar(content: Text(context.tr.jsonCopiedToClipboard)),
                     );
                   },
-            tooltip: 'Copy JSON',
+            tooltip: context.tr.copyJson,
           ),
           IconButton(
             icon: const Icon(PhosphorIconsLight.arrowsClockwise),
@@ -931,7 +1054,7 @@ class _RawDataDialogState extends State<_RawDataDialog> {
                 : () async {
                     await _showJsonPreviewDialog(context);
                   },
-            tooltip: 'View JSON',
+            tooltip: context.tr.viewJson,
           ),
         ],
       ),
@@ -1075,7 +1198,7 @@ class _RawDataDialogState extends State<_RawDataDialog> {
                   ? () => _loadPage(offset: 0)
                   : null,
               icon: const Icon(Icons.first_page),
-              tooltip: 'First page',
+              tooltip: context.tr.firstPage,
             ),
             IconButton(
               onPressed: _canGoToPreviousPage() && !_isPageLoading
@@ -1084,7 +1207,7 @@ class _RawDataDialogState extends State<_RawDataDialog> {
                           math.max(0, _currentOffset - effectiveRowsPerPage))
                   : null,
               icon: const Icon(Icons.chevron_left),
-              tooltip: 'Previous page',
+              tooltip: context.tr.previousPage,
             ),
             Text(
               'Page ${_currentPageNumber()} / ${_totalPages()}',

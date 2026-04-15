@@ -1,0 +1,293 @@
+import 'package:flutter/material.dart';
+import 'package:cb_file_manager/ui/utils/item_interaction_style.dart';
+
+/// A reusable shell widget that provides common hover, selection, and gesture handling
+/// for list/grid items. This encapsulates the pattern used across file items,
+/// folder items, and trash items.
+///
+/// Usage:
+/// ```dart
+/// ItemShell(
+/// isSelected: isSelected,
+/// isSelectionMode: isSelectionMode,
+/// isDesktopMode: isDesktopMode,
+/// onTap: onTap,
+/// onDoubleTap: onDoubleTap,
+/// onSecondaryTapUp: (details) => showContextMenu(details.globalPosition),
+/// onToggleSelection: onToggleSelection,
+/// onEnterSelectionMode: onEnterSelectionMode,
+/// child: MyItemContent(),
+/// )
+/// ```
+class ItemShell extends StatefulWidget {
+  final Widget child;
+  final bool isSelected;
+  final bool isSelectionMode;
+  final bool isDesktopMode;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+  final void Function(TapUpDetails)? onSecondaryTapUp;
+  final VoidCallback? onToggleSelection;
+  final VoidCallback? onEnterSelectionMode;
+  final bool enableSelectionHighlight;
+
+  const ItemShell({
+    Key? key,
+    required this.child,
+    required this.isSelected,
+    required this.isSelectionMode,
+    this.isDesktopMode = false,
+    this.onTap,
+    this.onDoubleTap,
+    this.onSecondaryTapUp,
+    this.onToggleSelection,
+    this.onEnterSelectionMode,
+    this.enableSelectionHighlight = true,
+  }) : super(key: key);
+
+  @override
+  State<ItemShell> createState() => _ItemShellState();
+}
+
+class _ItemShellState extends State<ItemShell> {
+  bool _isHovering = false;
+
+  void _handleTap() {
+    if (widget.isSelectionMode) {
+      widget.onToggleSelection?.call();
+    } else {
+      widget.onTap?.call();
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (!widget.isSelectionMode) {
+      widget.onDoubleTap?.call();
+    }
+  }
+
+  void _handleLongPress() {
+    if (!widget.isSelectionMode) {
+      widget.onEnterSelectionMode?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bool showHighlight = widget.enableSelectionHighlight &&
+        (widget.isSelected || (_isHovering && widget.isSelectionMode));
+
+    final Color backgroundColor = ItemInteractionStyle.backgroundColor(
+      theme: theme,
+      isDesktopMode: widget.isDesktopMode,
+      isSelected: widget.isSelected,
+      isHovering: _isHovering,
+    );
+
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _isHovering = true);
+      },
+      onExit: (_) {
+        setState(() => _isHovering = false);
+      },
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _handleTap,
+        onDoubleTap: _handleDoubleTap,
+        onLongPress: _handleLongPress,
+        onSecondaryTapUp: widget.onSecondaryTapUp,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          color: showHighlight ? backgroundColor : Colors.transparent,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Shell specifically for list items (e.g., file list rows)
+/// Provides list-specific styling and behavior
+class ListItemShell extends StatefulWidget {
+  final Widget child;
+  final bool isSelected;
+  final bool isSelectionMode;
+  final bool isDesktopMode;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+  final void Function(TapUpDetails)? onSecondaryTapUp;
+  final VoidCallback? onToggleSelection;
+  final VoidCallback? onEnterSelectionMode;
+  final EdgeInsets padding;
+  final BorderRadius? borderRadius;
+
+  const ListItemShell({
+    Key? key,
+    required this.child,
+    required this.isSelected,
+    required this.isSelectionMode,
+    this.isDesktopMode = false,
+    this.onTap,
+    this.onDoubleTap,
+    this.onSecondaryTapUp,
+    this.onToggleSelection,
+    this.onEnterSelectionMode,
+    this.padding = const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+    this.borderRadius,
+  }) : super(key: key);
+
+  @override
+  State<ListItemShell> createState() => _ListItemShellState();
+}
+
+class _ListItemShellState extends State<ListItemShell> {
+  bool _isHovering = false;
+
+  void _handleTap() {
+    if (widget.isSelectionMode) {
+      widget.onToggleSelection?.call();
+    } else {
+      widget.onTap?.call();
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (!widget.isSelectionMode) {
+      widget.onDoubleTap?.call();
+    }
+  }
+
+  void _handleLongPress() {
+    if (!widget.isSelectionMode) {
+      widget.onEnterSelectionMode?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final Color backgroundColor = ItemInteractionStyle.backgroundColor(
+      theme: theme,
+      isDesktopMode: widget.isDesktopMode,
+      isSelected: widget.isSelected,
+      isHovering: _isHovering,
+    );
+
+    final decoration = widget.borderRadius != null
+        ? BoxDecoration(
+            color: backgroundColor,
+            borderRadius: widget.borderRadius,
+          )
+        : BoxDecoration(color: backgroundColor);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _handleTap,
+        onDoubleTap: _handleDoubleTap,
+        onLongPress: _handleLongPress,
+        onSecondaryTapUp: widget.onSecondaryTapUp,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          decoration: decoration,
+          padding: widget.padding,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Shell specifically for grid items (e.g., file grid cells)
+/// Provides grid-specific styling and overlay behavior
+class GridItemShell extends StatefulWidget {
+  final Widget child;
+  final bool isSelected;
+  final bool isSelectionMode;
+  final bool isDesktopMode;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+  final void Function(TapUpDetails)? onSecondaryTapUp;
+  final VoidCallback? onToggleSelection;
+  final VoidCallback? onEnterSelectionMode;
+
+  const GridItemShell({
+    Key? key,
+    required this.child,
+    required this.isSelected,
+    required this.isSelectionMode,
+    this.isDesktopMode = false,
+    this.onTap,
+    this.onDoubleTap,
+    this.onSecondaryTapUp,
+    this.onToggleSelection,
+    this.onEnterSelectionMode,
+  }) : super(key: key);
+
+  @override
+  State<GridItemShell> createState() => _GridItemShellState();
+}
+
+class _GridItemShellState extends State<GridItemShell> {
+  bool _isHovering = false;
+
+  void _handleTap() {
+    if (widget.isSelectionMode) {
+      widget.onToggleSelection?.call();
+    } else {
+      widget.onTap?.call();
+    }
+  }
+
+  void _handleDoubleTap() {
+    if (!widget.isSelectionMode) {
+      widget.onDoubleTap?.call();
+    }
+  }
+
+  void _handleLongPress() {
+    if (!widget.isSelectionMode) {
+      widget.onEnterSelectionMode?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final Color overlayColor = ItemInteractionStyle.thumbnailOverlayColor(
+      theme: theme,
+      isDesktopMode: widget.isDesktopMode,
+      isSelected: widget.isSelected,
+      isHovering: _isHovering,
+    );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: _handleTap,
+        onDoubleTap: _handleDoubleTap,
+        onLongPress: _handleLongPress,
+        onSecondaryTapUp: widget.onSecondaryTapUp,
+        behavior: HitTestBehavior.opaque,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.child,
+            if (overlayColor != Colors.transparent)
+              IgnorePointer(
+                child: Container(color: overlayColor),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}

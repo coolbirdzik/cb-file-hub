@@ -16,6 +16,19 @@ class SqliteDatabaseProvider implements IDatabaseProvider {
   static Database? _sharedDatabase;
   static Future<Database>? _openingDatabase;
 
+  /// Returns the path to the SQLite database file (sync, usable after first open).
+  static String getDatabasePathSync() {
+    // This is only valid after the database has been opened at least once.
+    // For backup purposes, call this after DatabaseManager is initialized.
+    final db = _sharedDatabase;
+    if (db != null) {
+      return db.path;
+    }
+    // Fallback: reconstruct path (only works if app documents dir is stable)
+    // This won't work on web. Returns empty string on web.
+    return '';
+  }
+
   Database? _database;
   bool _isCloudSyncEnabled = false;
   bool _isInitialized = false;
@@ -105,6 +118,10 @@ class SqliteDatabaseProvider implements IDatabaseProvider {
 
     return sqflite.databaseFactory;
   }
+
+  /// Returns the DatabaseFactory used by this provider.
+  /// Exposed for backup/restore operations.
+  DatabaseFactory getDatabaseFactory() => _resolveDatabaseFactory();
 
   Future<void> _configureDatabase(Database db) async {
     await db.execute('PRAGMA foreign_keys = ON');

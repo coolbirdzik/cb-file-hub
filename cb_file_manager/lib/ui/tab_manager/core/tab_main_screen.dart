@@ -3,6 +3,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/theme_provider.dart';
 import '../../../services/permission_state_service.dart';
 import '../../screens/onboarding/theme_onboarding_screen.dart';
 import '../../screens/permissions/permission_explainer_screen.dart';
@@ -138,30 +140,57 @@ class _TabMainScreenState extends State<TabMainScreen> {
     if (completed) return;
 
     if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        final theme = Theme.of(dialogContext);
-        return Dialog(
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-          backgroundColor: theme.colorScheme.surface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: 760,
-              maxHeight: 720,
-            ),
-            child: ThemeOnboardingScreen(
-              embedded: true,
-              onCompleted: () => Navigator.of(dialogContext).pop(),
-            ),
-          ),
-        );
-      },
+    await Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        opaque: true,
+        barrierDismissible: false,
+        pageBuilder: (routeCtx, animation, _) {
+          return Consumer<ThemeProvider>(
+            builder: (ctx, provider, __) {
+              final theme = Theme.of(ctx);
+              final solidBg =
+                  theme.scaffoldBackgroundColor.withValues(alpha: 1);
+              final cardBg = (theme.dialogTheme.backgroundColor ??
+                      theme.colorScheme.surfaceContainerHigh)
+                  .withValues(alpha: 1);
+              return Material(
+                color: solidBg,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: 760,
+                        maxHeight: 720,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(24),
+                        child: ColoredBox(
+                          color: cardBg,
+                          child: SizedBox.expand(
+                            child: ThemeOnboardingScreen(
+                              embedded: true,
+                              onCompleted: () => Navigator.of(routeCtx).pop(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+        transitionsBuilder: (ctx, animation, _, child) {
+          return FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 220),
+      ),
     );
 
     await prefs.setBool(_themeOnboardingDoneKey, true);

@@ -5,8 +5,6 @@ import 'dart:async'; // Add this import for Completer
 import 'package:cb_file_manager/helpers/ui/frame_timing_optimizer.dart';
 import '../../components/common/shared_action_bar.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter/gestures.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cb_file_manager/helpers/core/user_preferences.dart';
@@ -45,6 +43,7 @@ import 'package:cb_file_manager/ui/widgets/value_listenable_builders.dart';
 import 'package:cb_file_manager/ui/tab_manager/mobile/mobile_file_actions_controller.dart';
 import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
 import 'package:cb_file_manager/ui/widgets/selection_summary_tooltip.dart';
+import 'package:cb_file_manager/ui/components/common/file_view_shell.dart';
 
 /// A screen for browsing network locations, with a UI consistent with TabbedFolderListScreen
 class NetworkBrowserScreen extends StatefulWidget {
@@ -110,6 +109,8 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
       ValueNotifier<Offset?>(null);
   final ValueNotifier<Offset?> _dragCurrentPositionNotifier =
       ValueNotifier<Offset?>(null);
+
+  bool get _isDesktopMode => !Platform.isAndroid && !Platform.isIOS;
 
   @override
   void initState() {
@@ -603,81 +604,57 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
               await _handleBackButton();
             }
           },
-          child: Listener(
-            onPointerSignal: (PointerSignalEvent event) {
-              if (_viewMode != ViewMode.grid) {
-                return;
-              }
-              if (event is PointerScrollEvent) {
-                if (HardwareKeyboard.instance.logicalKeysPressed
-                        .contains(LogicalKeyboardKey.controlLeft) ||
-                    HardwareKeyboard.instance.logicalKeysPressed
-                        .contains(LogicalKeyboardKey.controlRight)) {
-                  final direction = event.scrollDelta.dy > 0 ? 1 : -1;
-                  _handleGridZoomChange(_gridZoomLevel + direction);
-                  GestureBinding.instance.pointerSignalResolver.resolve(event);
+          child: BlocConsumer<NetworkBrowsingBloc, NetworkBrowsingState>(
+              listenWhen: (previous, current) {
+            // Only trigger listener when state actually changes
+            return previous.isLoading != current.isLoading ||
+                previous.directories != current.directories ||
+                previous.files != current.files ||
+                previous.hasError != current.hasError;
+          }, listener: (context, state) {
+            // Check if there are any video/image files in the current directory
+            final hasVideoOrImageFiles = _hasVideoOrImageFiles(state);
+
+            // If no video/image files and we have pending thumbnails, reset the count
+            if (!hasVideoOrImageFiles && _hasPendingThumbnails) {
+              ThumbnailLoader.resetPendingCount();
+              _hasPendingThumbnails = false;
+            }
+
+            // Only show tab loading when there are actual thumbnail tasks
+            final isLoading = _hasPendingThumbnails;
+            context
+                .read<TabManagerBloc>()
+                .add(UpdateTabLoading(widget.tabId, isLoading));
+
+            if (!mounted) return;
+
+            final bool shouldClearLoadingStarted =
+                !state.isLoading && _isLoadingStarted;
+            final bool shouldClearNavigationPending = _isNavigationPending &&
+                (state.hasError ||
+                    (state.currentPath != null &&
+                        state.currentPath == _currentPath));
+
+            if (shouldClearLoadingStarted || shouldClearNavigationPending) {
+              setState(() {
+                if (shouldClearLoadingStarted) {
+                  _isLoadingStarted = false;
                 }
-              }
-            },
-            onPointerDown: (PointerDownEvent event) {
-              if (event.buttons == 8) {
-                _handleMouseBackButton();
-              } else if (event.buttons == 16) {
-                _handleMouseForwardButton();
-              }
-            },
-            child: BlocConsumer<NetworkBrowsingBloc, NetworkBrowsingState>(
-                listenWhen: (previous, current) {
-              // Only trigger listener when state actually changes
-              return previous.isLoading != current.isLoading ||
-                  previous.directories != current.directories ||
-                  previous.files != current.files ||
-                  previous.hasError != current.hasError;
-            }, listener: (context, state) {
-              // Check if there are any video/image files in the current directory
-              final hasVideoOrImageFiles = _hasVideoOrImageFiles(state);
-
-              // If no video/image files and we have pending thumbnails, reset the count
-              if (!hasVideoOrImageFiles && _hasPendingThumbnails) {
-                ThumbnailLoader.resetPendingCount();
-                _hasPendingThumbnails = false;
-              }
-
-              // Only show tab loading when there are actual thumbnail tasks
-              final isLoading = _hasPendingThumbnails;
-              context
-                  .read<TabManagerBloc>()
-                  .add(UpdateTabLoading(widget.tabId, isLoading));
-
-              if (!mounted) return;
-
-              final bool shouldClearLoadingStarted =
-                  !state.isLoading && _isLoadingStarted;
-              final bool shouldClearNavigationPending = _isNavigationPending &&
-                  (state.hasError ||
-                      (state.currentPath != null &&
-                          state.currentPath == _currentPath));
-
-              if (shouldClearLoadingStarted || shouldClearNavigationPending) {
-                setState(() {
-                  if (shouldClearLoadingStarted) {
-                    _isLoadingStarted = false;
-                  }
-                  if (shouldClearNavigationPending) {
-                    _isNavigationPending = false;
-                  }
-                });
-              }
-            }, buildWhen: (previous, current) {
-              // Only rebuild when state actually changes
-              return previous.isLoading != current.isLoading ||
-                  previous.directories != current.directories ||
-                  previous.files != current.files ||
-                  previous.hasError != current.hasError;
-            }, builder: (context, state) {
-              return _buildWithSelectionState(context, state);
-            }),
-          ),
+                if (shouldClearNavigationPending) {
+                  _isNavigationPending = false;
+                }
+              });
+            }
+          }, buildWhen: (previous, current) {
+            // Only rebuild when state actually changes
+            return previous.isLoading != current.isLoading ||
+                previous.directories != current.directories ||
+                previous.files != current.files ||
+                previous.hasError != current.hasError;
+          }, builder: (context, state) {
+            return _buildWithSelectionState(context, state);
+          }),
         ),
       ),
     );
@@ -706,14 +683,9 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
           onViewModeToggled: _toggleViewMode,
           onViewModeSelected: _setViewMode,
           onRefresh: _refreshFileList,
-          onGridSizePressed: _viewMode == ViewMode.grid
-              ? () => SharedActionBar.showGridSizeDialog(
-                    context,
-                    currentGridSize: _gridZoomLevel,
-                    onApply: _handleGridZoomChange,
-                    sizeMode: GridSizeMode.columns,
-                  )
-              : null,
+          currentGridZoomLevel:
+              _viewMode == ViewMode.grid ? _gridZoomLevel : null,
+          onGridZoomChanged: _handleGridZoomChange,
           onColumnSettingsPressed: _viewMode == ViewMode.details
               ? () {
                   _showColumnVisibilityDialog(context);
@@ -750,7 +722,22 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
                 backgroundColor: Colors.transparent,
               )
             : null,
-        body: _buildBody(context, networkState, selectionState),
+        body: FileViewShell(
+          viewMode: _viewMode,
+          onGridZoomDelta: (delta) =>
+              _handleGridZoomChange(_gridZoomLevel + delta),
+          onMouseBack: _handleBackButton,
+          onMouseForward: _handleMouseForwardButton,
+          onRefresh: _refreshFileList,
+          onEscape: selectionState.isSelectionMode
+              ? _clearSelection
+              : _showSearchBar
+                  ? () => setState(() {
+                        _showSearchBar = false;
+                      })
+                  : null,
+          child: _buildBody(context, networkState, selectionState),
+        ),
         floatingActionButton: _buildFloatingActionButton(selectionState),
       );
     });
@@ -1006,9 +993,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     );
   }
 
-  // The rest of the file continues as-is with the remaining methods...
-  // (Grid view, details view, list view, and other helper methods)
-
   // Build grid view
   Widget _buildGridView(List<FileSystemEntity> folders,
       List<FileSystemEntity> files, SelectionState selectionState) {
@@ -1064,28 +1048,17 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
             final folder = folders[index] as Directory;
             return KeyedSubtree(
               key: ValueKey('folder-grid-${folder.path}'),
-              child: RepaintBoundary(
-                child: FluentBackground.container(
-                  context: context,
-                  padding: EdgeInsets.zero,
-                  blurAmount: 5.0,
-                  opacity: isSelected ? 0.8 : 0.6,
-                  backgroundColor: isSelected
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.6)
-                      : Theme.of(context).cardColor.withValues(alpha: 0.4),
-                  child: folder_list_components.FolderGridItem(
-                    key: ValueKey('folder-grid-item-${folder.path}'),
-                    folder: folder,
-                    onNavigate: _navigateToPath,
-                    isSelected: isSelected,
-                    toggleFolderSelection: _toggleFolderSelection,
-                    isDesktopMode: !Platform.isAndroid && !Platform.isIOS,
-                    lastSelectedPath: selectionState.lastSelectedPath,
-                    clearSelectionMode: _clearSelection,
-                  ),
+              child: _wrapNetworkItem(
+                isSelected,
+                folder_list_components.FolderGridItem(
+                  key: ValueKey('folder-grid-item-${folder.path}'),
+                  folder: folder,
+                  onNavigate: _navigateToPath,
+                  isSelected: isSelected,
+                  toggleFolderSelection: _toggleFolderSelection,
+                  isDesktopMode: _isDesktopMode,
+                  lastSelectedPath: selectionState.lastSelectedPath,
+                  clearSelectionMode: _clearSelection,
                 ),
               ),
             );
@@ -1093,28 +1066,17 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
             final file = files[index - folders.length] as File;
             return KeyedSubtree(
               key: ValueKey('file-grid-${file.path}'),
-              child: RepaintBoundary(
-                child: FluentBackground.container(
-                  context: context,
-                  padding: EdgeInsets.zero,
-                  blurAmount: 5.0,
-                  opacity: isSelected ? 0.8 : 0.6,
-                  backgroundColor: isSelected
-                      ? Theme.of(context)
-                          .colorScheme
-                          .primaryContainer
-                          .withValues(alpha: 0.6)
-                      : Theme.of(context).cardColor.withValues(alpha: 0.4),
-                  child: folder_list_components.FileGridItem(
-                    key: ValueKey('file-grid-item-${file.path}'),
-                    file: file,
-                    onFileTap: (file, _) => _handleFileOpen(context, file),
-                    isSelected: isSelected,
-                    toggleFileSelection: _toggleFileSelection,
-                    toggleSelectionMode: _toggleSelectionMode,
-                    isDesktopMode: !Platform.isAndroid && !Platform.isIOS,
-                    lastSelectedPath: selectionState.lastSelectedPath,
-                  ),
+              child: _wrapNetworkItem(
+                isSelected,
+                folder_list_components.FileGridItem(
+                  key: ValueKey('file-grid-item-${file.path}'),
+                  file: file,
+                  onFileTap: (file, _) => _handleFileOpen(context, file),
+                  isSelected: isSelected,
+                  toggleFileSelection: _toggleFileSelection,
+                  toggleSelectionMode: _toggleSelectionMode,
+                  isDesktopMode: _isDesktopMode,
+                  lastSelectedPath: selectionState.lastSelectedPath,
                 ),
               ),
             );
@@ -1123,10 +1085,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
       },
     );
   }
-
-  // Note: The remaining methods (_buildDetailsView, _buildListView, etc.)
-  // would continue here as they were in the original file
-  // For brevity, I'm showing the key parts that were modified
 
   // Scroll controller for auto load more
   late ScrollController _scrollController;
@@ -1229,10 +1187,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     );
   }
 
-  void _handleMouseBackButton() {
-    _handleBackButton();
-  }
-
   void _handleMouseForwardButton() {
     // Implementation for mouse forward button
   }
@@ -1254,8 +1208,23 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     );
   }
 
-  // Build details view and list view implementations would go here
-  // These would be similar to the grid view but with different layouts
+  Widget _wrapNetworkItem(bool isSelected, Widget child) {
+    return RepaintBoundary(
+      child: FluentBackground.container(
+        context: context,
+        padding: EdgeInsets.zero,
+        blurAmount: 5.0,
+        opacity: isSelected ? 0.8 : 0.6,
+        backgroundColor: isSelected
+            ? Theme.of(context)
+                .colorScheme
+                .primaryContainer
+                .withValues(alpha: 0.6)
+            : Theme.of(context).cardColor.withValues(alpha: 0.4),
+        child: child,
+      ),
+    );
+  }
 
   Widget _buildDetailsView(List<FileSystemEntity> folders,
       List<FileSystemEntity> files, SelectionState selectionState) {
@@ -1273,48 +1242,22 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
             : files[index - folders.length].path;
         final bool isSelected = selectionState.isPathSelected(itemPath);
 
-        // Use a GlobalKey to get the RenderBox from the actual item widget
-        final GlobalKey itemKey = GlobalKey();
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final RenderObject? renderObject =
-              itemKey.currentContext?.findRenderObject();
-          if (renderObject is RenderBox && renderObject.hasSize) {
-            final position = renderObject.localToGlobal(Offset.zero);
-            _registerItemPosition(
-                itemPath,
-                Rect.fromLTWH(position.dx, position.dy, renderObject.size.width,
-                    renderObject.size.height));
-          }
-        });
-
         if (index < folders.length) {
           final folder = folders[index] as Directory;
           return KeyedSubtree(
             key: ValueKey('folder-details-${folder.path}'),
-            child: RepaintBoundary(
-              child: FluentBackground.container(
-                context: context,
-                padding: EdgeInsets.zero,
-                blurAmount: 5.0,
-                opacity: isSelected ? 0.8 : 0.6,
-                backgroundColor: isSelected
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.6)
-                    : Theme.of(context).cardColor.withValues(alpha: 0.4),
-                child: folder_list_components.FolderDetailsItem(
-                  key: ValueKey('folder-details-item-${folder.path}'),
-                  folder: folder,
-                  onTap: _navigateToPath,
-                  isSelected: isSelected,
-                  toggleFolderSelection: _toggleFolderSelection,
-                  isDesktopMode: !Platform.isAndroid && !Platform.isIOS,
-                  lastSelectedPath: selectionState.lastSelectedPath,
-                  clearSelectionMode: _clearSelection,
-                  columnVisibility: _columnVisibility,
-                ),
+            child: _wrapNetworkItem(
+              isSelected,
+              folder_list_components.FolderDetailsItem(
+                key: ValueKey('folder-details-item-${folder.path}'),
+                folder: folder,
+                onTap: _navigateToPath,
+                isSelected: isSelected,
+                toggleFolderSelection: _toggleFolderSelection,
+                isDesktopMode: _isDesktopMode,
+                lastSelectedPath: selectionState.lastSelectedPath,
+                clearSelectionMode: _clearSelection,
+                columnVisibility: _columnVisibility,
               ),
             ),
           );
@@ -1322,32 +1265,20 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
           final file = files[index - folders.length] as File;
           return KeyedSubtree(
             key: ValueKey('file-details-${file.path}'),
-            child: RepaintBoundary(
-              child: FluentBackground.container(
-                context: context,
-                padding: EdgeInsets.zero,
-                blurAmount: 5.0,
-                opacity: isSelected ? 0.8 : 0.6,
-                backgroundColor: isSelected
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.6)
-                    : Theme.of(context).cardColor.withValues(alpha: 0.4),
-                child: folder_list_components.FileDetailsItem(
-                  key: ValueKey('file-details-item-${file.path}'),
-                  file: file,
-                  onTap: (file, _) => _handleFileOpen(context, file),
-                  isSelected: isSelected,
-                  toggleFileSelection: _toggleFileSelection,
-                  state:
-                      FolderListState(widget.path), // Provide a default state
-                  showDeleteTagDialog: (_, __, ___) {}, // Empty implementation
-                  showAddTagToFileDialog: (_, __) {}, // Empty implementation
-                  isDesktopMode: !Platform.isAndroid && !Platform.isIOS,
-                  lastSelectedPath: selectionState.lastSelectedPath,
-                  columnVisibility: _columnVisibility,
-                ),
+            child: _wrapNetworkItem(
+              isSelected,
+              folder_list_components.FileDetailsItem(
+                key: ValueKey('file-details-item-${file.path}'),
+                file: file,
+                onTap: (file, _) => _handleFileOpen(context, file),
+                isSelected: isSelected,
+                toggleFileSelection: _toggleFileSelection,
+                state: FolderListState(widget.path),
+                showDeleteTagDialog: (_, __, ___) {},
+                showAddTagToFileDialog: (_, __) {},
+                isDesktopMode: _isDesktopMode,
+                lastSelectedPath: selectionState.lastSelectedPath,
+                columnVisibility: _columnVisibility,
               ),
             ),
           );
@@ -1372,47 +1303,21 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
             : files[index - folders.length].path;
         final bool isSelected = selectionState.isPathSelected(itemPath);
 
-        // Use a GlobalKey to get the RenderBox from the actual item widget
-        final GlobalKey itemKey = GlobalKey();
-
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          final RenderObject? renderObject =
-              itemKey.currentContext?.findRenderObject();
-          if (renderObject is RenderBox && renderObject.hasSize) {
-            final position = renderObject.localToGlobal(Offset.zero);
-            _registerItemPosition(
-                itemPath,
-                Rect.fromLTWH(position.dx, position.dy, renderObject.size.width,
-                    renderObject.size.height));
-          }
-        });
-
         if (index < folders.length) {
           final folder = folders[index] as Directory;
           return KeyedSubtree(
             key: ValueKey('folder-list-${folder.path}'),
-            child: RepaintBoundary(
-              child: FluentBackground.container(
-                context: context,
-                padding: EdgeInsets.zero,
-                blurAmount: 5.0,
-                opacity: isSelected ? 0.8 : 0.6,
-                backgroundColor: isSelected
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.6)
-                    : Theme.of(context).cardColor.withValues(alpha: 0.4),
-                child: folder_list_components.FolderItem(
-                  key: ValueKey('folder-list-item-${folder.path}'),
-                  folder: folder,
-                  onTap: _navigateToPath,
-                  isSelected: isSelected,
-                  toggleFolderSelection: _toggleFolderSelection,
-                  isDesktopMode: !Platform.isAndroid && !Platform.isIOS,
-                  lastSelectedPath: selectionState.lastSelectedPath,
-                  clearSelectionMode: _clearSelection,
-                ),
+            child: _wrapNetworkItem(
+              isSelected,
+              folder_list_components.FolderItem(
+                key: ValueKey('folder-list-item-${folder.path}'),
+                folder: folder,
+                onTap: _navigateToPath,
+                isSelected: isSelected,
+                toggleFolderSelection: _toggleFolderSelection,
+                isDesktopMode: _isDesktopMode,
+                lastSelectedPath: selectionState.lastSelectedPath,
+                clearSelectionMode: _clearSelection,
               ),
             ),
           );
@@ -1420,32 +1325,20 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
           final file = files[index - folders.length] as File;
           return KeyedSubtree(
             key: ValueKey('file-list-${file.path}'),
-            child: RepaintBoundary(
-              child: FluentBackground.container(
-                context: context,
-                padding: EdgeInsets.zero,
-                blurAmount: 5.0,
-                opacity: isSelected ? 0.8 : 0.6,
-                backgroundColor: isSelected
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.6)
-                    : Theme.of(context).cardColor.withValues(alpha: 0.4),
-                child: folder_list_components.FileItem(
-                  key: ValueKey('file-list-item-${file.path}'),
-                  file: file,
-                  state:
-                      FolderListState(widget.path), // Provide a default state
-                  isSelectionMode: selectionState.isSelectionMode,
-                  isSelected: isSelected,
-                  toggleFileSelection: _toggleFileSelection,
-                  showDeleteTagDialog: (_, __, ___) {}, // Empty implementation
-                  showAddTagToFileDialog: (_, __) {}, // Empty implementation
-                  onFileTap: (file, _) => _handleFileOpen(context, file),
-                  isDesktopMode: !Platform.isAndroid && !Platform.isIOS,
-                  lastSelectedPath: selectionState.lastSelectedPath,
-                ),
+            child: _wrapNetworkItem(
+              isSelected,
+              folder_list_components.FileItem(
+                key: ValueKey('file-list-item-${file.path}'),
+                file: file,
+                state: FolderListState(widget.path),
+                isSelectionMode: selectionState.isSelectionMode,
+                isSelected: isSelected,
+                toggleFileSelection: _toggleFileSelection,
+                showDeleteTagDialog: (_, __, ___) {},
+                showAddTagToFileDialog: (_, __) {},
+                onFileTap: (file, _) => _handleFileOpen(context, file),
+                isDesktopMode: _isDesktopMode,
+                lastSelectedPath: selectionState.lastSelectedPath,
               ),
             ),
           );

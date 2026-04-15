@@ -565,6 +565,312 @@ class DatabaseManager implements IDatabaseProvider {
 
     throw StateError('Active database provider does not expose SQLite access');
   }
+
+  /// Export both database (tags) and preferences to a single SQLite .db file.
+  /// Returns the file path on success, null on failure.
+  /// The exported .db contains: file_tags + a preferences table.
+  Future<String?> exportAsSqlite({
+    required Map<String, Object?> preferences,
+    String? customPath,
+  }) async {
+    try {
+      await _ensureInitialized();
+
+      // Get path of running DB
+      String dbPath;
+      if (_provider is SqliteDatabaseProvider) {
+        dbPath = SqliteDatabaseProvider.getDatabasePathSync();
+      } else {
+        debugPrint('exportAsSqlite: Provider is not SqliteDatabaseProvider');
+        return null;
+      }
+
+      if (dbPath.isEmpty) {
+        debugPrint('exportAsSqlite: Database path not available (not opened yet)');
+        return null;
+      }
+
+      // Determine destination path
+      String destPath;
+      if (customPath != null) {
+        destPath = customPath;
+      } else {
+        final directory = await getApplicationDocumentsDirectory();
+        final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+        destPath = path.join(directory.path, 'cb_file_hub_backup_$timestamp.db');
+      }
+
+      // Copy the live DB file to destination
+      final sourceFile = File(dbPath);
+      await sourceFile.copy(destPath);
+      debugPrint('exportAsSqlite: Copied DB from $dbPath to $destPath');
+
+      // Open destination DB and write preferences table
+      final dbFactory = _provider is SqliteDatabaseProvider
+          ? (_provider as SqliteDatabaseProvider).getDatabaseFactory()
+          : null;
+
+      if (dbFactory != null) {
+        final backupDb = await dbFactory.openDatabase(
+          destPath,
+          options: OpenDatabaseOptions(),
+        );
+
+        // Create preferences table if not exists
+        await backupDb.execute('''
+          CREATE TABLE IF NOT EXISTS preferences (
+            key TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            value TEXT
+          )
+        ''');
+
+        // Upsert each preference
+        for (final entry in preferences.entries) {
+          final key = entry.key;
+          final value = entry.value;
+          String? typeStr;
+          String? serialized;
+
+          if (value == null) {
+            typeStr = 'null';
+            serialized = null;
+          } else if (value is String) {
+            typeStr = 'String';
+            serialized = value;
+          } else if (value is int) {
+            typeStr = 'int';
+            serialized = value.toString();
+          } else if (value is double) {
+            typeStr = 'double';
+            serialized = value.toString();
+          } else if (value is bool) {
+            typeStr = 'bool';
+            serialized = value.toString();
+          } else if (value is List) {
+            typeStr = 'List';
+            serialized = (value as List).join('\x00'); // null-byte separator
+          }
+
+          await backupDb.execute(
+            'INSERT OR REPLACE INTO preferences (key, type, value) VALUES (?, ?, ?)',
+            [key, typeStr, serialized],
+          );
+        }
+
+        await backupDb.close();
+        debugPrint('exportAsSqlite: Preferences written, file saved at $destPath');
+      }
+
+      return destPath;
+    } catch (e, stackTrace) {
+      debugPrint('exportAsSqlite error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  /// Auto-detect file type and import.
+  /// .db = SQLite file backup (tags + preferences)
+  /// .json = JSON backup (legacy or unified)
+  /// Returns a summary map on success, null on failure.
+  Future<Map<String, dynamic>?> importUnified({
+    required String filePath,
+    required void Function(Map<String, Object?>) onRestorePreferences,
+    bool skipFileExistenceCheck = false,
+  }) async {
+    final lower = filePath.toLowerCase();
+    if (lower.endsWith('.db')) {
+      return await _importSqlite(
+        filePath: filePath,
+        onRestorePreferences: onRestorePreferences,
+        skipFileExistenceCheck: skipFileExistenceCheck,
+      );
+    } else {
+      return await _importJson(
+        filePath: filePath,
+        onRestorePreferences: onRestorePreferences,
+        skipFileExistenceCheck: skipFileExistenceCheck,
+      );
+    }
+  }
+
+  /// Import from a SQLite .db backup file.
+  Future<Map<String, dynamic>?> _importSqlite({
+    required String filePath,
+    required void Function(Map<String, Object?>) onRestorePreferences,
+    bool skipFileExistenceCheck = false,
+  }) async {
+    try {
+      if (!_isInitialized) await initialize();
+
+      final dbFactory = _provider is SqliteDatabaseProvider
+          ? (_provider as SqliteDatabaseProvider).getDatabaseFactory()
+          : null;
+
+      if (dbFactory == null) return null;
+
+      final importedDb = await dbFactory.openDatabase(
+        filePath,
+        options: OpenDatabaseOptions(readOnly: true),
+      );
+
+      int importedTagCount = 0;
+      int skippedFileCount = 0;
+      int failedCount = 0;
+      int prefsCount = 0;
+
+      // Restore preferences
+      try {
+        final prefRows = await importedDb.query('preferences');
+        final prefsMap = <String, Object?>{};
+        for (final row in prefRows) {
+          final key = row['key'] as String;
+          final typeStr = row['type'] as String?;
+          final value = row['value'] as String?;
+
+          Object? decoded;
+          switch (typeStr) {
+            case 'String':
+              decoded = value;
+              break;
+            case 'int':
+              decoded = value != null ? int.tryParse(value) : null;
+              break;
+            case 'double':
+              decoded = value != null ? double.tryParse(value) : null;
+              break;
+            case 'bool':
+              decoded = value == 'true';
+              break;
+            case 'List':
+              decoded = value != null ? value.split('\x00') : <String>[];
+              break;
+            default:
+              decoded = value;
+          }
+          prefsMap[key] = decoded;
+        }
+        if (prefsMap.isNotEmpty) {
+          onRestorePreferences(prefsMap);
+          prefsCount = prefsMap.length;
+        }
+      } catch (e) {
+        debugPrint('_importSqlite: No preferences table or error: $e');
+      }
+
+      // Restore tags from file_tags table
+      try {
+        final tagRows = await importedDb.query('file_tags');
+        for (final row in tagRows) {
+          final filePathEntry = row['file_path'] as String?;
+          final tag = row['tag'] as String?;
+          if (filePathEntry == null || tag == null) continue;
+
+          try {
+            if (skipFileExistenceCheck || File(filePathEntry).existsSync()) {
+              final success = await addTagToFile(filePathEntry, tag);
+              if (success) {
+                importedTagCount++;
+              } else {
+                failedCount++;
+              }
+            } else {
+              skippedFileCount++;
+            }
+          } catch (_) {
+            failedCount++;
+          }
+        }
+      } catch (e) {
+        debugPrint('_importSqlite: No file_tags table: $e');
+      }
+
+      await importedDb.close();
+
+      return {
+        'importedTagCount': importedTagCount,
+        'skippedFileCount': skippedFileCount,
+        'failedCount': failedCount,
+        'preferencesCount': prefsCount,
+        'format': 'sqlite',
+      };
+    } catch (e, stackTrace) {
+      debugPrint('_importSqlite error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  /// Import from a JSON backup file.
+  Future<Map<String, dynamic>?> _importJson({
+    required String filePath,
+    required void Function(Map<String, Object?>) onRestorePreferences,
+    bool skipFileExistenceCheck = false,
+  }) async {
+    try {
+      if (!_isInitialized) await initialize();
+
+      final exportFile = File(filePath);
+      if (!await exportFile.exists()) return null;
+
+      final jsonString = await exportFile.readAsString();
+      final Map<String, dynamic> data = jsonDecode(jsonString);
+
+      int importedTagCount = 0;
+      int skippedFileCount = 0;
+      int failedCount = 0;
+
+      // Restore tags
+      if (data.containsKey('database')) {
+        final Map<String, dynamic> dbSection = data['database'];
+        if (dbSection.containsKey('tags')) {
+          final Map<String, dynamic> tagsData = dbSection['tags'];
+          for (final tag in tagsData.keys) {
+            final List<dynamic> files = tagsData[tag];
+            for (final filePathEntry in files) {
+              if (filePathEntry is String) {
+                try {
+                  if (skipFileExistenceCheck || File(filePathEntry).existsSync()) {
+                    final success = await addTagToFile(filePathEntry, tag);
+                    if (success) {
+                      importedTagCount++;
+                    } else {
+                      failedCount++;
+                    }
+                  } else {
+                    skippedFileCount++;
+                  }
+                } catch (_) {
+                  failedCount++;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Restore preferences
+      Map<String, Object?> restoredPrefs = {};
+      if (data.containsKey('preferences')) {
+        final Map<String, dynamic> prefsSection = data['preferences'];
+        restoredPrefs = Map<String, Object?>.from(prefsSection);
+        onRestorePreferences(restoredPrefs);
+      }
+
+      return {
+        'importedTagCount': importedTagCount,
+        'skippedFileCount': skippedFileCount,
+        'failedCount': failedCount,
+        'preferencesCount': restoredPrefs.length,
+        'format': 'json',
+      };
+    } catch (e, stackTrace) {
+      debugPrint('_importJson error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
 }
 
 /// Helper class để đảm bảo các hoạt động bất đồng bộ chỉ thực hiện một lần

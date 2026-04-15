@@ -128,8 +128,9 @@ class AppThemeResolver {
     final cardColor = lightContainerBase.withValues(alpha: containerOpacity());
     // Dialog: always solid for readability
     final dialogColor = lightContainerBase;
-    // Menu: always solid like dialog — no transparency
-    final menuColor = lightContainerBase;
+    // Menu: acrylic style using theme surface colors + slight transparency
+    final Color menuColor =
+        lightContainerBase.withValues(alpha: isLight ? 0.97 : 0.94);
 
     return baseTheme.copyWith(
       colorScheme: bridged,
@@ -139,7 +140,21 @@ class AppThemeResolver {
       cardColor: cardColor,
       cardTheme: baseTheme.cardTheme.copyWith(color: cardColor),
       dialogTheme: baseTheme.dialogTheme.copyWith(backgroundColor: dialogColor),
-      popupMenuTheme: baseTheme.popupMenuTheme.copyWith(color: menuColor),
+      popupMenuTheme: baseTheme.popupMenuTheme.copyWith(
+        color: menuColor,
+        elevation: 4,
+        shadowColor: Colors.black54,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: isLight
+                ? Colors.black.withValues(alpha: 0.08)
+                : Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
+        ),
+      ),
       bottomSheetTheme: baseTheme.bottomSheetTheme.copyWith(
         backgroundColor: dialogColor,
         modalBackgroundColor: dialogColor,
