@@ -251,6 +251,7 @@ get_display_version() {
 get_msix_version() {
     local version_name
     local build_number
+    local msix_build
     local major minor patch
     version_name=$(get_version_name)
     build_number=$(get_version_code)
@@ -259,7 +260,12 @@ get_msix_version() {
     minor=${minor:-0}
     patch=${patch:-0}
     build_number=${build_number:-0}
-    echo "$major.$minor.$patch.$build_number"
+    # MSIX requires first build number to be 0, so subtract 1 from pubspec build number
+    msix_build=$((build_number - 1))
+    if [ "$msix_build" -lt 0 ]; then
+        msix_build=0
+    fi
+    echo "$major.$minor.$patch.$msix_build"
 }
 
 # Show main menu
