@@ -74,6 +74,12 @@ jobs:
           git config user.name "GitHub CI"
           git add "$PUBSPEC"
           git commit -m "ci: auto bump build number to $NEW_BUILD"
+
+          # Fetch latest main and rebase our bump commit on top of it.
+          # This prevents non-fast-forward rejection when the version bump
+          # commit from 'make release-patch' is already on remote main.
+          git fetch origin main
+          git rebase origin/main
           git push origin HEAD:refs/heads/main
 
           echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
@@ -101,17 +107,17 @@ jobs:
             git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --grep="^feat" >> release_notes.md || echo "- No new features" >> release_notes.md
             echo "" >> release_notes.md
             echo "" >> release_notes.md
-            
+
             echo "### 🐛 Bug Fixes" >> release_notes.md
             git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --grep="^fix" >> release_notes.md || echo "- No bug fixes" >> release_notes.md
             echo "" >> release_notes.md
             echo "" >> release_notes.md
-            
+
             echo "### 📚 Documentation" >> release_notes.md
             git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --grep="^docs" >> release_notes.md || echo "- No documentation changes" >> release_notes.md
             echo "" >> release_notes.md
             echo "" >> release_notes.md
-            
+
             echo "### 🔧 Other Changes" >> release_notes.md
             git log $PREV_TAG..HEAD --pretty=format:"- %s (%h)" --invert-grep --grep="^feat" --grep="^fix" --grep="^docs" >> release_notes.md || echo "- No other changes" >> release_notes.md
           fi
