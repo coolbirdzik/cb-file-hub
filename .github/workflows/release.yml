@@ -91,23 +91,29 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version_name }}"
           CURRENT_TAG="v$VERSION"
-
-          # Find the nearest previous tag by walking back from HEAD.
-          # `git describe --tags --abbrev=0 HEAD^` returns the most recent
-          # tag reachable from the parent of the current commit, which is
-          # exactly "the tag right before this release".
-          PREV_TAG=""
-          if git rev-parse HEAD^ >/dev/null 2>&1; then
-            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if git rev-parse -q --verify "refs/tags/$CURRENT_TAG" >/dev/null; then
+            CURRENT_REF=$(git rev-list -n 1 "$CURRENT_TAG")
+          else
+            CURRENT_REF="$GITHUB_SHA"
           fi
 
-          # Fallback: if describe failed (e.g. shallow clone), try sorted tag list
+          # Find the nearest previous tag from the parent of the tagged commit.
+          # The build-number bump above moves HEAD, so release notes must use
+          # the commit pointed to by the current release tag instead of HEAD.
+          PREV_TAG=""
+          if git rev-parse "${CURRENT_REF}^" >/dev/null 2>&1; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${CURRENT_REF}^" 2>/dev/null || true)
+          fi
+
+          # Fallback: if describe failed, use the latest reachable tag excluding
+          # the current release tag.
           if [ -z "$PREV_TAG" ]; then
-            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
+            PREV_TAG=$(git tag --merged "$CURRENT_REF" --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
           fi
 
           echo "Previous tag: ${PREV_TAG:-'(none)'}"
           echo "Current tag:  $CURRENT_TAG"
+          echo "Current ref:  $CURRENT_REF"
 
           echo "# 🎉 CB File Hub $VERSION" > release_notes.md
           echo "" >> release_notes.md
@@ -116,57 +122,19 @@ jobs:
 
           if [ -z "$PREV_TAG" ]; then
             echo "Initial release" >> release_notes.md
+            echo "" >> release_notes.md
+            COMMITS=$(git log "$CURRENT_REF" --reverse --pretty=format:"- %s (%h)" || true)
           else
-            # Collect ALL commits from the previous tag to the current HEAD
-            # (which is the commit that the current tag points to).
-            RANGE="$PREV_TAG..HEAD"
+            echo "Changes from \`$PREV_TAG\` to \`$CURRENT_TAG\`." >> release_notes.md
+            echo "" >> release_notes.md
+            RANGE="$PREV_TAG..$CURRENT_REF"
+            COMMITS=$(git log "$RANGE" --reverse --pretty=format:"- %s (%h)" || true)
+          fi
 
-            # Patterns to exclude from release notes (ci, build, chore, bump, merge commits)
-            EXCLUDE_PATTERN="^(ci:|build:|chore:|bump |Merge branch|Merge pull request|ci\(.*\):|build\(.*\):|chore\(.*\):)"
-
-            # Helper: log commits matching a grep pattern, excluding noise commits
-            log_section() {
-              local grep_pattern="$1"
-              git log --no-merges "$RANGE" --pretty=format:"- %s (%h)" --grep="$grep_pattern" \
-                | grep -vE "$EXCLUDE_PATTERN" || true
-            }
-
-            # Helper: write a section, show "No ..." if empty
-            write_section() {
-              local header="$1"
-              local empty_msg="$2"
-              local content="$3"
-              echo "$header" >> release_notes.md
-              if [ -z "$content" ]; then
-                echo "$empty_msg" >> release_notes.md
-              else
-                echo "$content" >> release_notes.md
-              fi
-              echo "" >> release_notes.md
-              echo "" >> release_notes.md
-            }
-
-            # Features
-            FEAT=$(log_section "^feat")
-            write_section "### ✨ Features" "- No new features" "$FEAT"
-
-            # Bug Fixes
-            FIX=$(log_section "^fix")
-            write_section "### 🐛 Bug Fixes" "- No bug fixes" "$FIX"
-
-            # Documentation
-            DOCS=$(log_section "^docs")
-            write_section "### 📚 Documentation" "- No documentation changes" "$DOCS"
-
-            # Refactoring / Performance
-            REFACTOR=$(log_section "^refactor\|^perf")
-            write_section "### ♻️ Refactoring & Performance" "- No refactoring changes" "$REFACTOR"
-
-            # Other Changes — everything NOT feat/fix/docs/refactor/perf AND NOT excluded
-            OTHER=$(git log --no-merges "$RANGE" --pretty=format:"- %s (%h)" \
-              --invert-grep --grep="^feat" --grep="^fix" --grep="^docs" --grep="^refactor" --grep="^perf" \
-              | grep -vE "$EXCLUDE_PATTERN" || true)
-            write_section "### 🔧 Other Changes" "- No other changes" "$OTHER"
+          if [ -z "$COMMITS" ]; then
+            echo "- No commits found" >> release_notes.md
+          else
+            echo "$COMMITS" >> release_notes.md
           fi
 
           echo "" >> release_notes.md

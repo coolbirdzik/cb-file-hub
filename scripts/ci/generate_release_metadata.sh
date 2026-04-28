@@ -36,18 +36,23 @@ fi
 
 git -C "$REPO_DIR" fetch --tags --force >/dev/null 2>&1 || true
 
-# Find the nearest previous tag by walking back from the release commit.
-# `git describe --tags --abbrev=0 <SHA>^` returns the most recent tag
-# reachable from the parent of the release commit, which gives us all
-# commits between the two tags.
-PREVIOUS_TAG=""
-if git -C "$REPO_DIR" rev-parse "${RELEASE_SHA}^" >/dev/null 2>&1; then
-    PREVIOUS_TAG="$(git -C "$REPO_DIR" describe --tags --abbrev=0 "${RELEASE_SHA}^" 2>/dev/null || true)"
+# Resolve the commit pointed to by the current release tag. CI jobs may create
+# extra commits during the build, so release notes must not use a later HEAD.
+if git -C "$REPO_DIR" rev-parse -q --verify "refs/tags/$RELEASE_TAG" >/dev/null; then
+    RELEASE_REF="$(git -C "$REPO_DIR" rev-list -n 1 "$RELEASE_TAG")"
+else
+    RELEASE_REF="$(git -C "$REPO_DIR" rev-parse "$RELEASE_SHA")"
 fi
 
-# Fallback: if describe failed, try sorted tag list excluding current tag
+# Find the nearest previous tag by walking back from the tagged release commit.
+PREVIOUS_TAG=""
+if git -C "$REPO_DIR" rev-parse "${RELEASE_REF}^" >/dev/null 2>&1; then
+    PREVIOUS_TAG="$(git -C "$REPO_DIR" describe --tags --abbrev=0 "${RELEASE_REF}^" 2>/dev/null || true)"
+fi
+
+# Fallback: if describe failed, try sorted reachable tags excluding current tag.
 if [ -z "$PREVIOUS_TAG" ]; then
-    PREVIOUS_TAG="$(git -C "$REPO_DIR" tag --sort=-version:refname | grep -v "^${RELEASE_TAG}$" | head -n 1 || true)"
+    PREVIOUS_TAG="$(git -C "$REPO_DIR" tag --merged "$RELEASE_REF" --sort=-version:refname | grep -v "^${RELEASE_TAG}$" | head -n 1 || true)"
 fi
 
 RELEASE_NOTES_FILE="$OUTPUT_DIR/release_notes.md"
@@ -58,11 +63,11 @@ RELEASE_NOTES_FILE="$OUTPUT_DIR/release_notes.md"
     if [[ -n "$PREVIOUS_TAG" ]]; then
         echo "Changes from \`$PREVIOUS_TAG\` to \`$RELEASE_TAG\`."
         echo
-        git -C "$REPO_DIR" log --no-merges --pretty=format:'- %s (%h)' "$PREVIOUS_TAG..$RELEASE_SHA"
+        git -C "$REPO_DIR" log --reverse --pretty=format:'- %s (%h)' "$PREVIOUS_TAG..$RELEASE_REF"
     else
         echo "Changes included in the first tagged release."
         echo
-        git -C "$REPO_DIR" log --no-merges --pretty=format:'- %s (%h)' "$RELEASE_SHA"
+        git -C "$REPO_DIR" log --reverse --pretty=format:'- %s (%h)' "$RELEASE_REF"
     fi
     echo
 } >"$RELEASE_NOTES_FILE"
@@ -72,5 +77,6 @@ RELEASE_VERSION=$VERSION_NAME
 RELEASE_VERSION_CODE=$VERSION_CODE
 RELEASE_TAG=$RELEASE_TAG
 PREVIOUS_TAG=$PREVIOUS_TAG
+RELEASE_REF=$RELEASE_REF
 RELEASE_NOTES_FILE=$RELEASE_NOTES_FILE
 EOF
