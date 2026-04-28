@@ -410,7 +410,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
     final width = MediaQuery.of(context).size.width;
     final cols = GridZoomConstraints.columnCountForZoom(_gridZoomLevel, width);
-    final spacing = GridZoomConstraints.fileGridSpacing;
+    const spacing = GridZoomConstraints.fileGridSpacing;
     final usableWidth = width - (spacing * 2) - (spacing * (cols - 1));
     final itemExtent = cols > 0 ? (usableWidth / cols) : width;
     final rowExtent = itemExtent + spacing;

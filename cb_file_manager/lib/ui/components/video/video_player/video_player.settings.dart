@@ -302,17 +302,21 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
                         if (value != null) {
                           setDialogState(() {
                             _videoDecoder = value;
-                            if (value == 'software')
+                            if (value == 'software') {
                               _hardwareAcceleration = false;
-                            if (value == 'hardware')
+                            }
+                            if (value == 'hardware') {
                               _hardwareAcceleration = true;
+                            }
                           });
                           setState(() {
                             _videoDecoder = value;
-                            if (value == 'software')
+                            if (value == 'software') {
                               _hardwareAcceleration = false;
-                            if (value == 'hardware')
+                            }
+                            if (value == 'hardware') {
                               _hardwareAcceleration = true;
+                            }
                             if (_player != null) {
                               _videoController = VideoController(
                                 _player!,
