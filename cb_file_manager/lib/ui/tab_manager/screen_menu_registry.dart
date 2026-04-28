@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/helpers/tags/tag_manager.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 import 'package:cb_file_manager/ui/tab_manager/shared/screen_menu_registry.dart'
     as shared_registry;
 
@@ -195,7 +196,7 @@ class _TagManagementHelper {
   static void showCreateTagDialog(BuildContext context) {
     final TextEditingController tagController = TextEditingController();
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
@@ -275,7 +276,7 @@ class _TagManagementHelper {
   }
 
   static void showTagSearchDialog(BuildContext context) {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Tìm kiếm thẻ'),
@@ -303,7 +304,7 @@ class _TagManagementHelper {
   }
 
   static void showTagManagementInfo(BuildContext context) {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Thông tin quản lý thẻ'),
@@ -334,7 +335,7 @@ class _TagManagementHelper {
   }
 
   static void showTagSortOptions(BuildContext context) {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Sắp xếp thẻ'),

@@ -1,14 +1,14 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path/path.dart' as path;
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 import 'package:cb_file_manager/bloc/selection/selection.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
-import 'package:cb_file_manager/helpers/core/filesystem_sorter.dart';
-import 'package:cb_file_manager/helpers/core/user_preferences.dart';
+import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
 import 'package:cb_file_manager/helpers/files/trash_manager.dart';
-import 'package:cb_file_manager/helpers/media/video_thumbnail_helper.dart';
 import 'package:cb_file_manager/models/objectbox/video_library.dart';
 import 'package:cb_file_manager/services/video_library_service.dart';
 import 'package:cb_file_manager/ui/components/common/shared_action_bar.dart';
@@ -17,17 +17,21 @@ import 'package:cb_file_manager/ui/components/common/file_view_shell.dart';
 import 'package:cb_file_manager/ui/dialogs/delete_confirmation_dialog.dart';
 import 'package:cb_file_manager/helpers/files/external_app_helper.dart';
 import 'package:cb_file_manager/ui/dialogs/open_with_dialog.dart';
+import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/components/file_view.dart';
 import 'package:cb_file_manager/ui/screens/media_gallery/video_player_full_screen.dart';
-import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
-import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
 import 'package:cb_file_manager/ui/screens/mixins/selection_mixin.dart';
-import 'package:cb_file_manager/ui/tab_manager/components/index.dart'
-    as tab_components;
+import 'package:cb_file_manager/ui/screens/video_library/video_library_navigation_bloc.dart';
+import 'package:cb_file_manager/ui/screens/folder_list/bloc/file_navigation_event.dart';
+import 'package:cb_file_manager/ui/screens/folder_list/bloc/file_navigation_state.dart';
 import 'package:cb_file_manager/ui/tab_manager/components/tag_dialogs.dart'
     as tag_dialogs;
+import 'package:cb_file_manager/ui/components/common/skeleton_helper.dart';
 import 'package:cb_file_manager/utils/app_logger.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:cb_file_manager/ui/components/common/breadcrumb_address_bar.dart';
+import 'package:cb_file_manager/helpers/core/user_preferences.dart';
+import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
 
 class VideoLibraryFilesScreen extends StatefulWidget {
   final VideoLibrary library;
@@ -48,20 +52,13 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     with SelectionMixin {
   final VideoLibraryService _service = VideoLibraryService();
   final UserPreferences _preferences = UserPreferences.instance;
-  static final Map<int, List<File>> _libraryCache = {};
+  late final VideoLibraryNavigationBloc _bloc;
   late final TextEditingController _searchController;
   late final FocusNode _searchFocusNode;
-  late final TextEditingController _pathController;
 
-  List<File> _allVideos = [];
-  List<File> _visibleVideos = [];
-  bool _isLoading = true;
-  bool _isSorting = false;
+  bool _isInitialized = false;
   String _searchQuery = '';
   bool _showSearchBar = false;
-  ViewMode _viewMode = ViewMode.list;
-  SortOption _sortOption = SortOption.dateDesc;
-  int _gridZoomLevel = 3;
   ColumnVisibility _columnVisibility = const ColumnVisibility();
   int _filterToken = 0;
 
@@ -70,23 +67,26 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     super.initState();
     _searchController = TextEditingController(text: _searchQuery);
     _searchFocusNode = FocusNode();
-    _pathController = TextEditingController();
-    _loadPreferences();
-    final cached = _libraryCache[widget.library.id];
-    if (cached != null && cached.isNotEmpty) {
-      _allVideos = cached;
-      _isLoading = false;
-      _isSorting = cached.isNotEmpty;
-      _applyFilters();
+    _bloc = VideoLibraryNavigationBloc(libraryId: widget.library.id);
+    _bloc.loadLibrary(); // Kick off initial load
+  }
+
+  @override
+  void didUpdateWidget(VideoLibraryFilesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.library.id != widget.library.id) {
+      _bloc.close();
+      // ignore: invalid_use_of_visible_for_testing_member
+      _bloc.add(FileNavigationLoad('#video-library/${widget.library.id}',
+          isVirtualPath: true));
     }
-    _loadVideos(showLoading: _allVideos.isEmpty);
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
-    _pathController.dispose();
+    _bloc.close();
     super.dispose();
   }
 
@@ -99,121 +99,52 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
       final sortOption = await _preferences.getSortOption();
       final gridZoomLevel = await _preferences.getGridZoomLevel();
       final columnVisibility = await _preferences.getColumnVisibility();
-      final maxZoom = GridZoomConstraints.maxGridSizeForContext(
-        // ignore: use_build_context_synchronously
-        context,
-        mode: GridSizeMode.referenceWidth,
-      );
 
       if (!mounted) return;
+
+      // Apply to bloc first
+      _bloc.add(FileNavigationSetViewMode(effectiveViewMode));
+      _bloc.add(FileNavigationSetSortOption(sortOption));
+      _bloc.add(FileNavigationSetGridZoom(gridZoomLevel));
+
       setState(() {
-        _viewMode = effectiveViewMode;
-        _sortOption = sortOption;
-        _gridZoomLevel = gridZoomLevel
-            .clamp(UserPreferences.minGridZoomLevel, maxZoom)
-            .toInt();
         _columnVisibility = columnVisibility;
       });
-      await _applyFilters();
     } catch (e) {
       // Keep defaults if preferences cannot be loaded.
     }
   }
 
-  Future<void> _loadVideos({bool showLoading = true}) async {
-    if (showLoading) {
-      setState(() {
-        _isLoading = true;
-      });
+  void _onBlocStateChange(VideoLibraryNavigationBloc bloc) {
+    if (!_isInitialized) {
+      _isInitialized = true;
+      _loadPreferences();
     }
+  }
 
-    final paths = await _service.getLibraryFiles(widget.library.id);
-    final files = paths.map((path) => File(path)).toList();
-
-    if (!mounted) return;
-    setState(() {
-      _allVideos = files;
-      _libraryCache[widget.library.id] = files;
-      _isLoading = false;
-      _isSorting = files.isNotEmpty;
-    });
-    await _applyFilters();
-
-    // Start proactive thumbnail generation after loading videos
-    if (files.isNotEmpty) {
-      _startProactiveThumbnailGeneration();
+  Future<void> _handleBackButton() async {
+    if (widget.tabId == null) return;
+    try {
+      final tabManagerBloc = context.read<TabManagerBloc>();
+      if (tabManagerBloc.canTabNavigateBack(widget.tabId!)) {
+        tabManagerBloc.backNavigationToPath(widget.tabId!);
+      }
+    } catch (_) {
+      // Ignore if TabManagerBloc is not available
     }
+  }
+
+  Future<void> _refresh() async {
+    // Clear both memory and disk cache before re-scanning
+    await VideoLibraryNavigationBloc.invalidateCache(widget.library.id);
+    _bloc.refreshLibrary();
   }
 
   Future<void> _applyFilters() async {
     final int token = ++_filterToken;
-    final query = _searchQuery.trim().toLowerCase();
-    final filtered = query.isEmpty
-        ? _allVideos
-        : _allVideos
-            .where((file) =>
-                path.basename(file.path).toLowerCase().contains(query))
-            .toList();
-
-    if (!mounted) return;
-    setState(() {
-      _visibleVideos = filtered;
-      _isSorting = filtered.isNotEmpty;
-    });
-
-    if (filtered.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _isSorting = false;
-      });
-      return;
-    }
-
-    final sorted = await FileSystemSorter.sortFiles(filtered, _sortOption);
     if (!mounted || token != _filterToken) return;
-    setState(() {
-      _visibleVideos = sorted;
-      _isSorting = false;
-    });
-  }
-
-  /// Start proactive thumbnail generation for all videos in the library
-  void _startProactiveThumbnailGeneration() {
-    // Only generate for video files
-    if (_allVideos.isEmpty) return;
-
-    final paths = _allVideos.map((f) => f.path).toList();
-    final libraryPath = '#video-library/${widget.library.id}';
-    VideoThumbnailHelper.setCurrentDirectory(libraryPath);
-    VideoThumbnailHelper.proactiveGenerateAll(paths,
-        directoryPath: libraryPath);
-  }
-
-  Future<void> _saveViewMode(ViewMode mode) async {
-    try {
-      await _preferences.init();
-      await _preferences.setViewMode(mode);
-    } catch (e) {
-      // Ignore preference errors for now.
-    }
-  }
-
-  Future<void> _saveSortOption(SortOption option) async {
-    try {
-      await _preferences.init();
-      await _preferences.setSortOption(option);
-    } catch (e) {
-      // Ignore preference errors for now.
-    }
-  }
-
-  Future<void> _saveGridZoomLevel(int level) async {
-    try {
-      await _preferences.init();
-      await _preferences.setGridZoomLevel(level);
-    } catch (e) {
-      // Ignore preference errors for now.
-    }
+    // Trigger rebuild to re-apply local search filter
+    _bloc.add(const FileNavigationClearSearchAndFilters());
   }
 
   Future<void> _saveColumnVisibility(ColumnVisibility visibility) async {
@@ -225,45 +156,59 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     }
   }
 
-  void _toggleViewMode() {
-    if (_viewMode == ViewMode.list) {
-      _setViewMode(ViewMode.grid);
-    } else if (_viewMode == ViewMode.grid) {
-      _setViewMode(ViewMode.details);
+  void _toggleViewMode(ViewMode current) {
+    ViewMode next;
+    if (current == ViewMode.list) {
+      next = ViewMode.grid;
+    } else if (current == ViewMode.grid) {
+      next = ViewMode.details;
     } else {
-      _setViewMode(ViewMode.list);
+      next = ViewMode.list;
     }
+    _bloc.add(FileNavigationSetViewMode(next));
+    _saveViewMode(next);
   }
 
   void _setViewMode(ViewMode mode) {
     final resolved = mode == ViewMode.gridPreview ? ViewMode.grid : mode;
-    setState(() {
-      _viewMode = resolved;
-    });
+    _bloc.add(FileNavigationSetViewMode(resolved));
     _saveViewMode(resolved);
   }
 
+  Future<void> _saveViewMode(ViewMode mode) async {
+    try {
+      await _preferences.init();
+      await _preferences.setViewMode(mode);
+    } catch (e) {
+      // Ignore preference errors for now.
+    }
+  }
+
   void _setSortOption(SortOption option) {
-    if (_sortOption == option) return;
-    setState(() {
-      _sortOption = option;
-    });
+    _bloc.add(FileNavigationSetSortOption(option));
     _saveSortOption(option);
-    _applyFilters();
+  }
+
+  Future<void> _saveSortOption(SortOption option) async {
+    try {
+      await _preferences.init();
+      await _preferences.setSortOption(option);
+    } catch (e) {
+      // Ignore preference errors for now.
+    }
   }
 
   void _handleGridZoomDelta(int delta) {
+    final current = _bloc.state.gridZoomLevel;
     final maxZoom = GridZoomConstraints.maxGridSizeForContext(
       context,
       mode: GridSizeMode.referenceWidth,
     );
-    final nextLevel = (_gridZoomLevel + delta)
+    final nextLevel = (current + delta)
         .clamp(UserPreferences.minGridZoomLevel, maxZoom)
         .toInt();
-    if (nextLevel == _gridZoomLevel) return;
-    setState(() {
-      _gridZoomLevel = nextLevel;
-    });
+    if (nextLevel == current) return;
+    _bloc.add(FileNavigationSetGridZoom(nextLevel));
     _saveGridZoomLevel(nextLevel);
   }
 
@@ -274,10 +219,17 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     );
     final nextLevel =
         level.clamp(UserPreferences.minGridZoomLevel, maxZoom).toInt();
-    setState(() {
-      _gridZoomLevel = nextLevel;
-    });
+    _bloc.add(FileNavigationSetGridZoom(nextLevel));
     _saveGridZoomLevel(nextLevel);
+  }
+
+  Future<void> _saveGridZoomLevel(int level) async {
+    try {
+      await _preferences.init();
+      await _preferences.setGridZoomLevel(level);
+    } catch (e) {
+      // Ignore preference errors for now.
+    }
   }
 
   void _showColumnSettings() {
@@ -340,27 +292,17 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     );
   }
 
-  String _buildPathLabel(AppLocalizations l10n) {
-    final separator = Platform.pathSeparator;
-    return '${l10n.videoLibrary}$separator${widget.library.name}';
-  }
-
-  void _syncPathField(String value) {
-    if (_pathController.text == value) return;
-    _pathController.text = value;
-    _pathController.selection =
-        TextSelection.collapsed(offset: _pathController.text.length);
-  }
-
-  Widget _buildPathNavigationBar(String currentPath) {
-    _syncPathField(currentPath);
-    return tab_components.PathNavigationBar(
-      tabId: widget.tabId ?? '',
-      pathController: _pathController,
-      onPathSubmitted: (_) => _syncPathField(currentPath),
-      currentPath: currentPath,
-      tabPath: currentPath,
-      isNetworkPath: false,
+  Widget _buildPathNavigationBar(AppLocalizations l10n) {
+    return BreadcrumbAddressBar(
+      segments: [
+        BreadcrumbSegment(
+          label: l10n.videoLibrary,
+          icon: PhosphorIconsLight.filmStrip,
+        ),
+        BreadcrumbSegment(
+          label: widget.library.name,
+        ),
+      ],
     );
   }
 
@@ -496,14 +438,10 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
 
     if (!mounted || deletedPaths.isEmpty) return;
 
-    setState(() {
-      _allVideos = _allVideos
-          .where((file) => !deletedPaths.contains(file.path))
-          .toList();
-      _libraryCache[widget.library.id] = _allVideos;
-    });
+    // Invalidate cache so refresh re-scans from disk
+    VideoLibraryNavigationBloc.invalidateCache(widget.library.id);
+    _bloc.refreshLibrary();
     exitSelectionMode();
-    _applyFilters();
   }
 
   void _openVideo(File file) {
@@ -511,12 +449,11 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
         .then((openedPreferred) {
       if (openedPreferred) return;
 
-      // Default: in-app player. Only system default when user enabled in Settings.
       _preferences.getUseSystemDefaultForVideo().then((useSystem) {
         if (useSystem) {
           ExternalAppHelper.openWithSystemDefault(file.path).then((success) {
             if (!success && mounted) {
-              showDialog(
+              RouteUtils.showAcrylicDialog(
                 context: context,
                 builder: (context) => OpenWithDialog(filePath: file.path),
               );
@@ -542,71 +479,102 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     final isDesktop =
         Platform.isWindows || Platform.isMacOS || Platform.isLinux;
     final selectionState = _buildSelectionState();
-    final currentPath = _buildPathLabel(l10n);
 
-    return ScreenScaffold(
-      selectionState: selectionState,
-      body: FileViewShell(
-        viewMode: _viewMode,
-        // onGridZoomDelta is intentionally null here: FileView handles
-        // Ctrl+scroll internally via its own Listener and calls onZoomChanged.
-        onGridZoomDelta: null,
-        onRefresh: () {
-          _loadVideos();
-        },
-        onEscape: isSelectionMode
-            ? exitSelectionMode
-            : _showSearchBar
-                ? _closeSearchBar
-                : null,
-        onDelete: ({required bool permanent}) {
-          if (isSelectionMode && selectedPaths.isNotEmpty) {
-            _showDeleteConfirmationDialog(context);
-          }
-        },
-        child: _buildBody(l10n),
-      ),
-      isNetworkPath: false,
-      onClearSelection: _clearSelection,
-      showRemoveTagsDialog: _showRemoveTagsDialog,
-      showManageAllTagsDialog: _showManageAllTagsDialog,
-      showDeleteConfirmationDialog: _showDeleteConfirmationDialog,
-      isDesktop: isDesktop,
-      selectionModeFloatingActionButton: null,
-      showAppBar: true,
-      showSearchBar: _showSearchBar,
-      searchBar: _buildSearchBar(l10n),
-      pathNavigationBar: _buildPathNavigationBar(currentPath),
-      actions: SharedActionBar.buildCommonActions(
-        context: context,
-        onSearchPressed: _openSearchBar,
-        onSortOptionSelected: _setSortOption,
-        currentSortOption: _sortOption,
-        viewMode: _viewMode,
-        onViewModeToggled: _toggleViewMode,
-        onViewModeSelected: _setViewMode,
-        onRefresh: _loadVideos,
-        currentGridZoomLevel:
-            _viewMode == ViewMode.grid ? _gridZoomLevel : null,
-        onGridZoomChanged: _setGridZoomLevel,
-        onColumnSettingsPressed:
-            _viewMode == ViewMode.details ? _showColumnSettings : null,
-        onSelectionModeToggled: toggleSelectionMode,
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: null, // Disable hero animation to avoid conflicts
-        onPressed: toggleSelectionMode,
-        child: const Icon(PhosphorIconsLight.checkSquare),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop) {
+          await _handleBackButton();
+        }
+      },
+      child: BlocProvider.value(
+        value: _bloc,
+        child: BlocConsumer<VideoLibraryNavigationBloc, FileNavigationState>(
+          listener: (context, state) => _onBlocStateChange(_bloc),
+          builder: (context, state) {
+            return ScreenScaffold(
+              selectionState: selectionState,
+              body: FileViewShell(
+                viewMode: state.viewMode,
+                onGridZoomDelta: _handleGridZoomDelta,
+                onMouseBack: _handleBackButton,
+                onRefresh: _refresh,
+                onEscape: isSelectionMode
+                    ? exitSelectionMode
+                    : _showSearchBar
+                        ? _closeSearchBar
+                        : null,
+                onDelete: ({required bool permanent}) {
+                  if (isSelectionMode && selectedPaths.isNotEmpty) {
+                    _showDeleteConfirmationDialog(context);
+                  }
+                },
+                child: _buildBody(l10n, state),
+              ),
+              isNetworkPath: false,
+              onClearSelection: _clearSelection,
+              showRemoveTagsDialog: _showRemoveTagsDialog,
+              showManageAllTagsDialog: _showManageAllTagsDialog,
+              showDeleteConfirmationDialog: _showDeleteConfirmationDialog,
+              isDesktop: isDesktop,
+              selectionModeFloatingActionButton: null,
+              showAppBar: true,
+              showSearchBar: _showSearchBar,
+              searchBar: _buildSearchBar(l10n),
+              pathNavigationBar: _buildPathNavigationBar(l10n),
+              actions: SharedActionBar.buildCommonActions(
+                context: context,
+                onSearchPressed: _openSearchBar,
+                onSortOptionSelected: _setSortOption,
+                currentSortOption: state.sortOption,
+                viewMode: state.viewMode,
+                onViewModeToggled: () => _toggleViewMode(state.viewMode),
+                onViewModeSelected: _setViewMode,
+                onRefresh: _refresh,
+                currentGridZoomLevel: state.viewMode == ViewMode.grid
+                    ? state.gridZoomLevel
+                    : null,
+                onGridZoomChanged: _setGridZoomLevel,
+                onColumnSettingsPressed: state.viewMode == ViewMode.details
+                    ? _showColumnSettings
+                    : null,
+                onSelectionModeToggled: toggleSelectionMode,
+              ),
+              floatingActionButton: FloatingActionButton(
+                heroTag: null,
+                onPressed: toggleSelectionMode,
+                child: const Icon(PhosphorIconsLight.checkSquare),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildBody(AppLocalizations l10n) {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+  Widget _buildBody(AppLocalizations l10n, FileNavigationState state) {
+    final isGridView = state.viewMode == ViewMode.grid ||
+        state.viewMode == ViewMode.gridPreview;
+
+    if (state.isLoading && state.files.isEmpty) {
+      return SkeletonHelper.responsive(
+        isGridView: isGridView,
+        crossAxisCount: isGridView ? state.gridZoomLevel : null,
+        itemCount: 12,
+      );
     }
 
-    if (_allVideos.isEmpty) {
+    // Apply local search filter
+    final visibleFiles = _searchQuery.trim().isEmpty
+        ? state.files
+        : state.files
+            .where((file) => path
+                .basename(file.path)
+                .toLowerCase()
+                .contains(_searchQuery.trim().toLowerCase()))
+            .toList();
+
+    if (state.files.isEmpty) {
       return Center(
         child: Text(
           l10n.noVideosInLibrary,
@@ -616,10 +584,14 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     }
 
     final hasSearch = _searchQuery.trim().isNotEmpty;
-    final content = _visibleVideos.isEmpty
+    final content = visibleFiles.isEmpty
         ? Center(
-            child: _isSorting
-                ? const CircularProgressIndicator()
+            child: state.isLoading
+                ? SkeletonHelper.responsive(
+                    isGridView: isGridView,
+                    crossAxisCount: isGridView ? state.gridZoomLevel : null,
+                    itemCount: 8,
+                  )
                 : Text(
                     hasSearch
                         ? l10n.noFilesFoundQuery({'query': _searchQuery})
@@ -627,11 +599,10 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
                     style: const TextStyle(fontSize: 16),
                   ),
           )
-        : _buildFileView();
+        : _buildFileView(visibleFiles, state);
 
     return Column(
       children: [
-        // Show search banner if searching
         if (hasSearch)
           Container(
             width: double.infinity,
@@ -658,23 +629,24 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     );
   }
 
-  Widget _buildFileView() {
-    final state = FolderListState(
+  Widget _buildFileView(
+      List<FileSystemEntity> visibleFiles, FileNavigationState state) {
+    final folderListState = FolderListState(
       '#video-library/${widget.library.id}',
-      files: _visibleVideos,
+      files: visibleFiles,
       folders: const [],
-      viewMode: _viewMode,
-      sortOption: _sortOption,
-      gridZoomLevel: _gridZoomLevel,
+      viewMode: state.viewMode,
+      sortOption: state.sortOption,
+      gridZoomLevel: state.gridZoomLevel,
     );
 
-    final isGridView =
-        _viewMode == ViewMode.grid || _viewMode == ViewMode.gridPreview;
+    final isGridView = state.viewMode == ViewMode.grid ||
+        state.viewMode == ViewMode.gridPreview;
 
     return FileView(
-      files: _visibleVideos,
+      files: visibleFiles.cast<File>(),
       folders: const [],
-      state: state,
+      state: folderListState,
       isSelectionMode: isSelectionMode,
       isGridView: isGridView,
       selectedFiles: selectedPaths.toList(),
@@ -690,13 +662,13 @@ class _VideoLibraryFilesScreenState extends State<VideoLibraryFilesScreen>
     );
   }
 
-  void _toggleFileSelection(String path,
+  void _toggleFileSelection(String filePath,
       {bool shiftSelect = false, bool ctrlSelect = false}) {
     final shouldEnterSelection = !isSelectionMode || shiftSelect || ctrlSelect;
     if (shouldEnterSelection && !isSelectionMode) {
       enterSelectionMode();
     }
-    toggleSelection(path);
+    toggleSelection(filePath);
     if (selectedPaths.isEmpty) {
       exitSelectionMode();
     }

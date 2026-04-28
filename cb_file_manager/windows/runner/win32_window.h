@@ -98,6 +98,9 @@ private:
 
   bool quit_on_close_ = false;
 
+  // True when this window is a compact progress window (WS_POPUP, frameless).
+  bool is_progress_window_ = false;
+
   // window handle for top level window.
   HWND window_handle_ = nullptr;
 

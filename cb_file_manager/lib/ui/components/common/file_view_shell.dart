@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
+import 'package:cb_file_manager/ui/widgets/ctrl_scroll_zoom.dart';
 
 /// A wrapper widget that provides the full set of common file-view interactions
 /// for any screen that displays a list/grid/details view of items.
@@ -94,21 +94,7 @@ class _FileViewShellState extends State<FileViewShell> {
   }
 
   // ── Pointer signal (Ctrl+scroll for grid zoom) ────────────────────────────
-
-  void _onPointerSignal(PointerSignalEvent event) {
-    if (widget.viewMode != ViewMode.grid) return;
-    if (widget.onGridZoomDelta == null) return;
-    if (event is! PointerScrollEvent) return;
-
-    final keys = HardwareKeyboard.instance.logicalKeysPressed;
-    final ctrlHeld = keys.contains(LogicalKeyboardKey.controlLeft) ||
-        keys.contains(LogicalKeyboardKey.controlRight);
-    if (!ctrlHeld) return;
-
-    final direction = event.scrollDelta.dy > 0 ? 1 : -1;
-    widget.onGridZoomDelta!(direction);
-    GestureBinding.instance.pointerSignalResolver.resolve(event);
-  }
+  // Delegated to CtrlScrollZoom — the canonical implementation.
 
   // ── Mouse side buttons (back / forward) ───────────────────────────────────
 
@@ -172,17 +158,25 @@ class _FileViewShellState extends State<FileViewShell> {
 
   @override
   Widget build(BuildContext context) {
-    return Listener(
-      onPointerSignal: _onPointerSignal,
-      onPointerDown:
-          (widget.onMouseBack != null || widget.onMouseForward != null)
-              ? _onPointerDown
-              : null,
-      child: Focus(
-        focusNode: _focusNode,
-        autofocus: true,
-        onKeyEvent: _onKeyEvent,
-        child: widget.child,
+    // Ctrl+scroll zoom is active only in grid/gridPreview modes.
+    final zoomDelta = (widget.viewMode == ViewMode.grid ||
+            widget.viewMode == ViewMode.gridPreview)
+        ? widget.onGridZoomDelta
+        : null;
+
+    return CtrlScrollZoom(
+      onDelta: zoomDelta,
+      child: Listener(
+        onPointerDown:
+            (widget.onMouseBack != null || widget.onMouseForward != null)
+                ? _onPointerDown
+                : null,
+        child: Focus(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: _onKeyEvent,
+          child: widget.child,
+        ),
       ),
     );
   }

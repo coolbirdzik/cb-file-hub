@@ -885,6 +885,18 @@ class VietnameseLocalizations implements AppLocalizations {
   String get useSystemDefaultForVideoEnabled =>
       'Video sẽ mở bằng ứng dụng mặc định của hệ thống';
   @override
+  @override
+  String get seekSpeed => 'Tốc độ tua video';
+  @override
+  String get seekSpeedDescription =>
+      'Tốc độ nhảy video khi giữ phím tua hoặc nhấn giữ trên thiết bị di động';
+  @override
+  String get seekSpeedSlow => 'Chậm';
+  @override
+  String get seekSpeedMedium => 'Vừa';
+  @override
+  String get seekSpeedFast => 'Nhanh';
+  @override
   String get useSystemDefaultForVideoDisabled =>
       'Video sẽ mở bằng trình phát trong app';
   @override
@@ -1468,6 +1480,15 @@ class VietnameseLocalizations implements AppLocalizations {
 
   @override
   String get tempFiles => 'File tạm:';
+
+  @override
+  String get videoLibraryCache => 'Cache thư viện video:';
+
+  @override
+  String get clearVideoLibraryCache => 'Xóa cache thư viện video';
+
+  @override
+  String get videoLibraryCacheCleared => 'Đã xóa cache thư viện video';
 
   @override
   String get notInitialized => 'Chưa khởi tạo';

@@ -3,6 +3,8 @@ import 'dart:io' show Platform;
 
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:cb_file_manager/core/service_locator.dart';
+import 'package:cb_file_manager/services/windowing/desktop_window_process_launcher.dart';
+import 'package:cb_file_manager/services/windowing/progress_window_ipc_server.dart';
 import 'package:cb_file_manager/ui/controllers/operation_progress_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -25,6 +27,10 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
   Timer? _autoDismissTimer;
   bool _isShowingDialog = false;
 
+  // IPC infrastructure for the detached progress process
+  ProgressWindowIpcServer? _ipcServer;
+  StreamSubscription<void>? _controllerSub;
+
   @override
   void initState() {
     super.initState();
@@ -34,6 +40,9 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
   @override
   void dispose() {
     _autoDismissTimer?.cancel();
+    _controllerSub?.cancel();
+    _ipcServer?.stop();
+    _ipcServer = null;
     _controller.removeListener(_onChanged);
     super.dispose();
   }
@@ -43,26 +52,29 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
     _autoDismissTimer?.cancel();
 
     // Reset the dialog flag synchronously when the entry is dismissed.
-    // This ensures a subsequent begin() can show a fresh dialog immediately
-    // instead of being blocked by a stale _isShowingDialog == true.
     if (active == null) {
       _isShowingDialog = false;
+      _stopIpcServer();
       if (mounted) setState(() {});
       return;
     }
 
-    // Show as a modal dialog when explicitly requested.
+    // Show as a process window when explicitly requested.
     if (!active.isMinimized && active.isRunning && !_isShowingDialog) {
       if (OperationProgressOverlay._isDesktop) {
-        _showDesktopWindow();
+        _showDesktopWindow(active);
       } else {
         _showMobileDialog();
       }
       return;
     }
 
-    // Auto-dismiss only for minimized (status-bar) entries.
-    // Modal dialogs manage their own auto-dismiss timer internally.
+    // Forward updates to progress window process via IPC.
+    if (OperationProgressOverlay._isDesktop && _ipcServer != null) {
+      _ipcServer!.sendUpdate(active);
+    }
+
+    // Auto-dismiss for minimized status-bar entries on mobile.
     if (active.isFinished && active.isMinimized) {
       if (active.status == OperationProgressStatus.success) {
         _autoDismissTimer = Timer(const Duration(seconds: 2), () {
@@ -80,26 +92,49 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
     if (mounted) setState(() {});
   }
 
-  void _showDesktopWindow() {
+  /// Spawn process con với cửa sổ progress riêng biệt.
+  void _showDesktopWindow(OperationProgressEntry entry) {
     if (_isShowingDialog) return;
     _isShowingDialog = true;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
+    // Start IPC server trước, rồi spawn process sau khi có port.
+    _startIpcAndSpawn(entry);
+  }
+
+  Future<void> _startIpcAndSpawn(OperationProgressEntry entry) async {
+    try {
+      _ipcServer ??= ProgressWindowIpcServer();
+      final port = await _ipcServer!.start();
+      if (port == null) {
         _isShowingDialog = false;
         return;
       }
 
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => _DesktopProgressWindow(
-          controller: _controller,
-        ),
-      ).then((_) {
-        _isShowingDialog = false;
-      });
-    });
+      // Gửi state hiện tại lên server ngay (set _lastUpdate) trước khi spawn process.
+      // Khi child connect, server sẽ replay state này cho client.
+      _ipcServer!.sendUpdate(entry);
+
+      await DesktopWindowProcessLauncher.openProgressWindow(
+        ipcPort: port,
+        title: entry.title,
+        total: entry.total,
+        isIndeterminate: entry.isIndeterminate,
+      );
+
+      // Forward current controller state nếu đã cập nhật trong khi spawn
+      final current = _controller.active;
+      if (current != null) {
+        _ipcServer!.sendUpdate(current);
+      }
+    } catch (e) {
+      _isShowingDialog = false;
+    }
+  }
+
+  void _stopIpcServer() {
+    _ipcServer?.stop();
+    _ipcServer = null;
+    _isShowingDialog = false;
   }
 
   void _showMobileDialog() {
@@ -128,7 +163,7 @@ class _OperationProgressOverlayState extends State<OperationProgressOverlay> {
   Widget build(BuildContext context) {
     final active = _controller.active;
 
-    // On desktop, don't show the overlay (show window dialog instead)
+    // On desktop, progress UI is in a separate process — nothing to render here.
     if (OperationProgressOverlay._isDesktop) {
       return const SizedBox.shrink();
     }
@@ -260,12 +295,14 @@ class _OperationProgressStatusBar extends StatelessWidget {
   }
 }
 
-/// Desktop-style progress window shown as a dialog
+/// Desktop-style progress window shown as a non-modal overlay (no focus steal)
 class _DesktopProgressWindow extends StatefulWidget {
   final OperationProgressController controller;
+  final VoidCallback onClose;
 
   const _DesktopProgressWindow({
     required this.controller,
+    required this.onClose,
   });
 
   @override
@@ -378,19 +415,15 @@ class _DesktopProgressWindowState extends State<_DesktopProgressWindow> {
     final active = widget.controller.active;
     _autoDismissTimer?.cancel();
 
-    // Close dialog if operation is dismissed
+    // Close overlay if operation is dismissed
     if (active == null) {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
+      widget.onClose();
       return;
     }
 
-    // Close dialog if user minimized it
+    // Close overlay if user minimized it
     if (active.isMinimized && !active.isRunning) {
-      if (mounted && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
+      widget.onClose();
       return;
     }
 
@@ -403,10 +436,8 @@ class _DesktopProgressWindowState extends State<_DesktopProgressWindow> {
           if (latest != null &&
               latest.id == active.id &&
               latest.status == OperationProgressStatus.success) {
-            if (Navigator.canPop(context)) {
-              Navigator.of(context).pop();
-            }
             widget.controller.dismiss();
+            widget.onClose();
           }
         });
       }
@@ -422,17 +453,14 @@ class _DesktopProgressWindowState extends State<_DesktopProgressWindow> {
       return const SizedBox.shrink();
     }
 
-    return Dialog(
-      alignment: Alignment.bottomRight,
-      insetPadding: const EdgeInsets.all(20),
+    return Material(
+      color: Colors.transparent,
       child: _ProgressWindowContent(
         entry: active,
         onMinimize: widget.controller.minimize,
         onDismiss: () {
           widget.controller.dismiss();
-          if (Navigator.canPop(context)) {
-            Navigator.of(context).pop();
-          }
+          widget.onClose();
         },
       ),
     );

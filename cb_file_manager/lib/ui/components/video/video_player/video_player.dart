@@ -47,6 +47,7 @@ import 'video_player_utils.dart';
 
 part 'video_player.volume.dart';
 part 'video_player.vlc_smb.dart';
+part 'video_player.settings.dart';
 
 /// Unified video player component supporting multiple media sources
 /// Consolidates functionality from CustomVideoPlayer and StreamingMediaPlayer
@@ -305,11 +306,15 @@ class VideoPlayer extends StatefulWidget {
   State<VideoPlayer> createState() => _VideoPlayerState();
 }
 
-class _VideoPlayerState extends _VideoPlayerVolumeHost
-    with WidgetsBindingObserver, _VideoPlayerVolumeMixin {
+class _VideoPlayerState extends _VideoPlayerSettingsHost
+    with
+        WidgetsBindingObserver,
+        _VideoPlayerVolumeMixin,
+        _VideoPlayerSettingsMixin {
   // Media Kit controllers
   @override
   Player? _player;
+  @override
   VideoController? _videoController;
 
   // VLC for mobile/Android
@@ -358,8 +363,11 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
   Timer? _seekingTimer;
 
   // New advanced features state
+  @override
   final List<SubtitleTrack> _subtitleTracks = [];
+  @override
   int? _selectedSubtitleTrack = -1;
+  @override
   double _playbackSpeed = 1.0;
   bool _isPictureInPicture = false;
   bool _isAndroidPip = false;
@@ -374,26 +382,39 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
   String? _pipToken;
 
   // Video filters
+  @override
   double _brightness = 0.0; // -1.0 to 1.0
+  @override
   double _contrast = 0.0; // -1.0 to 1.0
+  @override
   double _saturation = 0.0; // -1.0 to 1.0
 
   // Sleep timer
   Timer? _sleepTimer;
+  @override
   Duration? _sleepDuration;
 
   // Video statistics - placeholder for future use
   Timer? _statsUpdateTimer;
 
   // Video player settings
+  @override
   String _selectedCodec = 'auto'; // auto, h264, h265, vp9, av1
+  @override
   bool _hardwareAcceleration = true;
+  @override
   String _videoDecoder = 'auto'; // auto, software, hardware
+  @override
   String _audioDecoder = 'auto'; // auto, software, hardware
+  @override
   int _bufferSize = 10; // MB
+  @override
   int _networkTimeout = 30; // seconds
+  @override
   String _subtitleEncoding = 'utf-8';
+  @override
   String _videoOutputFormat = 'auto'; // auto, yuv420p, rgb24
+  @override
   String _videoScaleMode =
       'contain'; // cover, contain, fill, fitWidth, fitHeight, none, scaleDown
 
@@ -445,6 +466,9 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
   Timer? _fastSeekTimer;
   int _fastSeekSeconds = 5; // Current seek amount, increases over time
   int _fastSeekTicks = 0; // Count of seek ticks to accelerate
+  // Seek speed: 0=slow, 1=medium, 2=fast — loaded from preferences
+  @override
+  int _videoSeekSpeed = 1;
 
   @override
   void initState() {
@@ -699,6 +723,7 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
       final savedVolume = await userPreferences.getVideoPlayerVolume();
       _lastVolume = savedVolume > 0 ? savedVolume : _lastVolume;
       final savedMuted = await userPreferences.getVideoPlayerMute();
+      _videoSeekSpeed = await userPreferences.getVideoSeekSpeed();
 
       setState(() {
         _savedVolume = savedVolume.clamp(0.0, 100.0);
@@ -2250,20 +2275,32 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
   void _seekForward([int seconds = 10]) async {
     _startSeeking();
 
+    const safetyBuffer = Duration(seconds: 1);
+
     if (_useVlcControls) {
-      final pos = _vlcController!.value.position;
-      final targetMs = (pos.inMilliseconds + (seconds * 1000));
+      final v = _vlcController!.value;
+      final maxMs = (v.duration - safetyBuffer)
+          .inMilliseconds
+          .clamp(0, v.duration.inMilliseconds);
+      final targetMs =
+          (v.position.inMilliseconds + (seconds * 1000)).clamp(0, maxMs);
       await _vlcController!.seekTo(Duration(milliseconds: targetMs));
     } else if (_useExoControls) {
       final pos = _exoController!.value.position;
+      final dur = _exoController!.value.duration;
+      final maxPos = dur - safetyBuffer < Duration.zero
+          ? Duration.zero
+          : dur - safetyBuffer;
       final target = pos + Duration(seconds: seconds);
-      await _exoController!.seekTo(target);
+      await _exoController!.seekTo(target > maxPos ? maxPos : target);
     } else if (_player != null) {
       final currentPosition = _player!.state.position;
+      final dur = _player!.state.duration;
+      final maxPos = dur - safetyBuffer < Duration.zero
+          ? Duration.zero
+          : dur - safetyBuffer;
       final newPosition = currentPosition + Duration(seconds: seconds);
-      final seekPosition = newPosition > _player!.state.duration
-          ? _player!.state.duration
-          : newPosition;
+      final seekPosition = newPosition > maxPos ? maxPos : newPosition;
       await _player!.seek(seekPosition);
     }
 
@@ -2295,15 +2332,14 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
   }
 
   // Fast seeking methods (hold arrow on desktop, long press on mobile)
-  // Speed increases the longer you hold
-  // Normal: 5s -> 10s -> 15s -> 30s -> 60s -> 2m -> 5m
-  // With Ctrl: starts at 60s -> 2m -> 5m -> 10m
+  // VLC-style: aggressive acceleration, tick every 100ms
+  // Normal: 3s -> 5s -> 10s -> 20s -> 30s -> 60s -> 2m -> 5m -> 10m
+  // With Ctrl: 30s -> 60s -> 2m -> 5m -> 10m -> 20m
   void _startFastSeeking({required bool forward, bool withCtrl = false}) {
     if (_isFastSeeking) return;
 
     _fastSeekTicks = 0;
-    // Ctrl starts at 60s, normal starts at 5s
-    _fastSeekSeconds = withCtrl ? 60 : 5;
+    _fastSeekSeconds = withCtrl ? 30 : 3;
 
     setState(() {
       _isFastSeeking = true;
@@ -2317,47 +2353,86 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
       _seekBackward(_fastSeekSeconds);
     }
 
-    // Continue seeking every 200ms while held, speed increases over time
-    _fastSeekTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+    // Tick every 100ms for VLC-like responsiveness
+    _fastSeekTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (!mounted || !_isFastSeeking) {
         _fastSeekTimer?.cancel();
         return;
       }
 
+      // Stop fast seeking if we've reached the boundary
+      final currentPos = _useVlcControls
+          ? _vlcController!.value.position
+          : _useExoControls
+              ? _exoController!.value.position
+              : _player?.state.position ?? Duration.zero;
+      final totalDuration = _useVlcControls
+          ? _vlcController!.value.duration
+          : _useExoControls
+              ? _exoController!.value.duration
+              : _player?.state.duration ?? Duration.zero;
+
+      if (_fastSeekingForward &&
+          currentPos >= totalDuration - const Duration(seconds: 1)) {
+        _stopFastSeeking();
+        return;
+      }
+      if (!_fastSeekingForward && currentPos <= Duration.zero) {
+        _stopFastSeeking();
+        return;
+      }
+
       _fastSeekTicks++;
 
+      // Scale tick by speed: slow=0 → climbs 2.5× slower, fast=2 → climbs 2.5× faster
+      final double tickMultiplier =
+          _videoSeekSpeed == 0 ? 0.4 : (_videoSeekSpeed == 2 ? 2.5 : 1.0);
+      final int scaledTick = (tickMultiplier > 1.0
+          ? (_fastSeekTicks * tickMultiplier).round()
+          : (tickMultiplier < 1.0
+              ? (_fastSeekTicks * tickMultiplier).ceil()
+              : _fastSeekTicks));
+
       if (withCtrl) {
-        // Ctrl+Arrow: faster progression
-        // 0-10 ticks (0-2s): 60s, 11-20 ticks (2-4s): 2m
-        // 21-30 ticks (4-6s): 5m, 31+ ticks (6s+): 10m
-        if (_fastSeekTicks > 30) {
+        // Ctrl+Arrow: aggressive VLC-style (10 ticks = 1s real time)
+        // 0-0.5s: 30s, 0.5-1.5s: 60s, 1.5-3s: 2m
+        // 3-5s: 5m, 5-7s: 10m, 7s+: 20m
+        if (scaledTick > 70) {
+          _fastSeekSeconds = 1200; // 20 minutes
+        } else if (scaledTick > 50) {
           _fastSeekSeconds = 600; // 10 minutes
-        } else if (_fastSeekTicks > 20) {
+        } else if (scaledTick > 30) {
           _fastSeekSeconds = 300; // 5 minutes
-        } else if (_fastSeekTicks > 10) {
+        } else if (scaledTick > 15) {
           _fastSeekSeconds = 120; // 2 minutes
-        } else {
+        } else if (scaledTick > 5) {
           _fastSeekSeconds = 60; // 1 minute
+        } else {
+          _fastSeekSeconds = 30;
         }
       } else {
-        // Normal arrow: gradual progression
-        // 0-5 ticks (0-1s): 5s, 6-15 ticks (1-3s): 10s, 16-25 ticks (3-5s): 15s
-        // 26-35 ticks (5-7s): 30s, 36-50 ticks (7-10s): 60s
-        // 51-70 ticks (10-14s): 2m, 71+ ticks (14s+): 5m
-        if (_fastSeekTicks > 70) {
+        // Normal arrow: VLC-style acceleration (10 ticks = 1s real time)
+        // 0-0.3s: 3s, 0.3-1s: 5s, 1-2s: 10s, 2-3s: 20s
+        // 3-4s: 30s, 4-5.5s: 60s, 5.5-7s: 2m
+        // 7-9s: 5m, 9s+: 10m
+        if (scaledTick > 90) {
+          _fastSeekSeconds = 600; // 10 minutes
+        } else if (scaledTick > 70) {
           _fastSeekSeconds = 300; // 5 minutes
-        } else if (_fastSeekTicks > 50) {
+        } else if (scaledTick > 55) {
           _fastSeekSeconds = 120; // 2 minutes
-        } else if (_fastSeekTicks > 35) {
+        } else if (scaledTick > 40) {
           _fastSeekSeconds = 60;
-        } else if (_fastSeekTicks > 25) {
+        } else if (scaledTick > 30) {
           _fastSeekSeconds = 30;
-        } else if (_fastSeekTicks > 15) {
-          _fastSeekSeconds = 15;
-        } else if (_fastSeekTicks > 5) {
+        } else if (scaledTick > 20) {
+          _fastSeekSeconds = 20;
+        } else if (scaledTick > 10) {
           _fastSeekSeconds = 10;
-        } else {
+        } else if (scaledTick > 3) {
           _fastSeekSeconds = 5;
+        } else {
+          _fastSeekSeconds = 3;
         }
       }
 
@@ -3140,7 +3215,7 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
   }
 
   void _showAudioTrackDialog() {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Audio Tracks'),
@@ -3844,408 +3919,6 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
     );
   }
 
-  void _showSubtitleDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Subtitles'),
-        content: SubtitleDialogContent(
-          tracks: _subtitleTracks,
-          selected: _selectedSubtitleTrack,
-          onSelect: (v) => setState(() => _selectedSubtitleTrack = v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => RouteUtils.safePopDialog(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPlaybackSpeedDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Playback Speed'),
-        content: PlaybackSpeedDialogContent(
-          current: _playbackSpeed,
-          onSelect: (v) {
-            setState(() => _playbackSpeed = v);
-            _setPlaybackSpeed(v);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => RouteUtils.safePopDialog(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showVideoFiltersDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Video Filters'),
-          content: VideoFiltersDialogContent(
-            brightness: _brightness,
-            contrast: _contrast,
-            saturation: _saturation,
-            onBrightnessChanged: (v) {
-              setState(() => _brightness = v);
-              setDialogState(() {});
-            },
-            onContrastChanged: (v) {
-              setState(() => _contrast = v);
-              setDialogState(() {});
-            },
-            onSaturationChanged: (v) {
-              setState(() => _saturation = v);
-              setDialogState(() {});
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _brightness = 1.0;
-                  _contrast = 1.0;
-                  _saturation = 1.0;
-                });
-                setDialogState(() {});
-              },
-              child: const Text('Reset'),
-            ),
-            TextButton(
-              onPressed: () => RouteUtils.safePopDialog(context),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSleepTimerDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Sleep Timer'),
-        content: SleepTimerDialogContent(
-          selected: _sleepDuration,
-          onSelect: (v) {
-            if (v == null) {
-              _cancelSleepTimer();
-            } else {
-              _setSleepTimer(v);
-            }
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => RouteUtils.safePopDialog(context),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Video Settings'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Codec Selection
-                const Text('Codec:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _selectedCodec,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Auto')),
-                    DropdownMenuItem(value: 'h264', child: Text('H.264')),
-                    DropdownMenuItem(value: 'h265', child: Text('H.265/HEVC')),
-                    DropdownMenuItem(value: 'vp9', child: Text('VP9')),
-                    DropdownMenuItem(value: 'av1', child: Text('AV1')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _selectedCodec = value;
-                      });
-                      setState(() {
-                        _selectedCodec = value;
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Video Scale Mode
-                const Text('Video Scale Mode:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _videoScaleMode,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'cover', child: Text('Cover (Fill & Crop)')),
-                    DropdownMenuItem(
-                        value: 'contain', child: Text('Contain (Fit All)')),
-                    DropdownMenuItem(
-                        value: 'fill', child: Text('Fill (Stretch)')),
-                    DropdownMenuItem(
-                        value: 'fitWidth', child: Text('Fit Width')),
-                    DropdownMenuItem(
-                        value: 'fitHeight', child: Text('Fit Height')),
-                    DropdownMenuItem(
-                        value: 'none', child: Text('None (Original Size)')),
-                    DropdownMenuItem(
-                        value: 'scaleDown', child: Text('Scale Down')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _videoScaleMode = value;
-                      });
-                      setState(() {
-                        _videoScaleMode = value;
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Hardware Acceleration
-                SwitchListTile(
-                  title: const Text('Hardware Acceleration'),
-                  subtitle: const Text('Use GPU for video decoding'),
-                  value: _hardwareAcceleration,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      _hardwareAcceleration = value;
-                      _videoDecoder = value ? 'hardware' : 'software';
-                    });
-                    setState(() {
-                      _hardwareAcceleration = value;
-                      _videoDecoder = value ? 'hardware' : 'software';
-                      if (_player != null) {
-                        // Recreate video controller so the change takes effect
-                        _videoController = VideoController(
-                          _player!,
-                          configuration: VideoControllerConfiguration(
-                            enableHardwareAcceleration: _hardwareAcceleration,
-                          ),
-                        );
-                      }
-                    });
-                    _saveSettings();
-                  },
-                ),
-
-                // Video Decoder
-                const Text('Video Decoder:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _videoDecoder,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Auto')),
-                    DropdownMenuItem(
-                        value: 'software', child: Text('Software')),
-                    DropdownMenuItem(
-                        value: 'hardware', child: Text('Hardware')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _videoDecoder = value;
-                        if (value == 'software') {
-                          _hardwareAcceleration = false;
-                        } else if (value == 'hardware') {
-                          _hardwareAcceleration = true;
-                        }
-                      });
-                      setState(() {
-                        _videoDecoder = value;
-                        if (value == 'software') {
-                          _hardwareAcceleration = false;
-                        } else if (value == 'hardware') {
-                          _hardwareAcceleration = true;
-                        }
-                        if (_player != null) {
-                          _videoController = VideoController(
-                            _player!,
-                            configuration: VideoControllerConfiguration(
-                              enableHardwareAcceleration: _hardwareAcceleration,
-                            ),
-                          );
-                        }
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Audio Decoder
-                const Text('Audio Decoder:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _audioDecoder,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Auto')),
-                    DropdownMenuItem(
-                        value: 'software', child: Text('Software')),
-                    DropdownMenuItem(
-                        value: 'hardware', child: Text('Hardware')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _audioDecoder = value;
-                      });
-                      setState(() {
-                        _audioDecoder = value;
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Buffer Size
-                VideoPlayerLabeledSlider(
-                  label: 'Buffer Size: ${_bufferSize}MB',
-                  value: _bufferSize.toDouble(),
-                  min: 1,
-                  max: 100,
-                  divisions: 99,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      _bufferSize = value.round();
-                    });
-                    setState(() {
-                      _bufferSize = value.round();
-                    });
-                    _saveSettings();
-                  },
-                ),
-
-                // Network Timeout
-                VideoPlayerLabeledSlider(
-                  label: 'Network Timeout: ${_networkTimeout}s',
-                  value: _networkTimeout.toDouble(),
-                  min: 5,
-                  max: 120,
-                  divisions: 23,
-                  onChanged: (value) {
-                    setDialogState(() {
-                      _networkTimeout = value.round();
-                    });
-                    setState(() {
-                      _networkTimeout = value.round();
-                    });
-                    _saveSettings();
-                  },
-                ),
-
-                // Subtitle Encoding
-                const Text('Subtitle Encoding:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _subtitleEncoding,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'utf-8', child: Text('UTF-8')),
-                    DropdownMenuItem(value: 'utf-16', child: Text('UTF-16')),
-                    DropdownMenuItem(
-                        value: 'iso-8859-1', child: Text('ISO-8859-1')),
-                    DropdownMenuItem(
-                        value: 'windows-1252', child: Text('Windows-1252')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _subtitleEncoding = value;
-                      });
-                      setState(() {
-                        _subtitleEncoding = value;
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Video Output Format
-                const Text('Video Output Format:',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<String>(
-                  value: _videoOutputFormat,
-                  isExpanded: true,
-                  items: const [
-                    DropdownMenuItem(value: 'auto', child: Text('Auto')),
-                    DropdownMenuItem(value: 'yuv420p', child: Text('YUV420P')),
-                    DropdownMenuItem(value: 'rgb24', child: Text('RGB24')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      setDialogState(() {
-                        _videoOutputFormat = value;
-                      });
-                      setState(() {
-                        _videoOutputFormat = value;
-                      });
-                      _saveSettings();
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                _resetSettings();
-                setDialogState(() {});
-              },
-              child: const Text('Reset to Default'),
-            ),
-            TextButton(
-              onPressed: () => RouteUtils.safePopDialog(context),
-              child: const Text('Close'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Helper methods for advanced features
-  void _setPlaybackSpeed(double speed) {
-    if (_player != null) {
-      _player!.setRate(speed);
-    } else if (_vlcController != null) {
-      _vlcController!.setPlaybackSpeed(speed);
-    }
-  }
-
   Future<void> _togglePictureInPicture() async {
     // Android: enter native Picture-in-Picture
     if (Platform.isAndroid) {
@@ -4585,6 +4258,7 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
     return r.toRadixString(36) + ts.toRadixString(36);
   }
 
+  @override
   void _setSleepTimer(Duration duration) {
     _cancelSleepTimer();
     setState(() {
@@ -4601,108 +4275,13 @@ class _VideoPlayerState extends _VideoPlayerVolumeHost
     });
   }
 
+  @override
   void _cancelSleepTimer() {
     _sleepTimer?.cancel();
     _sleepTimer = null;
     setState(() {
       _sleepDuration = null;
     });
-  }
-
-  // Settings management methods
-  Future<void> _saveSettings() async {
-    try {
-      final userPreferences = UserPreferences.instance;
-      await userPreferences.init();
-
-      // Save video player settings using new methods
-      await userPreferences.setVideoPlayerString('video_codec', _selectedCodec);
-      await userPreferences.setVideoPlayerBool(
-          'hardware_acceleration', _hardwareAcceleration);
-      await userPreferences.setVideoPlayerString(
-          'video_decoder', _videoDecoder);
-      await userPreferences.setVideoPlayerString(
-          'audio_decoder', _audioDecoder);
-      await userPreferences.setVideoPlayerInt('buffer_size', _bufferSize);
-      await userPreferences.setVideoPlayerInt(
-          'network_timeout', _networkTimeout);
-      await userPreferences.setVideoPlayerString(
-          'subtitle_encoding', _subtitleEncoding);
-      await userPreferences.setVideoPlayerString(
-          'video_output_format', _videoOutputFormat);
-      await userPreferences.setVideoPlayerString(
-          'video_scale_mode', _videoScaleMode);
-
-      debugPrint('Video player settings saved successfully');
-    } catch (e) {
-      debugPrint('Error saving video player settings: $e');
-    }
-  }
-
-  Future<void> _loadSettings() async {
-    try {
-      final userPreferences = UserPreferences.instance;
-      await userPreferences.init();
-
-      // Load video player settings with defaults using new methods
-      _selectedCodec = await userPreferences.getVideoPlayerString('video_codec',
-              defaultValue: 'auto') ??
-          'auto';
-      _hardwareAcceleration = await userPreferences.getVideoPlayerBool(
-              'hardware_acceleration',
-              defaultValue: true) ??
-          true;
-      _videoDecoder = await userPreferences
-              .getVideoPlayerString('video_decoder', defaultValue: 'auto') ??
-          'auto';
-      _audioDecoder = await userPreferences
-              .getVideoPlayerString('audio_decoder', defaultValue: 'auto') ??
-          'auto';
-      _bufferSize = await userPreferences.getVideoPlayerInt('buffer_size',
-              defaultValue: 10) ??
-          10;
-      _networkTimeout = await userPreferences
-              .getVideoPlayerInt('network_timeout', defaultValue: 30) ??
-          30;
-      _subtitleEncoding = await userPreferences.getVideoPlayerString(
-              'subtitle_encoding',
-              defaultValue: 'utf-8') ??
-          'utf-8';
-      _videoOutputFormat = await userPreferences.getVideoPlayerString(
-              'video_output_format',
-              defaultValue: 'auto') ??
-          'auto';
-      _videoScaleMode = await userPreferences.getVideoPlayerString(
-              'video_scale_mode',
-              defaultValue: 'contain') ??
-          'contain';
-
-      // Keep hardware acceleration in sync with explicit decoder choice
-      if (_videoDecoder == 'software') {
-        _hardwareAcceleration = false;
-      } else if (_videoDecoder == 'hardware') {
-        _hardwareAcceleration = true;
-      }
-
-      debugPrint('Video player settings loaded successfully');
-    } catch (e) {
-      debugPrint('Error loading video player settings: $e');
-    }
-  }
-
-  void _resetSettings() {
-    setState(() {
-      _selectedCodec = 'auto';
-      _hardwareAcceleration = true;
-      _videoDecoder = 'auto';
-      _audioDecoder = 'auto';
-      _bufferSize = 10;
-      _networkTimeout = 30;
-      _subtitleEncoding = 'utf-8';
-      _videoOutputFormat = 'auto';
-      _videoScaleMode = 'contain';
-    });
-    _saveSettings();
   }
 
   Future<void> _pauseVideo() async {

@@ -391,9 +391,30 @@ class VideoThumbnailHelper {
 
   static String _currentDirectory = '';
 
+  // Display-index map: maps file path (cache key) to its index in the current display order.
+  // Used to compute priority based on where the file appears in the sorted UI list,
+  // not its position in the file system. This fixes the issue where thumbnails
+  // were loaded in file-system order instead of display (sort) order.
+  static final Map<String, int> _displayIndexByPath = <String, int>{};
+
   static bool _verboseLogging = false;
 
   static String? _cacheIndexFilePath;
+
+  /// Update the display-index map. Call this from the parent file list view
+  /// whenever the file list changes (load, sort, filter).
+  /// [filePaths] is the current list of video file paths in display order.
+  static void updateDisplayIndexMap(List<String> filePaths) {
+    _displayIndexByPath.clear();
+    for (var i = 0; i < filePaths.length; i++) {
+      _displayIndexByPath[_cacheKeyForPath(filePaths[i])] = i;
+    }
+  }
+
+  /// Clear the display-index map (e.g., when navigating away).
+  static void clearDisplayIndexMap() {
+    _displayIndexByPath.clear();
+  }
 
   static bool _cacheInitialized = false;
 
@@ -898,6 +919,37 @@ class VideoThumbnailHelper {
     int? thumbnailSize,
   }) {
     final cacheKey = _cacheKeyForPath(videoPath);
+
+    // Skip if we're no longer in the same directory as when this request was made.
+    // This prevents stale requests from previous directories from filling the queue.
+    if (_currentDirectory.isNotEmpty) {
+      final videoDir = _cacheKeyForPath(videoPath);
+      // The videoDir includes the full path, check if it's in _currentDirectory
+      final dirOfVideo = videoDir.contains(_currentDirectory) ||
+          _currentDirectory.contains(videoDir.split('/').take(3).join('/'));
+      if (!dirOfVideo && !_pendingQueue.any((r) => r.videoPath == cacheKey)) {
+        // Directory changed - skip this stale request
+        _log(
+            'VideoThumbnail: Skipping stale request for $cacheKey (directory changed)');
+        return Future.value(null);
+      }
+    }
+
+    // Compute priority from display index (display order, not file system order).
+    // Items at the top of the UI (low index) get high priority.
+    // This ensures thumbnails load in display order even when the OS listed
+    // them in a different (file-system) order.
+    final displayIndex = _displayIndexByPath[cacheKey];
+    if (displayIndex != null) {
+      if (displayIndex < 20) {
+        priority = _visiblePriority - displayIndex; // 100, 99, ..., 81
+      } else if (displayIndex < 60) {
+        priority = _prefetchPriority + (60 - displayIndex); // 60 down to 21
+      } else {
+        priority = _defaultPriority; // 0
+      }
+    }
+
     final existingPending = _pendingQueue.firstWhere(
       (req) => req.videoPath == cacheKey,
       orElse: () => _ThumbnailRequest.empty(),

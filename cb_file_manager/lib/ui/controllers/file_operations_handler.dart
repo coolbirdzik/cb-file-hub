@@ -16,6 +16,7 @@ import 'package:cb_file_manager/bloc/selection/selection.dart';
 import 'package:path/path.dart' as path;
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 /// Handles file operations such as opening files with appropriate viewers
 class FileOperationsHandler {
@@ -501,7 +502,7 @@ class FileOperationsHandler {
           if (useSystem) {
             ExternalAppHelper.openWithSystemDefault(file.path).then((success) {
               if (!success && context.mounted) {
-                showDialog(
+                RouteUtils.showAcrylicDialog(
                   context: context,
                   builder: (context) => OpenWithDialog(filePath: file.path),
                 );
@@ -572,7 +573,7 @@ class FileOperationsHandler {
           .then((success) {
         if (!success && context.mounted) {
           // If that fails, show the open with dialog
-          showDialog(
+          RouteUtils.showAcrylicDialog(
             context: context,
             builder: (context) => OpenWithDialog(filePath: file.path),
           );

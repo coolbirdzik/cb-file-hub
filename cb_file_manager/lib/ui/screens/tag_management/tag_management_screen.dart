@@ -21,6 +21,7 @@ import 'package:cb_file_manager/ui/tab_manager/core/tab_data.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:cb_file_manager/helpers/core/uri_utils.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:cb_file_manager/ui/components/common/breadcrumb_address_bar.dart';
 import '../../utils/route.dart';
 
 class TagManagementScreen extends StatefulWidget {
@@ -575,7 +576,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
   Future<void> _confirmDeleteTag(String tag) async {
     final theme = Theme.of(context);
     final AppLocalizations localizations = AppLocalizations.of(context)!;
-    final bool result = await showDialog(
+    final bool result = await RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(localizations.deleteTagConfirmation(tag)),
@@ -770,7 +771,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     final theme = Theme.of(context);
     final count = _selectedTags.length;
 
-    final result = await showDialog<bool>(
+    final result = await RouteUtils.showAcrylicDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(localizations.bulkDeleteConfirmationTitle()),
@@ -868,7 +869,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
   Future<void> _showRenameDialog(String tag) async {
     final localizations = AppLocalizations.of(context)!;
 
-    final newTag = await showDialog<String>(
+    final newTag = await RouteUtils.showAcrylicDialog<String>(
       context: context,
       builder: (dialogContext) {
         final controller = TextEditingController(text: tag);
@@ -944,7 +945,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     final AppLocalizations localizations = AppLocalizations.of(context)!;
     Color currentColor = _tagColorManager.getTagColor(tag);
 
-    final Color? selectedColor = await showDialog<Color>(
+    final Color? selectedColor = await RouteUtils.showAcrylicDialog<Color>(
       context: context,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
@@ -1168,25 +1169,15 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
     ThemeData theme,
     AppLocalizations localizations,
   ) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _selectedTagForFiles ?? localizations.tagManagementTitle,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+    return BreadcrumbAddressBar(
+      segments: [
+        BreadcrumbSegment(
+          label: localizations.tagManagementTitle,
+          icon: PhosphorIconsLight.tag,
         ),
-        const SizedBox(height: 2),
-        Text(
-          '${_filesBySelectedTag.length} ${localizations.filesWithTagCount}',
-          style: TextStyle(
-            fontSize: 12,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        BreadcrumbSegment(
+          label: _selectedTagForFiles ?? localizations.tagManagementTitle,
+          badge: '${_filesBySelectedTag.length}',
         ),
       ],
     );
@@ -2801,7 +2792,7 @@ class _TagManagementScreenState extends State<TagManagementScreen> {
   Future<void> _showCreateTagDialog() async {
     final TextEditingController tagController = TextEditingController();
 
-    return showDialog<void>(
+    return RouteUtils.showAcrylicDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {

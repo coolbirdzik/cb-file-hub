@@ -187,7 +187,7 @@ void showTagSearchDialog(
   String currentPath,
   Function(List<FileSystemEntity>, String) onSearchComplete,
 ) {
-  showDialog(
+  RouteUtils.showAcrylicDialog(
     context: context,
     builder: (context) => TagSearchDialog(
       currentPath: currentPath,

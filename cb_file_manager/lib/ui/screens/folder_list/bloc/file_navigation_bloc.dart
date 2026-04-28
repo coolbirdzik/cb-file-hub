@@ -11,6 +11,8 @@ import 'package:cb_file_manager/services/permission_state_service.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
 
 import 'package:cb_file_manager/utils/app_logger.dart';
+import 'package:cb_file_manager/ui/widgets/thumbnail_loader.dart';
+import 'package:cb_file_manager/services/directory_listing_cache_service.dart';
 
 import 'file_navigation_event.dart';
 import 'file_navigation_state.dart';
@@ -50,6 +52,9 @@ class FileNavigationBloc
     // ── Directory watching ─────────────────────────────────────
     _directoryWatcherSubscription = _directoryWatcher.onDirectoryRefresh.listen(
       (path) {
+        // Invalidate the directory listing cache so the next navigation
+        // to this folder triggers a fresh scan instead of returning stale data.
+        DirectoryListingCacheService.instance.invalidate(path);
         if (path == state.currentPath.path) {
           add(FileNavigationRefresh(path));
         }
@@ -81,6 +86,14 @@ class FileNavigationBloc
   ) async {
     final totalSw = Stopwatch()..start();
     AppLogger.perf('Starting folder load path=${event.path}');
+
+    // Skip virtual paths — handled by specialized blocs (e.g. VideoLibraryNavigationBloc)
+    if (event.isVirtualPath || event.path.startsWith('#')) {
+      AppLogger.perf(
+          'Virtual path skipped total=${totalSw.elapsedMilliseconds}ms');
+      return;
+    }
+
     emit(state.copyWith(isLoading: true, currentPath: Directory(event.path)));
 
     if (event.path.isEmpty && Platform.isWindows) {
@@ -128,6 +141,48 @@ class FileNavigationBloc
         () => folderSortManager.getFolderSortOption(event.path),
       );
       final sortOption = folderSortOption ?? state.sortOption;
+
+      // ── Cache check ────────────────────────────────────────────────────────────
+      // Before scanning the disk, check if we have a cached listing for this
+      // folder. Cache hit = instant return, no OS I/O. This mirrors how Windows
+      // Explorer re-uses its in-memory folder enumeration cache on navigate-back.
+      final cacheResult =
+          DirectoryListingCacheService.instance.getListing(event.path);
+      if (cacheResult != null) {
+        final sortNeedsStats = _sortOptionNeedsStats(sortOption);
+        if (sortNeedsStats && cacheResult.stats.isEmpty) {
+          AppLogger.perf(
+              'Dir listing CACHE BYPASS "$event.path" — sort needs stats');
+        } else {
+          final sortedFolders = await FileSystemSorter.sortDirectories(
+            cacheResult.folders,
+            sortOption,
+            fileStatsCache: cacheResult.stats,
+          );
+          final sortedFiles = await FileSystemSorter.sortFiles(
+            cacheResult.files,
+            sortOption,
+            fileStatsCache: cacheResult.stats,
+          );
+          emit(state.copyWith(
+            isLoading: false,
+            folders: sortedFolders,
+            files: sortedFiles,
+            fileStatsCache: Map.from(cacheResult.stats),
+            sortOption: sortOption,
+          ));
+          AppLogger.perf(
+              'Dir listing CACHE HIT "$event.path" (${sortedFiles.length} files)');
+          ThumbnailLoader.updateDisplayIndexMap(
+              sortedFiles.map((f) => f.path).toList());
+          ThumbnailLoader.clearFileExistsCache();
+          await _directoryWatcher.startWatching(event.path);
+          AppLogger.perf(
+              'Complete (cached) total=${totalSw.elapsedMilliseconds}ms');
+          return;
+        }
+      }
+      AppLogger.perf('Dir listing CACHE MISS "$event.path" — scanning disk');
 
       // Collect entities with streaming + batch emission
       final List<Directory> folders = [];
@@ -189,6 +244,23 @@ class FileNavigationBloc
         sortOption: sortOption,
       ));
 
+      // Store in directory listing cache so navigating back is instant.
+      DirectoryListingCacheService.instance.storeListing(
+        path: event.path,
+        files: files,
+        folders: folders,
+        stats: statsCache,
+      );
+
+      // Update thumbnail loader priority map so loading respects display (sort) order,
+      // not file-system listing order. This fixes the issue where thumbnails were
+      // loaded for files at the bottom of the sort order first.
+      ThumbnailLoader.updateDisplayIndexMap(
+          sortedFiles.map((f) => f.path).toList());
+      // Clear file-exists cache so stale entries from previous folders don't
+      // persist to the new directory.
+      ThumbnailLoader.clearFileExistsCache();
+
       AppLogger.perf('UI ready total=${totalSw.elapsedMilliseconds}ms');
 
       // Proactive thumbnail generation
@@ -207,10 +279,16 @@ class FileNavigationBloc
     FileNavigationRefresh event,
     Emitter<FileNavigationState> emit,
   ) async {
-    emit(state.copyWith(isLoading: true));
+    // Use isRefreshing instead of isLoading so the existing file list
+    // is not cleared/rebuilt — only the status bar indicator changes.
+    emit(state.copyWith(isRefreshing: true));
 
-    if (_isDrivesPath(event.path) || event.path.startsWith('#')) {
-      emit(state.copyWith(isLoading: false));
+    // Invalidate cache so refresh always hits disk (user explicitly wants fresh data).
+    DirectoryListingCacheService.instance.invalidate(event.path);
+
+    // Skip virtual paths — handled by specialized blocs
+    if (event.isVirtualPath || _isDrivesPath(event.path)) {
+      emit(state.copyWith(isRefreshing: false));
       return;
     }
 
@@ -218,7 +296,7 @@ class FileNavigationBloc
       final directory = Directory(event.path);
       if (!await directory.exists()) {
         emit(state.copyWith(
-          isLoading: false,
+          isRefreshing: false,
           error: 'Directory does not exist',
         ));
         return;
@@ -251,13 +329,25 @@ class FileNavigationBloc
       );
 
       emit(state.copyWith(
-        isLoading: false,
+        isRefreshing: false,
         folders: sortedFolders,
         files: sortedFiles,
         currentPath: Directory(event.path),
         sortOption: sortOption,
         error: null,
       ));
+
+      // Re-cache after refresh so navigating back is still instant.
+      DirectoryListingCacheService.instance.storeListing(
+        path: event.path,
+        files: files.cast<File>(),
+        folders: folders.cast<Directory>(),
+        stats: const {},
+      );
+
+      // Update thumbnail priority map so loading respects display (sort) order.
+      ThumbnailLoader.updateDisplayIndexMap(
+          sortedFiles.map((f) => f.path).toList());
 
       // Thumbnail prefetch
       if (event.forceRegenerateThumbnails) {
@@ -385,6 +475,10 @@ class FileNavigationBloc
         searchResults: sortedSearch,
         fileStatsCache: statsCache,
       ));
+
+      // Re-sort changes display order — update thumbnail priority map accordingly.
+      ThumbnailLoader.updateDisplayIndexMap(
+          sortedFiles.map((f) => f.path).toList());
     } catch (e) {
       emit(state.copyWith(
         isLoading: false,
@@ -551,6 +645,27 @@ class FileNavigationBloc
         pathlib.basename(path) == '.cbfile_config.json';
   }
 
+  bool _sortOptionNeedsStats(SortOption sortOption) {
+    switch (sortOption) {
+      case SortOption.dateAsc:
+      case SortOption.dateDesc:
+      case SortOption.sizeAsc:
+      case SortOption.sizeDesc:
+      case SortOption.dateCreatedAsc:
+      case SortOption.dateCreatedDesc:
+      case SortOption.attributesAsc:
+      case SortOption.attributesDesc:
+        return true;
+      case SortOption.nameAsc:
+      case SortOption.nameDesc:
+      case SortOption.typeAsc:
+      case SortOption.typeDesc:
+      case SortOption.extensionAsc:
+      case SortOption.extensionDesc:
+        return false;
+    }
+  }
+
   bool _matchesQuery(String name, String query, RegExp? regex) {
     return regex != null
         ? regex.hasMatch(name)
@@ -672,8 +787,11 @@ class FileNavigationBloc
     }
   }
 
+  /// Prefetches thumbnails for video files in the given list.
+  /// [dirPath] can be a real directory path or a virtual path like
+  /// '#video-library/{id}'. For virtual paths, it uses the virtual path
+  /// as the directory identifier.
   void _prefetchThumbnails(List<FileSystemEntity> files, String dirPath) {
-    if (dirPath.startsWith('#')) return;
     final videoPaths = files
         .whereType<File>()
         .where((f) => FileTypeUtils.isVideoFile(f.path))
@@ -694,6 +812,7 @@ class FileNavigationBloc
     if (msg.contains('permission denied') || msg.contains('access denied')) {
       emit(state.copyWith(
         isLoading: false,
+        isRefreshing: false,
         error: 'Access denied. Try running as administrator.',
         folders: [],
         files: [],
@@ -701,6 +820,7 @@ class FileNavigationBloc
     } else {
       emit(state.copyWith(
         isLoading: false,
+        isRefreshing: false,
         error: e.toString(),
         folders: [],
         files: [],

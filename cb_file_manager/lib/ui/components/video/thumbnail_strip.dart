@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/gestures.dart'; // Thêm import cho gesture detector
+import 'package:cb_file_manager/ui/widgets/thumbnail_loader.dart';
 
 class ThumbnailStrip extends StatefulWidget {
   /// Danh sách tất cả các ảnh
@@ -150,38 +151,33 @@ class _ThumbnailStripState extends State<ThumbnailStrip> {
   }
 
   /// Xây dựng widget hiển thị hình ảnh thumbnail
+  ///
+  /// Uses [ThumbnailLoader] so the strip displays the same cached JPEG that
+  /// the grid already generated (256 px), instead of decoding the full-res
+  /// source file.  This avoids reading potentially large files for dozens of
+  /// small 54×54 strip cells at once when the viewer first opens.
   Widget _buildThumbnailImage(File file, bool isSelected) {
-    return Stack(
-      children: [
-        // Tạo màu nền xám tối cho thumbnail
-        Container(color: Colors.grey[800]),
-
-        // Ảnh thumbnail chính
-        Opacity(
-          opacity: isSelected ? 1.0 : 0.7,
-          child: Image.file(
-            file,
-            fit: BoxFit.cover,
-            width: widget.thumbnailSize,
-            height: widget.thumbnailSize,
-            // Đặt chất lượng cao cho thumbnail để hiển thị sắc nét
-            filterQuality: FilterQuality.high,
-            cacheWidth: (widget.thumbnailSize * 1.5).toInt(),
-            // Xử lý lỗi khi không thể tải ảnh
-            errorBuilder: (context, error, stackTrace) {
-              return Container(
-                width: widget.thumbnailSize,
-                height: widget.thumbnailSize,
-                color: Colors.grey[800],
-                child: const Icon(
-                  PhosphorIconsLight.imageBroken,
-                  color: Colors.white70,
-                ),
-              );
-            },
+    return Opacity(
+      opacity: isSelected ? 1.0 : 0.7,
+      child: ThumbnailLoader(
+        key: ValueKey('strip-${file.path}'),
+        filePath: file.path,
+        isVideo: false,
+        isImage: true,
+        width: widget.thumbnailSize,
+        height: widget.thumbnailSize,
+        fit: BoxFit.cover,
+        showLoadingIndicator: false,
+        fallbackBuilder: () => Container(
+          width: widget.thumbnailSize,
+          height: widget.thumbnailSize,
+          color: Colors.grey[800],
+          child: const Icon(
+            PhosphorIconsLight.imageBroken,
+            color: Colors.white70,
           ),
         ),
-      ],
+      ),
     );
   }
 }

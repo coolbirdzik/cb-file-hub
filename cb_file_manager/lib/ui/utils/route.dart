@@ -1,8 +1,39 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:cb_file_manager/main.dart' show goHome, CBFileApp;
 import 'package:cb_file_manager/services/windowing/window_acrylic_service.dart';
 
 class RouteUtils {
+  /// Shows a dialog with an acrylic (frosted glass) backdrop effect.
+  ///
+  /// Drop-in replacement for [showDialog]. Wraps [builder] output with a
+  /// [BackdropFilter] blur and uses a lighter barrier so the blur is visible.
+  static Future<T?> showAcrylicDialog<T>({
+    required BuildContext context,
+    required WidgetBuilder builder,
+    bool barrierDismissible = true,
+    Color? barrierColor,
+    String? barrierLabel,
+    bool useSafeArea = true,
+    bool useRootNavigator = true,
+    RouteSettings? routeSettings,
+  }) {
+    return showDialog<T>(
+      context: context,
+      barrierDismissible: barrierDismissible,
+      barrierColor: barrierColor ?? Colors.black.withValues(alpha: 0.25),
+      barrierLabel: barrierLabel,
+      useSafeArea: useSafeArea,
+      useRootNavigator: useRootNavigator,
+      routeSettings: routeSettings,
+      builder: (ctx) => BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: builder(ctx),
+      ),
+    );
+  }
+
   // Remove redundant methods and keep only the most robust navigation method
 
   // Add a safe navigation method that ensures we never get an empty stack

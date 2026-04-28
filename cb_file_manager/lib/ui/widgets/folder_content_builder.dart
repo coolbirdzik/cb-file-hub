@@ -130,14 +130,10 @@ class FolderContentBuilder {
   /// Builds the empty folder view
   static Widget _buildEmptyFolder(
       BuildContext context, bool isDesktopPlatform) {
-    return FluentBackground.container(
-      context: context,
-      enableBlur: isDesktopPlatform,
-      child: Center(
-        child: Text(
-          AppLocalizations.of(context)!.emptyFolder,
-          style: const TextStyle(fontSize: 18),
-        ),
+    return Center(
+      child: Text(
+        AppLocalizations.of(context)!.emptyFolder,
+        style: const TextStyle(fontSize: 18),
       ),
     );
   }

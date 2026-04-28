@@ -498,6 +498,11 @@ abstract class AppLocalizations {
   String get useSystemDefaultForVideoDescription;
   String get useSystemDefaultForVideoEnabled;
   String get useSystemDefaultForVideoDisabled;
+  String get seekSpeed;
+  String get seekSpeedDescription;
+  String get seekSpeedSlow;
+  String get seekSpeedMedium;
+  String get seekSpeedFast;
   String get thumbnailCache;
   String get thumbnailCacheDescription;
   String get clearThumbnailCache;
@@ -818,6 +823,9 @@ abstract class AppLocalizations {
   String get networkThumbnails;
   String get videoThumbnailsCache;
   String get tempFiles;
+  String get videoLibraryCache;
+  String get clearVideoLibraryCache;
+  String get videoLibraryCacheCleared;
   String get notInitialized;
   String get refreshCacheInfo;
   String get cacheInfoUpdated;

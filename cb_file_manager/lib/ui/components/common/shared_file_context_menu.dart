@@ -22,6 +22,7 @@ import '../../utils/file_type_utils.dart';
 import '../../dialogs/folder_thumbnail_picker_dialog.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../screens/folder_list/folder_list_bloc.dart';
+import '../../utils/route.dart';
 import '../../screens/folder_list/folder_list_event.dart';
 import '../../screens/folder_list/folder_list_state.dart';
 import '../../../helpers/files/windows_shell_context_menu.dart';
@@ -897,7 +898,7 @@ List<ContextMenuSection> _buildFileContextMenuSections({
           id: 'open_with',
           label: l10n.openWith,
           icon: PhosphorIconsLight.arrowSquareOut,
-          onSelected: (_) => showDialog(
+          onSelected: (_) => RouteUtils.showAcrylicDialog(
             context: context,
             builder: (_) => OpenWithDialog(filePath: file.path),
           ),
@@ -906,7 +907,7 @@ List<ContextMenuSection> _buildFileContextMenuSections({
           id: 'choose_default_app',
           label: l10n.chooseDefaultApp,
           icon: PhosphorIconsLight.appWindow,
-          onSelected: (_) => showDialog(
+          onSelected: (_) => RouteUtils.showAcrylicDialog(
             context: context,
             builder: (_) => OpenWithDialog(
               filePath: file.path,

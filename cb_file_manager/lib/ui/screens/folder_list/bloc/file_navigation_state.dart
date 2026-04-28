@@ -5,6 +5,7 @@ import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 /// Immutable state for FileNavigationBloc.
 class FileNavigationState extends Equatable {
   final bool isLoading;
+  final bool isRefreshing;
   final String? error;
   final Directory currentPath;
   final List<FileSystemEntity> folders;
@@ -26,6 +27,7 @@ class FileNavigationState extends Equatable {
   const FileNavigationState({
     required this.currentPath,
     this.isLoading = false,
+    this.isRefreshing = false,
     this.error,
     this.folders = const [],
     this.files = const [],
@@ -53,6 +55,7 @@ class FileNavigationState extends Equatable {
 
   FileNavigationState copyWith({
     bool? isLoading,
+    bool? isRefreshing,
     Object? error,
     Directory? currentPath,
     List<FileSystemEntity>? folders,
@@ -74,6 +77,7 @@ class FileNavigationState extends Equatable {
     return FileNavigationState(
       currentPath: currentPath ?? this.currentPath,
       isLoading: isLoading ?? this.isLoading,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
       error: error is String ? error : (error == _unset ? this.error : null),
       folders: folders ?? this.folders,
       files: files ?? this.files,
@@ -105,6 +109,7 @@ class FileNavigationState extends Equatable {
   @override
   List<Object?> get props => [
         isLoading,
+        isRefreshing,
         error,
         currentPath.path,
         folders,

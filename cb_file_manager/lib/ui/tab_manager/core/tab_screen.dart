@@ -1334,7 +1334,7 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
       return null;
     }
 
-    return showDialog<DesktopWindowInfo>(
+    return RouteUtils.showAcrylicDialog<DesktopWindowInfo>(
       // ignore: use_build_context_synchronously
       context: context,
       builder: (ctx) {
@@ -1532,7 +1532,7 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
         ? theme.textTheme.bodyMedium?.color
         : theme.textTheme.bodyMedium?.color;
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => Dialog(
         shape: RoundedRectangleBorder(

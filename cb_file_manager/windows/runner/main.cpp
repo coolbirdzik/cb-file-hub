@@ -67,6 +67,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     secondary_window = true;
   }
 
+  // Detect progress window role
+  bool progress_mode = false;
+  wchar_t roleBuf[32];
+  DWORD roleLen = GetEnvironmentVariableW(L"CB_WINDOW_ROLE", roleBuf, 32);
+  if (roleLen > 0 && wcscmp(roleBuf, L"progress") == 0)
+  {
+    progress_mode = true;
+  }
+
   // Prepare origin and size
   Win32Window::Point origin(0, 0);
   Win32Window::Size size(0, 0);
@@ -75,6 +84,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   {
     // Small initial window for PiP; will be adjusted by window_manager later
     size = Win32Window::Size(384, 216);
+  }
+  else if (progress_mode)
+  {
+    // Progress window: exact final size, no resize needed.
+    // Must match the Dart-side WindowOptions size to avoid flicker.
+    size = Win32Window::Size(420, 88);
   }
   else if (secondary_window)
   {

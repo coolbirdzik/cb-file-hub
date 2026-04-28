@@ -33,6 +33,11 @@ class TagManager {
   static String? _lastStandaloneTagError;
   static final List<String> _standaloneTagDiagnostics = <String>[];
 
+  // Guard against concurrent and redundant initialize() calls.
+  static bool _initialized = false;
+  static bool _initializing = false;
+  static final Completer<void> _initCompleter = Completer<void>();
+
   // User preferences for checking if Database is enabled
   static final UserPreferences _preferences = UserPreferences.instance;
 
@@ -150,8 +155,23 @@ class TagManager {
         .toList();
   }
 
-  /// Initialize the global tags system by determining the storage path
+  /// Initialize the global tags system by determining the storage path.
+  ///
+  /// This method is safe to call concurrently: the first caller performs the
+  /// real initialization while subsequent callers wait for it to finish via
+  /// the shared completer. Once initialized, all later calls return immediately.
   static Future<void> initialize() async {
+    // Fast path: already fully initialized.
+    if (_initialized) return;
+
+    // If another call is already running, wait for it to complete instead of
+    // duplicating the work (this was causing 50+ concurrent DB opens on grid load).
+    if (_initializing) {
+      await _initCompleter.future;
+      return;
+    }
+
+    _initializing = true;
     try {
       AppLogger.debug('[TagManager] initialize start');
       _recordStandaloneTagDiagnostic('initialize:start');
@@ -161,6 +181,7 @@ class TagManager {
         await _databaseManager!.initialize();
       }
       _useDatabase = true;
+      _initialized = true;
       _recordStandaloneTagDiagnostic('initialize:success useDatabase=true');
       AppLogger.info('[TagManager] initialize success',
           error: 'useDatabase=true');
@@ -176,6 +197,12 @@ class TagManager {
         await cbFileHubDir.create(recursive: true);
       }
       _globalTagsPath = '${cbFileHubDir.path}/$globalTagsFilename';
+      _initialized = true; // mark done even in fallback path
+    } finally {
+      _initializing = false;
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
     }
   }
 
@@ -276,39 +303,97 @@ class TagManager {
     }
   }
 
-  /// Gets all tags for a file
-  ///
-  /// Returns an empty list if no tags are found
-  static Future<List<String>> getTags(String filePath) async {
-    if (_tagsCache.containsKey(filePath)) {
-      return List.from(_tagsCache[filePath]!);
+  // ── Coalescing queue for getTags ──────────────────────────────────────────────
+  // When a full grid of 50–200 FileGridItems calls getTags() simultaneously in
+  // their initState, each fires an independent DB read. This queue coalesces
+  // all requests that arrive in the same microtask batch into a single DB
+  // round-trip, dramatically reducing SQLite contention on initial render.
+  static final Map<String, List<Completer<List<String>>>> _pendingGetTags = {};
+  static bool _processingGetTagsQueue = false;
+
+  static Future<void> _drainGetTagsQueue() async {
+    if (_processingGetTagsQueue) return;
+    _processingGetTagsQueue = true;
+    // Yield once so all synchronous initState calls that arrive in the same
+    // microtask batch can register their requests before we start the DB query.
+    await Future.delayed(Duration.zero);
+
+    if (_pendingGetTags.isEmpty) {
+      _processingGetTagsQueue = false;
+      return;
     }
 
+    final paths = List<String>.from(_pendingGetTags.keys);
     await initialize();
 
     try {
       if (_useDatabase && _databaseManager != null) {
-        // Use Database to get tags
-        final tags = await _databaseManager!.getTagsForFile(filePath);
-        _tagsCache[filePath] = tags;
-        return tags;
-      } else {
-        // Use original implementation for JSON file
-        final tagsData = await _loadGlobalTags();
-
-        // Use the absolute file path as the key in the global tags file
-        if (tagsData.containsKey(filePath)) {
-          final tags = List<String>.from(tagsData[filePath]);
-          _tagsCache[filePath] = tags;
-          return tags;
+        // Single DB call for all pending paths.
+        final results = await _databaseManager!.getTagsForFiles(paths);
+        for (final path in paths) {
+          // Use <String>[] to preserve List<String> type, avoiding List<dynamic>.
+          final tags = results[path] ?? <String>[];
+          _tagsCache[path] = tags;
+          final completers = _pendingGetTags[path];
+          if (completers != null) {
+            for (final c in completers) {
+              if (!c.isCompleted) c.complete(tags);
+            }
+          }
         }
-
-        _tagsCache[filePath] = [];
-        return [];
+      } else {
+        // JSON fallback: one file read for all.
+        final tagsData = await _loadGlobalTags();
+        for (final path in paths) {
+          final tags = tagsData.containsKey(path)
+              ? List<String>.from(tagsData[path])
+              : <String>[];
+          _tagsCache[path] = tags;
+          final completers = _pendingGetTags[path];
+          if (completers != null) {
+            for (final c in completers) {
+              if (!c.isCompleted) c.complete(tags);
+            }
+          }
+        }
       }
     } catch (e) {
-      return [];
+      for (final path in paths) {
+        final completers = _pendingGetTags[path];
+        if (completers != null) {
+          for (final c in completers) {
+            if (!c.isCompleted) c.complete(<String>[]);
+          }
+        }
+      }
+    } finally {
+      for (final path in paths) {
+        _pendingGetTags.remove(path);
+      }
+      _processingGetTagsQueue = false;
+      // If more paths arrived while we were draining, drain again.
+      if (_pendingGetTags.isNotEmpty) {
+        _drainGetTagsQueue();
+      }
     }
+  }
+
+  /// Gets all tags for a file.
+  ///
+  /// Returns an empty list if no tags are found.
+  /// Multiple concurrent calls for *different* paths are coalesced into a
+  /// single DB batch query to avoid N concurrent SQLite reads on grid render.
+  static Future<List<String>> getTags(String filePath) async {
+    // Fast path: already in memory cache.
+    if (_tagsCache.containsKey(filePath)) {
+      return List.from(_tagsCache[filePath]!);
+    }
+
+    // Coalesce: register in pending queue and wait.
+    final completer = Completer<List<String>>();
+    _pendingGetTags.putIfAbsent(filePath, () => []).add(completer);
+    _drainGetTagsQueue(); // no await — drain starts async
+    return completer.future;
   }
 
   /// Gets tags for multiple files at once (batch loading for performance)

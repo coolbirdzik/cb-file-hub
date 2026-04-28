@@ -199,6 +199,41 @@ class VideoLibraryService {
     }
   }
 
+  /// Streams video file paths for a library, emitting incrementally
+  /// as directories are scanned. Yields after each directory completes.
+  Stream<String> streamLibraryFiles(int libraryId) async* {
+    final config = await getLibraryConfig(libraryId);
+    if (config == null) return;
+
+    // Yield individual files from each configured directory
+    if (config.directoriesList.isNotEmpty) {
+      for (final directoryPath in config.directoriesList) {
+        final directory = Directory(directoryPath.trim());
+        if (!directory.existsSync()) continue;
+
+        final files = await getAllVideos(
+          directoryPath,
+          recursive: config.includeSubdirectories,
+        );
+        for (final file in files) {
+          yield file.path;
+        }
+      }
+    }
+
+    // Yield individually-added files from DB
+    final database = await _getDatabase();
+    final rows = await database.query(
+      'video_library_files',
+      where: 'video_library_id = ?',
+      whereArgs: <Object?>[libraryId],
+    );
+    for (final row in rows) {
+      final filePath = row['file_path'] as String?;
+      if (filePath != null) yield filePath;
+    }
+  }
+
   Future<bool> addFileToLibrary(
     int libraryId,
     String filePath, {
@@ -562,9 +597,130 @@ class VideoLibraryService {
     }
   }
 
+  /// Updates the cached file count without rescanning the filesystem.
+  Future<void> updateCachedLibraryVideoCount(int libraryId, int count) async {
+    try {
+      final config = await getLibraryConfig(libraryId);
+      if (config == null) {
+        return;
+      }
+
+      config.updateScanStats(count);
+      await updateLibraryConfig(config);
+    } catch (error) {
+      debugPrint('Error updating cached library video count: $error');
+    }
+  }
+
   Future<int> getLibraryVideoCount(int libraryId) async {
     final files = await getLibraryFiles(libraryId);
     return files.length;
+  }
+
+  /// Batch-load video counts for multiple libraries in parallel.
+  /// Returns a map of libraryId -> videoCount.
+  Future<Map<int, int>> getAllLibraryVideoCounts(
+      List<VideoLibrary> libraries) async {
+    if (libraries.isEmpty) return <int, int>{};
+
+    final results = await Future.wait(
+      libraries.map((lib) async {
+        final count = await getLibraryVideoCount(lib.id);
+        return MapEntry(lib.id, count);
+      }),
+    );
+    return Map<int, int>.fromEntries(results);
+  }
+
+  /// Fast cached counts from DB — no filesystem scan, returns instantly.
+  /// Uses the `file_count` column from `video_library_configs` that is
+  /// updated whenever a library is scanned via [refreshLibrary].
+  /// Returns a map of libraryId -> cached fileCount.
+  Future<Map<int, int>> getCachedLibraryVideoCounts(
+      List<VideoLibrary> libraries) async {
+    if (libraries.isEmpty) return <int, int>{};
+    try {
+      final database = await _getDatabase();
+      final ids = libraries.map((l) => l.id).toList(growable: false);
+      final placeholders = List.filled(ids.length, '?').join(',');
+      final rows = await database.rawQuery(
+        'SELECT video_library_id, file_count FROM video_library_configs '
+        'WHERE video_library_id IN ($placeholders)',
+        ids,
+      );
+      final result = <int, int>{};
+      for (final row in rows) {
+        final libId = row['video_library_id'] as int?;
+        final count = row['file_count'] as int? ?? 0;
+        if (libId != null) {
+          result[libId] = count;
+        }
+      }
+      // Fill in zeros for libraries with no config row
+      for (final lib in libraries) {
+        result.putIfAbsent(lib.id, () => 0);
+      }
+      return result;
+    } catch (error) {
+      debugPrint('Error getting cached library video counts: $error');
+      return {for (final lib in libraries) lib.id: 0};
+    }
+  }
+
+  /// Returns libraries whose cached counts are missing or stale.
+  Future<List<VideoLibrary>> getLibrariesNeedingCountRefresh(
+    List<VideoLibrary> libraries, {
+    Duration maxAge = const Duration(hours: 12),
+  }) async {
+    if (libraries.isEmpty) return <VideoLibrary>[];
+    try {
+      final database = await _getDatabase();
+      final ids = libraries.map((l) => l.id).toList(growable: false);
+      final placeholders = List.filled(ids.length, '?').join(',');
+      final rows = await database.rawQuery(
+        'SELECT video_library_id, last_scan_time FROM video_library_configs '
+        'WHERE video_library_id IN ($placeholders)',
+        ids,
+      );
+
+      final lastScanByLibrary = <int, DateTime?>{};
+      for (final row in rows) {
+        final libId = row['video_library_id'] as int?;
+        final lastScanMillis = row['last_scan_time'] as int?;
+        if (libId != null) {
+          lastScanByLibrary[libId] = lastScanMillis == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(lastScanMillis);
+        }
+      }
+
+      final staleBefore = DateTime.now().subtract(maxAge);
+      return libraries.where((library) {
+        final lastScan = lastScanByLibrary[library.id];
+        return lastScan == null || lastScan.isBefore(staleBefore);
+      }).toList(growable: false);
+    } catch (error) {
+      debugPrint('Error checking stale library video counts: $error');
+      return libraries;
+    }
+  }
+
+  /// Performs a full filesystem scan for all libraries and updates the
+  /// cached file counts in the database. Call this in the background
+  /// after showing the cached counts for a responsive UI.
+  Future<Map<int, int>> refreshAllLibraryVideoCounts(
+      List<VideoLibrary> libraries) async {
+    if (libraries.isEmpty) return <int, int>{};
+
+    final results = await Future.wait(
+      libraries.map((lib) async {
+        final count = await getLibraryVideoCount(lib.id);
+        // Persist the updated count in the config table
+        await updateCachedLibraryVideoCount(lib.id, count);
+        return MapEntry(lib.id, count);
+      }),
+    );
+    return Map<int, int>.fromEntries(results);
   }
 
   void dispose() {}

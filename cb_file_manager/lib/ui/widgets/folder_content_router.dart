@@ -111,8 +111,11 @@ class FolderContentRouter {
     // Show content as soon as we have any files/folders (lazy loading)
     // Only show skeleton when truly empty and loading
     final bool hasContent = state.folders.isNotEmpty || state.files.isNotEmpty;
+    // Top bar: only for initial loads (no existing content yet).
+    // Refresh operations show at the bottom and don't affect content layout.
     final bool shouldShowSkeleton = !hasContent &&
         state.isLoading &&
+        !state.isRefreshing &&
         state.error == null &&
         state.searchResults.isEmpty &&
         state.currentSearchTag == null &&
@@ -120,8 +123,8 @@ class FolderContentRouter {
 
     return Column(
       children: [
-        // Top progress bar when loading, refreshing, or while initial content is being prepared
-        if (state.isLoading || isRefreshing)
+        // Top progress bar only when loading with no content yet (initial load)
+        if (state.isLoading && !state.isRefreshing)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 4.0),
             child: AppProgressIndicatorBeautiful(),

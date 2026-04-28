@@ -8,7 +8,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/ui/widgets/thumbnail_loader.dart';
-import 'package:cb_file_manager/ui/widgets/app_progress_indicator.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
 import 'package:cb_file_manager/ui/tab_manager/shared/screen_menu_registry.dart';
 import 'package:cb_file_manager/ui/components/common/skeleton_helper.dart';
@@ -58,6 +57,7 @@ import 'package:cb_file_manager/ui/widgets/file_list_view_builder.dart';
 import 'package:cb_file_manager/ui/controllers/dialog_manager.dart';
 import 'package:cb_file_manager/ui/widgets/folder_content_builder.dart';
 import 'package:cb_file_manager/ui/widgets/refreshable_file_list_view.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 part 'tabbed_folder_list_screen.mobile_actions.dart';
 part 'tabbed_folder_list_screen.refresh.dart';
@@ -1121,41 +1121,48 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
     }
 
     if (_isDrivesMode()) {
-      return Column(
+      return Stack(
         children: [
-          if (_isRefreshing)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4.0),
-              child: AppProgressIndicatorBeautiful(),
-            ),
-          Expanded(
-            child: _buildAcrylicContentContainer(
-              context: context,
-              child: tab_components.DriveView(
-                tabId: widget.tabId,
-                folderListBloc: _folderListBloc,
-                onPathChanged: (String path) {
-                  setState(() {
-                    _currentPath = path;
-                    _pathController.text = _displayPathForInput(path);
-                  });
-                },
-                onBackButtonPressed: _handleMouseBackButton,
-                onForwardButtonPressed: _handleMouseForwardButton,
-                isLazyLoading: _isLazyLoadingDrives,
-                viewMode: state.viewMode,
-                gridZoomLevel: state.gridZoomLevel,
-                onZoomChanged: handleZoomLevelChange,
-                isRefreshing: _isRefreshing,
+          Column(
+            children: [
+              Expanded(
+                child: _buildAcrylicContentContainer(
+                  context: context,
+                  child: tab_components.DriveView(
+                    tabId: widget.tabId,
+                    folderListBloc: _folderListBloc,
+                    onPathChanged: (String path) {
+                      setState(() {
+                        _currentPath = path;
+                        _pathController.text = _displayPathForInput(path);
+                      });
+                    },
+                    onBackButtonPressed: _handleMouseBackButton,
+                    onForwardButtonPressed: _handleMouseForwardButton,
+                    isLazyLoading: _isLazyLoadingDrives,
+                    viewMode: state.viewMode,
+                    gridZoomLevel: state.gridZoomLevel,
+                    onZoomChanged: handleZoomLevelChange,
+                    isRefreshing: _isRefreshing,
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
+          // Refresh indicator at the bottom for drives mode
+          if (_isRefreshing)
+            const Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _RefreshStatusBar(),
+            ),
         ],
       );
     }
 
     // Show content as soon as we have any files/folders (lazy loading)
-    // Only show skeleton when truly empty and loading
+    // Only show skeleton when truly empty and loading (initial navigation)
     final bool hasContent = state.folders.isNotEmpty || state.files.isNotEmpty;
     final bool isPathMismatch =
         !_currentPath.startsWith('#') && _isPathMismatch(state);
@@ -1164,8 +1171,11 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
     final bool searchResultsActive = state.searchResults.isNotEmpty ||
         state.currentSearchQuery != null ||
         state.currentSearchTag != null;
-    final bool showLoadingIndicator = !searchResultsActive &&
-        (state.isLoading || _isRefreshing || isPathMismatch);
+    // Top bar: only for initial loads (no content yet) or path mismatches.
+    // Refresh operations use `state.isRefreshing` and show at the bottom instead.
+    final bool showTopLoadingIndicator = !searchResultsActive &&
+        !state.isRefreshing &&
+        (state.isLoading || isPathMismatch);
     final bool shouldShowSkeleton = !hasContent &&
         (state.isLoading || isPathMismatch) &&
         state.error == null &&
@@ -1173,23 +1183,30 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
         state.currentSearchTag == null &&
         state.currentSearchQuery == null;
 
-    return Column(
+    return Stack(
       children: [
-        // Top progress bar when loading, refreshing, or while initial content is being prepared
-        if (showLoadingIndicator)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4.0),
-            child: AppProgressIndicatorBeautiful(),
-          ),
-        Expanded(
-          child: _buildAcrylicContentContainer(
-            context: context,
-            child: shouldShowSkeleton
-                ? _buildSkeletonLoader(state) // Show skeleton while loading
-                : _buildMainContent(
-                    context, state, selectionState, isNetworkPath),
-          ),
+        Column(
+          children: [
+            Expanded(
+              child: _buildAcrylicContentContainer(
+                context: context,
+                child: shouldShowSkeleton
+                    ? _buildSkeletonLoader(state) // Show skeleton while loading
+                    : _buildMainContent(
+                        context, state, selectionState, isNetworkPath),
+              ),
+            ),
+          ],
         ),
+        // Bottom status bar indicator — shown during initial loading AND refresh
+        // so the existing file list layout is never affected.
+        if (showTopLoadingIndicator || state.isRefreshing || _isRefreshing)
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _RefreshStatusBar(),
+          ),
       ],
     );
   }
@@ -1487,6 +1504,35 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
       onPreviewPaneToggled: _togglePreviewPane,
       isPreviewPaneVisible: isPreviewPaneVisible,
       showPreviewModeOption: isDesktopPlatform,
+    );
+  }
+}
+
+/// A slim, non-intrusive status bar shown at the bottom of the screen
+/// while a directory refresh is in progress.
+///
+/// It overlays the file list via a [Positioned] widget inside a [Stack],
+/// so the existing file list layout is never affected.
+class _RefreshStatusBar extends StatelessWidget {
+  const _RefreshStatusBar();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return Container(
+      height: 3,
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+      ),
+      child: LinearProgressIndicator(
+        backgroundColor: Colors.transparent,
+        valueColor: AlwaysStoppedAnimation<Color>(
+          colorScheme.primary.withValues(alpha: 0.8),
+        ),
+        minHeight: 3,
+      ),
     );
   }
 }

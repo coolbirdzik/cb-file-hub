@@ -96,7 +96,7 @@ extension _TabbedFolderListMobileActions on _TabbedFolderListScreenState {
 
   /// Show create folder dialog for mobile
   void _showMobileCreateFolderDialog() async {
-    await showDialog(
+    await RouteUtils.showAcrylicDialog(
       context: context,
       builder: (dialogContext) => _MobileCreateFolderDialog(
         onCreateFolder: (folderName) => _createNewFolder(folderName),

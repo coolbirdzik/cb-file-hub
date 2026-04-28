@@ -8,6 +8,7 @@ import '../../../bloc/network_browsing/network_browsing_event.dart';
 import '../../../bloc/network_browsing/network_browsing_state.dart';
 import '../../../services/network_browsing/network_service_base.dart';
 import '../../tab_manager/core/tab_manager.dart';
+import '../../utils/route.dart';
 // Import TabData
 // Import TabMainScreen
 import 'network_connection_dialog.dart';
@@ -224,7 +225,7 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
 
   void _showConnectionDialog(BuildContext context, {String? initialService}) {
     final networkBloc = context.read<NetworkBrowsingBloc>();
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (dialogContext) => BlocProvider.value(
         value: networkBloc,

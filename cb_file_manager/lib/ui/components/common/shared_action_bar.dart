@@ -7,6 +7,7 @@ import '../../../helpers/core/user_preferences.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../config/languages/app_localizations.dart';
 import '../../utils/grid_zoom_constraints.dart';
+import '../../utils/route.dart';
 
 class SharedActionBar {
   /// Tạo popup menu item cho các tùy chọn sắp xếp
@@ -182,7 +183,7 @@ class SharedActionBar {
     bool dateCreated = currentVisibility.dateCreated;
     bool attributes = currentVisibility.attributes;
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(
@@ -562,7 +563,7 @@ class SharedActionBar {
               PopupMenuItem<void>(
                 enabled: false,
                 padding: EdgeInsets.zero,
-                child: _GridSizeSliderMenu(
+                child: GridSizeSliderMenu(
                   currentValue: currentGridZoomLevel,
                   minValue: gridMinSize,
                   maxValue: clampedMax,
@@ -776,13 +777,16 @@ class SharedActionBar {
 
 /// Slider widget rendered inside a PopupMenu popover for grid size control.
 /// Uses its own state so it can update reactively while the menu stays open.
-class _GridSizeSliderMenu extends StatefulWidget {
-  const _GridSizeSliderMenu({
+/// Inline slider widget used inside a [PopupMenuButton] to adjust grid column count.
+/// Exposed publicly so other screens (e.g. album detail) can reuse the same UI.
+class GridSizeSliderMenu extends StatefulWidget {
+  const GridSizeSliderMenu({
+    Key? key,
     required this.currentValue,
     required this.minValue,
     required this.maxValue,
     required this.onChanged,
-  });
+  }) : super(key: key);
 
   final int currentValue;
   final int minValue;
@@ -790,10 +794,10 @@ class _GridSizeSliderMenu extends StatefulWidget {
   final Function(int) onChanged;
 
   @override
-  State<_GridSizeSliderMenu> createState() => _GridSizeSliderMenuState();
+  State<GridSizeSliderMenu> createState() => _GridSizeSliderMenuState();
 }
 
-class _GridSizeSliderMenuState extends State<_GridSizeSliderMenu> {
+class _GridSizeSliderMenuState extends State<GridSizeSliderMenu> {
   late int _value;
 
   @override

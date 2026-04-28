@@ -41,6 +41,7 @@ import 'package:cb_file_manager/helpers/files/external_app_helper.dart';
 import 'services/windowing/window_startup_payload.dart';
 import 'services/windowing/windows_native_tab_drag_drop_service.dart';
 import 'services/windowing/window_acrylic_service.dart';
+import 'ui/screens/progress_window/progress_window_screen.dart';
 import 'dev/dev_overlay.dart';
 // Permission explainer is pushed from TabMainScreen; no direct import needed here
 
@@ -403,6 +404,89 @@ Future<void> runCbFileApp() async {
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
       debugShowCheckedModeBanner: false,
       home: DesktopPipWindow(args: args),
+    ));
+    return;
+  }
+
+  // Progress window — process riêng biệt, không cần full app init
+  if (windowRole == 'progress' && isDesktopPlatform) {
+    final ipcPort =
+        int.tryParse(env[WindowStartupPayload.envProgressIpcPortKey] ?? '') ??
+            0;
+    final progressTitle =
+        env[WindowStartupPayload.envProgressTitleKey] ?? 'Operation';
+    final progressTotal =
+        int.tryParse(env[WindowStartupPayload.envProgressTotalKey] ?? '') ?? 0;
+    final progressIndeterminate =
+        env[WindowStartupPayload.envProgressIndeterminateKey] == '1';
+
+    // Resolve màu trước khi setup window để backgroundColor khớp Flutter theme
+    final platformBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final isDark = platformBrightness == Brightness.dark;
+    final solidBg = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF5F5F5);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final progressColor =
+        isDark ? const Color(0xFF90CAF9) : const Color(0xFF1565C0);
+
+    // Setup window: alpha=0 đã được set ở tầng C++ (WS_EX_LAYERED),
+    // nên window hoàn toàn transparent ngay từ đầu.
+    // waitUntilReadyToShow fires SAU KHI Flutter render xong frame đầu,
+    // nên ta restore opacity=1 rồi mới show → không có flash nào.
+    try {
+      final progressWindowOptions = WindowOptions(
+        size: const Size(420, 88),
+        minimumSize: const Size(420, 88),
+        maximumSize: const Size(420, 88),
+        center: true,
+        backgroundColor: solidBg,
+        titleBarStyle: TitleBarStyle.hidden,
+        windowButtonVisibility: false,
+        skipTaskbar: false,
+        alwaysOnTop: false,
+      );
+      await windowManager.waitUntilReadyToShow(progressWindowOptions, () async {
+        try {
+          await windowManager.setAsFrameless();
+        } catch (_) {}
+        await windowManager.setResizable(false);
+        await windowManager.setPreventClose(false);
+        // Restore opacity rồi mới show — Flutter đã render xong ở đây
+        try {
+          await windowManager.setOpacity(1.0);
+        } catch (_) {}
+        await windowManager.show();
+        await windowManager.focus();
+      });
+    } catch (_) {}
+
+    runApp(MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: isDark ? Brightness.dark : Brightness.light,
+        scaffoldBackgroundColor: solidBg,
+        colorScheme: isDark
+            ? ColorScheme.dark(
+                primary: progressColor,
+                surface: solidBg,
+              )
+            : ColorScheme.light(
+                primary: progressColor,
+                surface: solidBg,
+              ),
+        textTheme: TextTheme(
+          titleSmall: TextStyle(color: textColor),
+          titleMedium: TextStyle(color: textColor),
+          bodySmall: TextStyle(color: isDark ? Colors.white60 : Colors.black54),
+        ),
+        useMaterial3: true,
+      ),
+      home: ProgressWindowScreen(
+        ipcPort: ipcPort,
+        initialTitle: progressTitle,
+        initialTotal: progressTotal,
+        initialIndeterminate: progressIndeterminate,
+      ),
     ));
     return;
   }

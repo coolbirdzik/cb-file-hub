@@ -1,0 +1,240 @@
+import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+/// A single item in a [BreadcrumbAddressBar].
+class BreadcrumbSegment {
+  /// Display text for the chip.
+  final String label;
+
+  /// Optional icon shown to the left of the label.
+  final IconData? icon;
+
+  /// Called when this segment chip is tapped.
+  /// Set to null to make the segment non-interactive (current/active segment).
+  final VoidCallback? onTap;
+
+  /// Optional short badge text shown after the label (e.g. item count).
+  final String? badge;
+
+  const BreadcrumbSegment({
+    required this.label,
+    this.icon,
+    this.onTap,
+    this.badge,
+  });
+}
+
+/// An address-bar-style breadcrumb row that displays [segments] as small pill
+/// chips separated by caret-right icons.
+///
+/// - Non-last segments whose [BreadcrumbSegment.onTap] is set are tappable for
+///   navigation.
+/// - If [editController] and [onPathSubmitted] are both provided, the last
+///   segment (and any empty space) becomes tappable to enter a text-editing
+///   mode where the user can type a raw path.  Blur or Enter exits edit mode.
+class BreadcrumbAddressBar extends StatefulWidget {
+  final List<BreadcrumbSegment> segments;
+
+  /// Provide both to enable click-to-type editing mode.
+  final TextEditingController? editController;
+  final void Function(String)? onPathSubmitted;
+
+  const BreadcrumbAddressBar({
+    Key? key,
+    required this.segments,
+    this.editController,
+    this.onPathSubmitted,
+  }) : super(key: key);
+
+  @override
+  State<BreadcrumbAddressBar> createState() => _BreadcrumbAddressBarState();
+}
+
+class _BreadcrumbAddressBarState extends State<BreadcrumbAddressBar> {
+  bool _isEditing = false;
+  final FocusNode _focusNode = FocusNode();
+
+  bool get _canEdit =>
+      widget.editController != null && widget.onPathSubmitted != null;
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _startEditing() {
+    if (!_canEdit) return;
+    setState(() => _isEditing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
+  void _stopEditing() {
+    if (!mounted) return;
+    setState(() => _isEditing = false);
+    _focusNode.unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isEditing) return _buildEditField(context);
+    return _buildBreadcrumbs(context);
+  }
+
+  Widget _buildBreadcrumbs(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final items = <Widget>[];
+
+    for (int i = 0; i < widget.segments.length; i++) {
+      final seg = widget.segments[i];
+      final isLast = i == widget.segments.length - 1;
+
+      if (i > 0) {
+        items.add(Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(
+            PhosphorIconsLight.caretRight,
+            size: 11,
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ));
+      }
+
+      // For the last segment: fall back to _startEditing if canEdit and no
+      // explicit onTap was provided.
+      final effectiveTap =
+          seg.onTap ?? (isLast && _canEdit ? _startEditing : null);
+
+      final chip = _BreadcrumbChip(
+        key: ValueKey(i),
+        segment: seg,
+        isLast: isLast,
+        colorScheme: colorScheme,
+        onTap: effectiveTap,
+      );
+
+      // Last chip is Flexible so it truncates when path is deep.
+      items.add(isLast ? Flexible(child: chip) : chip);
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: items,
+    );
+  }
+
+  Widget _buildEditField(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return TextField(
+      controller: widget.editController,
+      focusNode: _focusNode,
+      onSubmitted: (value) {
+        widget.onPathSubmitted?.call(value);
+        _stopEditing();
+      },
+      onTapOutside: (_) => _stopEditing(),
+      style: const TextStyle(fontSize: 13),
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        border: InputBorder.none,
+        hintText: 'Enter path...',
+        hintStyle: TextStyle(
+          fontSize: 13,
+          color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+}
+
+/// Internal stateful chip that shows one breadcrumb segment.
+class _BreadcrumbChip extends StatefulWidget {
+  final BreadcrumbSegment segment;
+  final bool isLast;
+  final ColorScheme colorScheme;
+  final VoidCallback? onTap;
+
+  const _BreadcrumbChip({
+    Key? key,
+    required this.segment,
+    required this.isLast,
+    required this.colorScheme,
+    this.onTap,
+  }) : super(key: key);
+
+  @override
+  State<_BreadcrumbChip> createState() => _BreadcrumbChipState();
+}
+
+class _BreadcrumbChipState extends State<_BreadcrumbChip> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final seg = widget.segment;
+    final colorScheme = widget.colorScheme;
+    final tappable = widget.onTap != null;
+
+    return MouseRegion(
+      onEnter: tappable ? (_) => setState(() => _hovering = true) : null,
+      onExit: tappable ? (_) => setState(() => _hovering = false) : null,
+      cursor: tappable ? SystemMouseCursors.click : MouseCursor.defer,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: _hovering
+                ? colorScheme.onSurface.withValues(alpha: 0.08)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            // Last chip expands to fill its Flexible slot; others shrink-wrap.
+            mainAxisSize: widget.isLast ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              if (seg.icon != null) ...[
+                Icon(seg.icon, size: 13, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: 5),
+              ],
+              if (widget.isLast)
+                Flexible(
+                  child: Text(
+                    seg.label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )
+              else
+                Text(
+                  seg.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              if (seg.badge != null) ...[
+                const SizedBox(width: 6),
+                Text(
+                  seg.badge!,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

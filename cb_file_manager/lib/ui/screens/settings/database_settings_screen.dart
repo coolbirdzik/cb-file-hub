@@ -13,6 +13,7 @@ import 'package:cb_file_manager/ui/utils/base_screen.dart';
 import 'package:cb_file_manager/config/translation_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 /// A screen for managing database settings
 class DatabaseSettingsScreen extends StatefulWidget {
@@ -641,7 +642,7 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
   }
 
   Future<void> _showRawDataDialog(String title, String type) async {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => _RawDataDialog(
         title: title,
@@ -652,7 +653,7 @@ class _DatabaseSettingsScreenState extends State<DatabaseSettingsScreen> {
   }
 
   void _showSharedPreferencesDialog() {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (ctx) => _SharedPreferencesDialog(
         onDeleted: () {

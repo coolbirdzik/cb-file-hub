@@ -13,6 +13,7 @@ import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/components/index.dart'
     as folder_list_components;
 import 'package:cb_file_manager/bloc/selection/selection.dart';
+import 'package:cb_file_manager/ui/widgets/ctrl_scroll_zoom.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tabbed_folder/tabbed_folder_drag_selection_controller.dart';
 import 'package:cb_file_manager/ui/utils/fluent_background.dart';
 import 'package:cb_file_manager/ui/utils/scroll_velocity_notifier.dart';
@@ -189,8 +190,9 @@ class FileListViewBuilder {
       children: [
         FluentBackground(
           blurAmount: 8.0,
-          opacity: 0.2,
-          enableBlur: isDesktopPlatform,
+          opacity: 0.0,
+          backgroundColor: Colors.transparent,
+          enableBlur: false,
           child: BlocBuilder<SelectionBloc, SelectionState>(
             builder: (context, selectionState) {
               return GestureDetector(
@@ -237,24 +239,12 @@ class FileListViewBuilder {
                       }
                     : null,
                 behavior: HitTestBehavior.translucent,
-                child: Listener(
-                  onPointerSignal: (PointerSignalEvent event) {
-                    if (state.viewMode != ViewMode.grid &&
-                        state.viewMode != ViewMode.gridPreview) {
-                      return;
-                    }
-                    if (event is PointerScrollEvent) {
-                      if (HardwareKeyboard.instance.logicalKeysPressed
-                              .contains(LogicalKeyboardKey.controlLeft) ||
-                          HardwareKeyboard.instance.logicalKeysPressed
-                              .contains(LogicalKeyboardKey.controlRight)) {
-                        final direction = event.scrollDelta.dy > 0 ? 1 : -1;
-                        onZoomLevelChanged(direction);
-                        GestureBinding.instance.pointerSignalResolver
-                            .resolve(event);
-                      }
-                    }
-                  },
+                // Ctrl+scroll → zoom: use the canonical CtrlScrollZoom.
+                child: CtrlScrollZoom(
+                  onDelta: (state.viewMode == ViewMode.grid ||
+                          state.viewMode == ViewMode.gridPreview)
+                      ? (delta) => onZoomLevelChanged(delta)
+                      : null,
                   child: RepaintBoundary(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
@@ -293,10 +283,10 @@ class FileListViewBuilder {
                           child: GridView.builder(
                             padding: const EdgeInsets.all(8.0),
                             physics: const ClampingScrollPhysics(),
-                            // PERFORMANCE: Reduced cacheExtent to minimize pre-building during fast scroll
+                            // cacheExtent: keep more items alive near viewport to avoid thumbnail re-render
                             // Desktop: 400px, Mobile: 200px - balances smooth scrolling vs thumbnail generation
-                            cacheExtent: isDesktopPlatform ? 400 : 200,
-                            addAutomaticKeepAlives: false,
+                            cacheExtent: isDesktopPlatform ? 600 : 400,
+                            addAutomaticKeepAlives: true,
                             addRepaintBoundaries: true,
                             addSemanticIndexes: false,
                             findChildIndexCallback: (Key key) {
@@ -475,8 +465,9 @@ class FileListViewBuilder {
       children: [
         FluentBackground(
           blurAmount: 8.0,
-          opacity: 0.2,
-          enableBlur: isDesktopPlatform,
+          opacity: 0.0,
+          backgroundColor: Colors.transparent,
+          enableBlur: false,
           child: BlocBuilder<SelectionBloc, SelectionState>(
             builder: (context, selectionState) {
               return GestureDetector(
@@ -573,8 +564,9 @@ class FileListViewBuilder {
       children: [
         FluentBackground(
           blurAmount: 8.0,
-          opacity: 0.2,
-          enableBlur: isDesktopPlatform,
+          opacity: 0.0,
+          backgroundColor: Colors.transparent,
+          enableBlur: false,
           child: BlocBuilder<SelectionBloc, SelectionState>(
             builder: (context, selectionState) {
               return GestureDetector(
@@ -625,7 +617,7 @@ class FileListViewBuilder {
                   child: ListView.builder(
                     physics: const ClampingScrollPhysics(),
                     cacheExtent: 800,
-                    addAutomaticKeepAlives: false,
+                    addAutomaticKeepAlives: true,
                     addRepaintBoundaries: true,
                     addSemanticIndexes: false,
                     itemCount: state.folders.length + state.files.length,

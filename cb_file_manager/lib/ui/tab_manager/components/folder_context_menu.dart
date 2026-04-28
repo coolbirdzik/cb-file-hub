@@ -19,6 +19,7 @@ import 'package:cb_file_manager/services/directory_watcher_service.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
 import 'package:cb_file_manager/ui/controllers/file_operations_handler.dart';
 import 'package:cb_file_manager/ui/components/common/shared_file_context_menu.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 /// Displays a context menu for empty areas in folder view
 class FolderContextMenu {
@@ -744,7 +745,7 @@ class FolderContextMenu {
     if (!context.mounted) return;
 
     final l10n = AppLocalizations.of(context)!;
-    return showDialog(
+    return RouteUtils.showAcrylicDialog(
       context: context,
       builder: (dialogContext) => _CreateFolderDialog(
         title: l10n.createNewFolder,

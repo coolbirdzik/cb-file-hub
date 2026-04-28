@@ -7,6 +7,7 @@ import 'package:cb_file_manager/ui/screens/folder_list/folder_list_bloc.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_event.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:cb_file_manager/ui/tab_manager/components/folder_context_menu.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 enum MobileActionBarProfile {
   full,
@@ -547,7 +548,7 @@ class MobileFileActionsController {
     final localizations = AppLocalizations.of(context)!;
     final searchController = TextEditingController(text: currentSearchQuery);
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => Align(
         alignment: Alignment.topCenter,

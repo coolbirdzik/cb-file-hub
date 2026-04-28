@@ -2,14 +2,13 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
-import 'package:cb_file_manager/helpers/ui/frame_timing_optimizer.dart';
-import 'package:flutter/gestures.dart'; // Import for PointerSignalEvent
-import 'package:flutter/services.dart'; // Import for HardwareKeyboard
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:cb_file_manager/helpers/ui/frame_timing_optimizer.dart';
+import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
 import 'package:cb_file_manager/ui/utils/scroll_velocity_notifier.dart';
+import 'package:cb_file_manager/ui/widgets/ctrl_scroll_zoom.dart';
 
 import 'file_item.dart';
 import 'file_grid_item.dart';
@@ -119,9 +118,9 @@ class FileView extends StatelessWidget {
               : const ClampingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
-      // PERFORMANCE: Reduced cacheExtent to minimize pre-building during fast scroll
-      cacheExtent: isDesktop ? 400 : (isMobile ? 200 : 300),
-      addAutomaticKeepAlives: false,
+      // cacheExtent: keep more items alive near viewport to avoid thumbnail re-render
+      cacheExtent: isDesktop ? 600 : (isMobile ? 400 : 500),
+      addAutomaticKeepAlives: true,
       addRepaintBoundaries: true,
       addSemanticIndexes: false,
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -321,9 +320,9 @@ class FileView extends StatelessWidget {
                     : const ClampingScrollPhysics(
                         parent: AlwaysScrollableScrollPhysics(),
                       ),
-            // PERFORMANCE: Reduced cacheExtent to minimize pre-building during fast scroll
-            cacheExtent: isDesktop ? 400 : (isMobile ? 200 : 300),
-            addAutomaticKeepAlives: false,
+            // cacheExtent: keep more items alive near viewport to avoid thumbnail re-render
+            cacheExtent: isDesktop ? 600 : (isMobile ? 400 : 500),
+            addAutomaticKeepAlives: true,
             addRepaintBoundaries: true,
             addSemanticIndexes: false,
             padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -397,24 +396,9 @@ class FileView extends StatelessWidget {
     final bool isDesktop =
         Platform.isWindows || Platform.isMacOS || Platform.isLinux;
 
-    // Wrap the GridView with a Listener to detect mouse wheel events
-    return Listener(
-      onPointerSignal: (PointerSignalEvent event) {
-        // Only process if we have a zoom handler
-        if (onZoomChanged == null) return;
-
-        // Handle mouse wheel events with Ctrl key
-        if (event is PointerScrollEvent) {
-          if (HardwareKeyboard.instance.logicalKeysPressed
-                  .contains(LogicalKeyboardKey.controlLeft) ||
-              HardwareKeyboard.instance.logicalKeysPressed
-                  .contains(LogicalKeyboardKey.controlRight)) {
-            final int direction = event.scrollDelta.dy > 0 ? 1 : -1;
-            onZoomChanged!(direction);
-            GestureBinding.instance.pointerSignalResolver.resolve(event);
-          }
-        }
-      },
+    // Ctrl+scroll → zoom: delegate to the canonical CtrlScrollZoom widget.
+    return CtrlScrollZoom(
+      onDelta: onZoomChanged,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final maxZoom = GridZoomConstraints.maxGridSize(
@@ -452,8 +436,8 @@ class FileView extends StatelessWidget {
                           parent: AlwaysScrollableScrollPhysics(),
                         ),
               // Reduced cache extent to prevent pre-building too many widgets during fast scroll
-              cacheExtent: isDesktop ? 400 : (isMobile ? 200 : 300),
-              addAutomaticKeepAlives: false,
+              cacheExtent: isDesktop ? 600 : (isMobile ? 400 : 500),
+              addAutomaticKeepAlives: true,
               addRepaintBoundaries: true,
               addSemanticIndexes: false,
               findChildIndexCallback: (Key key) {

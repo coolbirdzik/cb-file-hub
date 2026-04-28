@@ -213,7 +213,7 @@ class SelectionCoordinator {
             ? (fileCount == 1 ? l10n.file : l10n.files)
             : (folderCount == 1 ? l10n.folder : l10n.folders);
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(l10n.moveItemsToTrashConfirmation(totalCount, itemType)),

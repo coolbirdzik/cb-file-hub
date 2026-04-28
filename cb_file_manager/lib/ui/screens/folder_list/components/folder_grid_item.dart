@@ -11,7 +11,6 @@ import '../../../../bloc/selection/selection_event.dart';
 import 'folder_thumbnail.dart';
 import '../../../components/common/optimized_interaction_handler.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../utils/item_interaction_style.dart';
 
 class FolderGridItem extends StatefulWidget {
@@ -92,7 +91,25 @@ class _FolderGridItemState extends State<FolderGridItem> {
       isHovering: _isHovering,
     );
 
-    // Flat layout for mobile — Windows Explorer style (no card border)
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final Color borderColor = _visuallySelected
+        ? primary
+        : _isHovering
+            ? primary.withValues(alpha: 0.55)
+            : primary.withValues(alpha: 0.35);
+    final Color tabColor = _visuallySelected
+        ? primary.withValues(alpha: 0.25)
+        : _isHovering
+            ? primary.withValues(alpha: 0.12)
+            : primary.withValues(alpha: 0.08);
+    final Color bodyColor = _visuallySelected
+        ? primary.withValues(alpha: 0.08)
+        : primary.withValues(alpha: 0.03);
+    const double borderWidth = 1.5;
+    const double bodyRadius = 6.0;
+    const double tabRadius = 5.0;
+
     if (!widget.isDesktopMode) {
       return Opacity(
         opacity: isBeingCut ? ItemInteractionStyle.cutOpacity : 1.0,
@@ -102,70 +119,46 @@ class _FolderGridItemState extends State<FolderGridItem> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon/thumbnail area
               Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    FolderThumbnail(folder: widget.folder),
-                    // Folder badge (bottom-left) - Windows Explorer style
-                    Positioned(
-                      bottom: 3,
-                      left: 3,
-                      child: Container(
-                        padding: const EdgeInsets.all(3),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          PhosphorIconsFill.folder,
-                          size: 12,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    if (overlayColor != Colors.transparent)
-                      IgnorePointer(
-                        child: Container(color: overlayColor),
-                      ),
-                    Positioned.fill(
-                      child: OptimizedInteractionLayer(
-                        onTap: () {
-                          widget.onNavigate(widget.folder.path);
-                        },
-                        onDoubleTap: () {
-                          if (widget.clearSelectionMode != null) {
-                            widget.clearSelectionMode!();
+                child: _buildFolderShape(
+                  context,
+                  borderColor: borderColor,
+                  tabColor: tabColor,
+                  bodyColor: bodyColor,
+                  borderWidth: borderWidth,
+                  bodyRadius: bodyRadius,
+                  tabRadius: tabRadius,
+                  overlayColor: overlayColor,
+                  interactionLayer: OptimizedInteractionLayer(
+                    onTap: () {
+                      widget.onNavigate(widget.folder.path);
+                    },
+                    onDoubleTap: () {
+                      if (widget.clearSelectionMode != null) {
+                        widget.clearSelectionMode!();
+                      }
+                      widget.onNavigate(widget.folder.path);
+                    },
+                    onLongPress: widget.isDesktopMode
+                        ? () => _showFolderContextMenu(context, null)
+                        : null,
+                    onLongPressStart: !widget.isDesktopMode
+                        ? (details) {
+                            HapticFeedback.mediumImpact();
+                            _showFolderContextMenu(
+                              context,
+                              details.globalPosition,
+                            );
                           }
-                          widget.onNavigate(widget.folder.path);
-                        },
-                        onLongPress: widget.isDesktopMode
-                            ? () => _showFolderContextMenu(context, null)
-                            : null,
-                        onLongPressStart: !widget.isDesktopMode
-                            ? (details) {
-                                HapticFeedback.mediumImpact();
-                                _showFolderContextMenu(
-                                  context,
-                                  details.globalPosition,
-                                );
-                              }
-                            : null,
-                        onTertiaryTapUp: (_) {
-                          context
-                              .read<TabManagerBloc>()
-                              .add(AddTab(path: widget.folder.path));
-                        },
-                      ),
-                    ),
-                  ],
+                        : null,
+                    onTertiaryTapUp: (_) {
+                      context
+                          .read<TabManagerBloc>()
+                          .add(AddTab(path: widget.folder.path));
+                    },
+                  ),
                 ),
               ),
-              // Filename below icon - Windows Explorer style
               Padding(
                 padding: const EdgeInsets.only(top: 4.0, left: 4.0, right: 4.0),
                 child: Text(
@@ -175,7 +168,7 @@ class _FolderGridItemState extends State<FolderGridItem> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 12.0,
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: theme.colorScheme.onSurface,
                     fontWeight:
                         _visuallySelected ? FontWeight.bold : FontWeight.w500,
                   ),
@@ -187,7 +180,7 @@ class _FolderGridItemState extends State<FolderGridItem> {
       );
     }
 
-    // Desktop layout — Windows Explorer style (no card border)
+    // Desktop layout
     return Opacity(
       opacity: isBeingCut ? ItemInteractionStyle.cutOpacity : 1.0,
       child: GestureDetector(
@@ -200,78 +193,51 @@ class _FolderGridItemState extends State<FolderGridItem> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Icon/thumbnail area
               Expanded(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Folder thumbnail (large)
-                    FolderThumbnail(folder: widget.folder),
-                    // Folder badge (bottom-left) - Windows Explorer style
-                    Positioned(
-                      bottom: 4,
-                      left: 4,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Icon(
-                          PhosphorIconsFill.folder,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    // Selection/hover overlay
-                    if (overlayColor != Colors.transparent)
-                      IgnorePointer(
-                        child: Container(color: overlayColor),
-                      ),
-                    // Interaction layer
-                    Positioned.fill(
-                      child: OptimizedInteractionLayer(
-                        onTap: () {
-                          if (widget.isDesktopMode &&
-                              widget.toggleFolderSelection != null) {
-                            _handleFolderSelection();
-                          } else {
-                            widget.onNavigate(widget.folder.path);
+                child: _buildFolderShape(
+                  context,
+                  borderColor: borderColor,
+                  tabColor: tabColor,
+                  bodyColor: bodyColor,
+                  borderWidth: borderWidth,
+                  bodyRadius: bodyRadius,
+                  tabRadius: tabRadius,
+                  overlayColor: overlayColor,
+                  interactionLayer: OptimizedInteractionLayer(
+                    onTap: () {
+                      if (widget.isDesktopMode &&
+                          widget.toggleFolderSelection != null) {
+                        _handleFolderSelection();
+                      } else {
+                        widget.onNavigate(widget.folder.path);
+                      }
+                    },
+                    onDoubleTap: () {
+                      if (widget.clearSelectionMode != null) {
+                        widget.clearSelectionMode!();
+                      }
+                      widget.onNavigate(widget.folder.path);
+                    },
+                    onLongPress: widget.isDesktopMode
+                        ? () => _showFolderContextMenu(context, null)
+                        : null,
+                    onLongPressStart: !widget.isDesktopMode
+                        ? (details) {
+                            HapticFeedback.mediumImpact();
+                            _showFolderContextMenu(
+                              context,
+                              details.globalPosition,
+                            );
                           }
-                        },
-                        onDoubleTap: () {
-                          if (widget.clearSelectionMode != null) {
-                            widget.clearSelectionMode!();
-                          }
-                          widget.onNavigate(widget.folder.path);
-                        },
-                        onLongPress: widget.isDesktopMode
-                            ? () => _showFolderContextMenu(context, null)
-                            : null,
-                        onLongPressStart: !widget.isDesktopMode
-                            ? (details) {
-                                HapticFeedback.mediumImpact();
-                                _showFolderContextMenu(
-                                  context,
-                                  details.globalPosition,
-                                );
-                              }
-                            : null,
-                        onTertiaryTapUp: (_) {
-                          context
-                              .read<TabManagerBloc>()
-                              .add(AddTab(path: widget.folder.path));
-                        },
-                      ),
-                    ),
-                  ],
+                        : null,
+                    onTertiaryTapUp: (_) {
+                      context
+                          .read<TabManagerBloc>()
+                          .add(AddTab(path: widget.folder.path));
+                    },
+                  ),
                 ),
               ),
-              // Filename below icon - Windows Explorer style
               Padding(
                 padding: const EdgeInsets.only(top: 4.0, left: 4.0, right: 4.0),
                 child: _buildNameWidget(context),
@@ -280,6 +246,77 @@ class _FolderGridItemState extends State<FolderGridItem> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildFolderShape(
+    BuildContext context, {
+    required Color borderColor,
+    required Color tabColor,
+    required Color bodyColor,
+    required double borderWidth,
+    required double bodyRadius,
+    required double tabRadius,
+    required Color overlayColor,
+    required Widget interactionLayer,
+  }) {
+    return Column(
+      children: [
+        // Folder tab — small strip at top-left
+        Row(
+          children: [
+            Container(
+              height: 10,
+              width: 32,
+              decoration: BoxDecoration(
+                color: tabColor,
+                border: Border(
+                  top: BorderSide(color: borderColor, width: borderWidth),
+                  left: BorderSide(color: borderColor, width: borderWidth),
+                  right: BorderSide(color: borderColor, width: borderWidth),
+                ),
+                borderRadius: BorderRadius.only(
+                  topLeft: Radius.circular(tabRadius),
+                  topRight: Radius.circular(tabRadius),
+                ),
+              ),
+            ),
+            const Spacer(),
+          ],
+        ),
+        // Folder body — contains the thumbnail
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: bodyColor,
+              border: Border.all(color: borderColor, width: borderWidth),
+              borderRadius: BorderRadius.only(
+                topRight: Radius.circular(bodyRadius),
+                bottomLeft: Radius.circular(bodyRadius),
+                bottomRight: Radius.circular(bodyRadius),
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.only(
+                topRight: Radius.circular(bodyRadius - borderWidth),
+                bottomLeft: Radius.circular(bodyRadius - borderWidth),
+                bottomRight: Radius.circular(bodyRadius - borderWidth),
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  FolderThumbnail(folder: widget.folder),
+                  if (overlayColor != Colors.transparent)
+                    IgnorePointer(
+                      child: Container(color: overlayColor),
+                    ),
+                  Positioned.fill(child: interactionLayer),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

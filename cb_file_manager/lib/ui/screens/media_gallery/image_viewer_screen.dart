@@ -69,12 +69,17 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
     return Platform.isAndroid || Platform.isIOS;
   }
 
+  // FocusNode for the KeyboardListener — must be a persistent field so it is
+  // not recreated (and requestFocus called) on every setState / rebuild.
+  late FocusNode _keyboardFocusNode;
+
   @override
   void initState() {
     super.initState();
 
     // Image is precached before navigation, no need to evict
     _initImageList();
+    _keyboardFocusNode = FocusNode();
     _transformationController = TransformationController();
     _animationController = AnimationController(
       vsync: this,
@@ -85,17 +90,19 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
         }
       });
 
-    // Tiền tải ảnh hiện tại và các ảnh hàng xóm
+    // Request keyboard focus once after the first frame so keyboard shortcuts work.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _prefetchNeighboringImages();
+      if (mounted) _keyboardFocusNode.requestFocus();
     });
-    // Force a repaint shortly after first frame to avoid initial black overlay on some Android devices
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await Future.delayed(const Duration(milliseconds: 100));
-      if (mounted) {
-        setState(() {});
-      }
-    });
+
+    // Force a repaint on mobile to avoid the initial black overlay seen
+    // on some Android devices.  Not needed (and wasteful) on desktop.
+    if (_isMobile()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (mounted) setState(() {});
+      });
+    }
 
     // Apply frame timing optimization for better performance
     FrameTimingOptimizer().optimizeImageRendering();
@@ -173,14 +180,9 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
                 debugPrint('📋 Updated image list: ${images.length} images');
                 debugPrint('   Current page: $_currentIndex');
 
-                // Pre-load neighboring images
-                _loadAndCacheImage(images[_currentIndex]);
-                if (_currentIndex > 0) {
-                  _loadAndCacheImage(images[_currentIndex - 1]);
-                }
-                if (_currentIndex < images.length - 1) {
-                  _loadAndCacheImage(images[_currentIndex + 1]);
-                }
+                // NOTE: Do NOT prefetch bytes here.
+                // Image bytes (_imageCache) are only needed in edit mode.
+                // Eager loading competes with the main image decode → jank.
               } else {
                 // If we somehow can't find the image in the directory
                 debugPrint(
@@ -202,6 +204,7 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
     _pageController.dispose();
     _transformationController.dispose();
     _animationController.dispose();
+    _keyboardFocusNode.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual,
         overlays: [SystemUiOverlay.top, SystemUiOverlay.bottom]);
     super.dispose();
@@ -330,7 +333,7 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
       final modified = fileStat.modified;
 
       if (mounted) {
-        showDialog(
+        RouteUtils.showAcrylicDialog(
           // ignore: use_build_context_synchronously
           context: context,
           builder: (context) {
@@ -382,7 +385,7 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
   Future<void> _deleteImage(BuildContext context) async {
     final file = _allImages[_currentIndex];
 
-    final bool? confirm = await showDialog<bool>(
+    final bool? confirm = await RouteUtils.showAcrylicDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Move to Trash'),
@@ -594,24 +597,6 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
     }
   }
 
-  // Phương thức tiền tải ảnh hàng xóm
-  void _prefetchNeighboringImages() {
-    if (_allImages.length <= 1) return;
-
-    // Tải ảnh hiện tại nếu chưa được tải
-    _loadAndCacheImage(_allImages[_currentIndex]);
-
-    // Tải ảnh tiếp theo nếu có
-    if (_currentIndex < _allImages.length - 1) {
-      _loadAndCacheImage(_allImages[_currentIndex + 1]);
-    }
-
-    // Tải ảnh trước đó nếu có
-    if (_currentIndex > 0) {
-      _loadAndCacheImage(_allImages[_currentIndex - 1]);
-    }
-  }
-
   // Build image widget - use Image.memory for preloaded bytes, Image.file otherwise
   Widget _buildImageWidget(File file, int index) {
     // Use preloaded bytes if this file matches the widget.file path
@@ -623,7 +608,7 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
       return Image.memory(
         widget.imageBytes!,
         fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
+        filterQuality: FilterQuality.medium,
         gaplessPlayback: true,
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (wasSynchronouslyLoaded) {
@@ -652,7 +637,7 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
     return Image.file(
       file,
       fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
+      filterQuality: FilterQuality.medium,
       gaplessPlayback: true,
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded || frame != null) {
@@ -702,7 +687,7 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
     // If in normal viewing mode (not editing)
     if (!_isEditMode) {
       return KeyboardListener(
-        focusNode: FocusNode()..requestFocus(),
+        focusNode: _keyboardFocusNode,
         onKeyEvent: (KeyEvent event) {
           if (event is KeyDownEvent) {
             // Handle escape key press to exit the image viewer
@@ -942,8 +927,8 @@ class ImageViewerScreenState extends State<ImageViewerScreen>
                                       Matrix4.identity();
                                   _rotation = 0.0;
                                 });
-                                // Tiền tải ảnh kế tiếp và trước đó khi người dùng chuyển ảnh
-                                _prefetchNeighboringImages();
+                                // NOTE: No prefetch here — bytes are only needed
+                                // for edit mode and are loaded lazily then.
                               },
                               itemBuilder: (context, index) {
                                 final file = _allImages[index];

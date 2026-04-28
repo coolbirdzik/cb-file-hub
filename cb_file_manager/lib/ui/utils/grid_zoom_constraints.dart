@@ -14,6 +14,35 @@ class GridZoomConstraints {
   static const double defaultMinItemWidth = 72.0;
   static const double defaultGridMinWidth = 56.0;
 
+  // ── Shared file-grid parameters ─────────────────────────────────────────
+  // These must stay in sync with FileListViewBuilder._gridSpacing /
+  // _gridReferenceWidth so that every screen using a grid shows the same
+  // column density for the same zoom level.
+  static const double fileGridSpacing = 8.0;
+  static const double fileGridReferenceWidth = 960.0;
+  static const double fileGridMinItemWidth = 56.0;
+
+  /// Returns the ideal item width for [zoomLevel] using the canonical
+  /// file-browser formula.  Same calculation as
+  /// [FileListViewBuilder._gridItemWidthForZoom].
+  static double itemWidthForZoom(int zoomLevel) {
+    final clamped = zoomLevel.clamp(
+        UserPreferences.minGridZoomLevel, UserPreferences.maxGridZoomLevel);
+    final totalSpacing = fileGridSpacing * (clamped - 1);
+    return math.max(fileGridMinItemWidth,
+        (fileGridReferenceWidth - totalSpacing) / clamped);
+  }
+
+  /// Returns the actual column count for [zoomLevel] at [availableWidth],
+  /// matching the layout produced by [FileListViewBuilder].
+  static int columnCountForZoom(int zoomLevel, double availableWidth) {
+    final itemWidth = itemWidthForZoom(zoomLevel);
+    final raw = ((math.max(0.0, availableWidth) + fileGridSpacing) /
+            (itemWidth + fileGridSpacing))
+        .floor();
+    return math.max(1, raw);
+  }
+
   static int maxGridSize({
     required double availableWidth,
     GridSizeMode mode = GridSizeMode.referenceWidth,

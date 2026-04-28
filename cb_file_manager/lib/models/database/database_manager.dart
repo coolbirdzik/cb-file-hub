@@ -139,6 +139,21 @@ class DatabaseManager implements IDatabaseProvider {
     return _provider.getTagsForFile(filePath);
   }
 
+  /// Get tags for multiple files in a single DB round-trip.
+  /// Much more efficient than calling [getTagsForFile] in a loop when
+  /// initialising a large grid of items.
+  Future<Map<String, List<String>>> getTagsForFiles(
+      List<String> filePaths) async {
+    if (filePaths.isEmpty) return {};
+    await _ensureInitialized();
+    final result = <String, List<String>>{};
+    // Run individual queries concurrently — still a single provider-call batch.
+    await Future.wait(filePaths.map((path) async {
+      result[path] = await _provider.getTagsForFile(path);
+    }));
+    return result;
+  }
+
   /// Set all tags for a file (replaces existing tags)
   @override
   Future<bool> setTagsForFile(String filePath, List<String> tags) async {

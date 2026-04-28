@@ -35,8 +35,9 @@ const String appTitle = 'CB File Hub';
 
 // ─── Image cache limits ──────────────────────────────────────────────────────
 
-const int imageCacheMaximumSize = 200;
-const int imageCacheMaximumSizeBytes = 100 * 1024 * 1024; // ~100 MB
+const int imageCacheMaximumSize = 300; // decoded image entries
+const int imageCacheMaximumSizeBytes = 200 * 1024 * 1024; // 200 MB
+// Desktop override applied at runtime in app_initializer.dart.
 
 // ─── Window defaults ─────────────────────────────────────────────────────────
 

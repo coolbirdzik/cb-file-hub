@@ -13,6 +13,7 @@ import '../../../models/database/network_credentials.dart';
 import '../../tab_manager/core/tab_manager.dart';
 import '../system_screen.dart';
 import 'network_connection_dialog.dart';
+import '../../utils/route.dart';
 
 /// Screen for browsing WebDAV directories
 class WebDAVBrowserScreen extends StatefulWidget {
@@ -135,7 +136,7 @@ class _WebDAVBrowserScreenState extends State<WebDAVBrowserScreen>
   }
 
   void _connectToWebDAVServer() {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (dialogContext) => BlocProvider.value(
         value: _networkBloc,
@@ -196,7 +197,7 @@ class _WebDAVBrowserScreenState extends State<WebDAVBrowserScreen>
     }
 
     final l10n = AppLocalizations.of(context)!;
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.editWebdavConnection),
@@ -303,7 +304,7 @@ class _WebDAVBrowserScreenState extends State<WebDAVBrowserScreen>
   void _deleteConnection(NetworkCredentials credentials) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.deleteConnection),
@@ -343,7 +344,7 @@ class _WebDAVBrowserScreenState extends State<WebDAVBrowserScreen>
 
   void _addSampleConnection() {
     final l10n = AppLocalizations.of(context)!;
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(l10n.addSampleWebdavConnection),

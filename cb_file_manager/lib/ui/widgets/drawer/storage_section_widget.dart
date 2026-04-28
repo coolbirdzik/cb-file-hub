@@ -204,7 +204,7 @@ class _StorageSectionWidgetState extends State<StorageSectionWidget> {
   }
 
   void _showAdminAccessDialog(BuildContext context, Directory drive) {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(context.tr.adminAccessRequired),

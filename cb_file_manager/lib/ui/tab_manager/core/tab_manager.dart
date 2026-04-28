@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:math';
 import 'tab_data.dart';
 import 'package:flutter/material.dart';
+import 'package:cb_file_manager/helpers/media/photo_thumbnail_helper.dart';
 
 /// Events for the TabManager
 abstract class TabEvent {}
@@ -221,6 +222,15 @@ class TabManagerBloc extends Bloc<TabEvent, TabManagerState> {
 
   void _onCloseTab(CloseTab event, Emitter<TabManagerState> emit) {
     if (state.tabs.isEmpty) return;
+
+    // Evict photo thumbnails for the tab's path from the short-term memory
+    // cache so they don't linger after the user closes the tab.
+    final closingTab = state.tabs
+        .firstWhere((t) => t.id == event.tabId, orElse: () => state.tabs.first);
+    if (closingTab.id == event.tabId) {
+      // Fire-and-forget: non-critical cache maintenance.
+      PhotoThumbnailHelper.evictForPaths([closingTab.path]);
+    }
 
     final tabs = state.tabs.where((tab) => tab.id != event.tabId).toList();
     final selected =

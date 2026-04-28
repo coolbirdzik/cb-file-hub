@@ -134,7 +134,7 @@ class RefreshController {
         // Now set up the listener
         subscription = folderListBloc.stream.listen((state) {
           // When loading is done (changed from true to false), complete the Future
-          if (!state.isLoading) {
+          if (!state.isRefreshing && !state.isLoading) {
             // Add success haptic feedback for mobile
             if (Platform.isAndroid || Platform.isIOS) {
               HapticFeedback.selectionClick();

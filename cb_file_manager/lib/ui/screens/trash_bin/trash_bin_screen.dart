@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/helpers/files/trash_manager.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
@@ -8,10 +7,8 @@ import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/components/common/shared_action_bar.dart';
 import 'package:cb_file_manager/ui/components/common/file_view_shell.dart';
-import 'package:cb_file_manager/ui/utils/fluent_background.dart';
 import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
-import 'package:cb_file_manager/ui/tab_manager/components/navigation_bar.dart';
-import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
+import 'package:cb_file_manager/ui/components/common/breadcrumb_address_bar.dart';
 import '../mixins/selection_mixin.dart';
 import 'package:cb_file_manager/ui/widgets/selection_rectangle_painter.dart';
 import 'package:cb_file_manager/ui/widgets/selection_summary_tooltip.dart';
@@ -42,7 +39,6 @@ class _TrashBinScreenState extends State<TrashBinScreen> with SelectionMixin {
   bool _showSearch = false;
   int _gridZoomLevel = UserPreferences.defaultGridZoomLevel;
   final TextEditingController _searchController = TextEditingController();
-  late TextEditingController _pathController;
 
   // Drag-to-select state (desktop only — lasso / rubber-band selection)
   bool _isDraggingRect = false;
@@ -54,7 +50,6 @@ class _TrashBinScreenState extends State<TrashBinScreen> with SelectionMixin {
   @override
   void initState() {
     super.initState();
-    _pathController = TextEditingController(text: '#trash');
     _loadPreferences();
     _loadTrashItems();
   }
@@ -62,7 +57,6 @@ class _TrashBinScreenState extends State<TrashBinScreen> with SelectionMixin {
   @override
   void dispose() {
     _searchController.dispose();
-    _pathController.dispose();
     super.dispose();
   }
 
@@ -498,30 +492,20 @@ class _TrashBinScreenState extends State<TrashBinScreen> with SelectionMixin {
   // ---------------------------------------------------------------------------
 
   AppBar _buildAppBar(AppLocalizations l10n) {
-    return FluentBackground.appBar(
-      context: context,
+    return AppBar(
+      backgroundColor: _isDesktop ? Colors.transparent : null,
+      elevation: _isDesktop ? 0 : null,
       title: _showSearch
           ? _buildInlineSearchField(l10n)
-          : PathNavigationBar(
-              tabId: widget.tabId,
-              pathController: _pathController,
-              onPathSubmitted: (path) {
-                if (path.isNotEmpty && path != '#trash') {
-                  try {
-                    final tabBloc = BlocProvider.of<TabManagerBloc>(context);
-                    tabBloc.add(UpdateTabPath(widget.tabId, path));
-                  } catch (_) {}
-                } else {
-                  _pathController.text = '#trash';
-                }
-              },
-              currentPath: '#trash',
-              tabPath: '#trash',
-              canNavigateToParent: false,
+          : BreadcrumbAddressBar(
+              segments: [
+                BreadcrumbSegment(
+                  label: l10n.trashBin,
+                  icon: PhosphorIconsLight.trash,
+                ),
+              ],
             ),
       actions: _buildNormalActions(l10n),
-      blurAmount: 18.0,
-      opacity: 0.18,
     );
   }
 
@@ -631,6 +615,7 @@ class _TrashBinScreenState extends State<TrashBinScreen> with SelectionMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: _isDesktop ? Colors.transparent : null,
       appBar: _buildAppBar(AppLocalizations.of(context)!),
       body: Stack(
         alignment: Alignment.bottomCenter,

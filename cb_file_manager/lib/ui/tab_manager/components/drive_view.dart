@@ -8,10 +8,9 @@ import 'package:cb_file_manager/helpers/core/user_preferences.dart';
 import 'package:cb_file_manager/helpers/files/windows_shell_context_menu.dart';
 import 'package:cb_file_manager/ui/utils/grid_zoom_constraints.dart';
 import 'package:cb_file_manager/ui/utils/entity_open_actions.dart';
+import 'package:cb_file_manager/ui/widgets/ctrl_scroll_zoom.dart';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:win32/win32.dart' as win32;
@@ -137,12 +136,17 @@ class _DriveViewState extends State<DriveView> {
 
   @override
   Widget build(BuildContext context) {
-    final content = Listener(
-      onPointerDown: _handlePointerDown,
-      onPointerSignal: _handlePointerSignal,
-      child: widget.isLazyLoading
-          ? _buildSkeletonDriveList(context)
-          : _buildActualDriveList(context),
+    final isGridMode = _effectiveViewMode() == ViewMode.grid;
+    final content = CtrlScrollZoom(
+      // Ctrl+scroll zoom only applies in grid mode.
+      onDelta: isGridMode ? widget.onZoomChanged : null,
+      child: Listener(
+        // Side-mouse-buttons for back/forward remain on the plain Listener.
+        onPointerDown: _handlePointerDown,
+        child: widget.isLazyLoading
+            ? _buildSkeletonDriveList(context)
+            : _buildActualDriveList(context),
+      ),
     );
 
     // Workaround for intermittent Windows AXTree update errors in drives list mode.
@@ -159,24 +163,6 @@ class _DriveViewState extends State<DriveView> {
     } else if (event.buttons == 16 && widget.onForwardButtonPressed != null) {
       widget.onForwardButtonPressed!();
     }
-  }
-
-  void _handlePointerSignal(PointerSignalEvent event) {
-    if (widget.onZoomChanged == null || _effectiveViewMode() != ViewMode.grid) {
-      return;
-    }
-    if (event is! PointerScrollEvent) return;
-
-    final bool isCtrlPressed = HardwareKeyboard.instance.isControlPressed ||
-        HardwareKeyboard.instance.logicalKeysPressed
-            .contains(LogicalKeyboardKey.controlLeft) ||
-        HardwareKeyboard.instance.logicalKeysPressed
-            .contains(LogicalKeyboardKey.controlRight);
-    if (!isCtrlPressed) return;
-
-    final int direction = event.scrollDelta.dy > 0 ? 1 : -1;
-    widget.onZoomChanged!.call(direction);
-    GestureBinding.instance.pointerSignalResolver.resolve(event);
   }
 
   Widget _buildSkeletonDriveList(BuildContext context) {

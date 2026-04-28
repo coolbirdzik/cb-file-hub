@@ -65,6 +65,9 @@ class AppPathHelper {
   /// Directory for video thumbnails
   static Future<Directory> getVideoCacheDir() => _subDir('video_thumbnails');
 
+  /// Directory for photo thumbnails
+  static Future<Directory> getPhotoCacheDir() => _subDir('photo_thumbnails');
+
   /// Directory for network (SMB / FTP / WebDAV …) thumbnails
   static Future<Directory> getNetworkCacheDir() =>
       _subDir('network_thumbnails');

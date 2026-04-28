@@ -156,6 +156,12 @@ bool Win32Window::Create(const std::wstring &title,
     return false;
   }
 
+  // Detect progress window role from environment variable.
+  // Used to paint the correct background color in WM_ERASEBKGND.
+  wchar_t roleBuf[32];
+  DWORD roleLen = GetEnvironmentVariableW(L"CB_WINDOW_ROLE", roleBuf, 32);
+  is_progress_window_ = (roleLen > 0 && wcscmp(roleBuf, L"progress") == 0);
+
   // Calculate window size with respect to work area (excludes taskbar)
   // This ensures the window doesn't overflow the usable screen area
   int adjusted_width = size.width;
@@ -174,8 +180,18 @@ bool Win32Window::Create(const std::wstring &title,
             (monitor_info.rcWork.bottom - monitor_info.rcWork.top - adjusted_height) / 2;
   }
 
-  // Create a standard overlapped window with proper styles
-  HWND window = CreateWindow(
+  // Use WS_OVERLAPPEDWINDOW for all windows \u2014 flutter_controller_ requires
+  // this style for correct child window embedding (FlutterViewController).
+  //
+  // For progress windows, also add WS_EX_LAYERED so we can set alpha=0
+  // immediately at the OS level. This makes the window fully transparent
+  // (pixel-perfect, zero flicker) until Flutter has rendered and Dart
+  // calls window_manager.setOpacity(1.0). Without this, even a 1-frame
+  // flash of title bar / wrong size / background color is visible.
+  DWORD ex_style = is_progress_window_ ? WS_EX_LAYERED : 0;
+
+  HWND window = CreateWindowEx(
+      ex_style,
       window_class,
       title.c_str(),
       WS_OVERLAPPEDWINDOW,
@@ -188,6 +204,13 @@ bool Win32Window::Create(const std::wstring &title,
   if (!window)
   {
     return false;
+  }
+
+  // For progress windows: set alpha=0 immediately so no flash is visible.
+  // Dart side will call setOpacity(1.0) after Flutter has rendered content.
+  if (is_progress_window_)
+  {
+    SetLayeredWindowAttributes(window, 0, 0, LWA_ALPHA);
   }
 
   UpdateTheme(window);
@@ -267,12 +290,34 @@ Win32Window::MessageHandler(HWND hwnd,
   {
   case WM_ERASEBKGND:
   {
-    // Paint background black to avoid white flash before Flutter draws.
+    // Paint background to avoid white flash before Flutter draws.
+    // For progress windows, use the exact Flutter theme color to ensure
+    // zero visible transition when Flutter renders on top.
     HDC hdc = reinterpret_cast<HDC>(wparam);
     RECT rc;
     GetClientRect(hwnd, &rc);
-    HBRUSH brush = reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
-    FillRect(hdc, &rc, brush);
+    HBRUSH brush;
+    if (is_progress_window_)
+    {
+      // Match the Dart-side solidBg: dark=0xFF1E1E1E, light=0xFFF5F5F5
+      // Check Windows app theme to decide.
+      DWORD light_mode = 1;
+      DWORD light_mode_size = sizeof(light_mode);
+      RegGetValue(HKEY_CURRENT_USER,
+                  L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                  L"AppsUseLightTheme",
+                  RRF_RT_REG_DWORD, nullptr, &light_mode, &light_mode_size);
+      // dark: RGB(30,30,30) = 0x1E1E1E, light: RGB(245,245,245) = 0xF5F5F5
+      COLORREF bg = (light_mode == 0) ? RGB(30, 30, 30) : RGB(245, 245, 245);
+      brush = CreateSolidBrush(bg);
+      FillRect(hdc, &rc, brush);
+      DeleteObject(brush);
+    }
+    else
+    {
+      brush = reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
+      FillRect(hdc, &rc, brush);
+    }
     return 1; // Non-zero to indicate background erased.
   }
 

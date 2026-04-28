@@ -14,6 +14,7 @@ import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
 import 'package:cb_file_manager/services/smart_album_service.dart';
 import 'package:cb_file_manager/ui/components/common/skeleton_helper.dart';
 import 'package:cb_file_manager/core/service_locator.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 class AlbumManagementScreen extends StatefulWidget {
   const AlbumManagementScreen({Key? key}) : super(key: key);
@@ -61,7 +62,7 @@ class _AlbumManagementScreenState extends State<AlbumManagementScreen> {
   }
 
   Future<void> _showCreateAlbumDialog() async {
-    final result = await showDialog<Album>(
+    final result = await RouteUtils.showAcrylicDialog<Album>(
       context: context,
       builder: (context) => const CreateAlbumDialog(),
     );
@@ -72,7 +73,7 @@ class _AlbumManagementScreenState extends State<AlbumManagementScreen> {
   }
 
   Future<void> _deleteAlbum(Album album) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await RouteUtils.showAcrylicDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(AppLocalizations.of(context)!.deleteAlbum),
@@ -577,7 +578,7 @@ class _AlbumManagementScreenState extends State<AlbumManagementScreen> {
 
     String? selected;
     if (mounted) {
-      await showDialog(
+      await RouteUtils.showAcrylicDialog(
         context: context,
         builder: (context) {
           return AlertDialog(

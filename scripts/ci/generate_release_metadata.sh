@@ -36,9 +36,18 @@ fi
 
 git -C "$REPO_DIR" fetch --tags --force >/dev/null 2>&1 || true
 
+# Find the nearest previous tag by walking back from the release commit.
+# `git describe --tags --abbrev=0 <SHA>^` returns the most recent tag
+# reachable from the parent of the release commit, which gives us all
+# commits between the two tags.
 PREVIOUS_TAG=""
 if git -C "$REPO_DIR" rev-parse "${RELEASE_SHA}^" >/dev/null 2>&1; then
     PREVIOUS_TAG="$(git -C "$REPO_DIR" describe --tags --abbrev=0 "${RELEASE_SHA}^" 2>/dev/null || true)"
+fi
+
+# Fallback: if describe failed, try sorted tag list excluding current tag
+if [ -z "$PREVIOUS_TAG" ]; then
+    PREVIOUS_TAG="$(git -C "$REPO_DIR" tag --sort=-version:refname | grep -v "^${RELEASE_TAG}$" | head -n 1 || true)"
 fi
 
 RELEASE_NOTES_FILE="$OUTPUT_DIR/release_notes.md"

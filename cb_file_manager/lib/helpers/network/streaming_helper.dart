@@ -754,7 +754,7 @@ class StreamingHelper {
 
     if (context.mounted) {
       final l10n = AppLocalizations.of(context)!;
-      await showDialog(
+      await RouteUtils.showAcrylicDialog(
         context: context,
         barrierDismissible: true,
         builder: (ctx) => AlertDialog(
@@ -871,7 +871,7 @@ class StreamingHelper {
 
     if (context.mounted) {
       final l10n = AppLocalizations.of(context)!;
-      await showDialog(
+      await RouteUtils.showAcrylicDialog(
         context: context,
         builder: (ctx) => AlertDialog(
           title: Text(l10n.errorTitle),

@@ -3,6 +3,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/models/file_template.dart';
 import 'package:cb_file_manager/services/file_template_service.dart';
@@ -48,7 +49,7 @@ class CreateFileDialog extends StatefulWidget {
       }
     }
 
-    await showDialog(
+    await RouteUtils.showAcrylicDialog(
       context: context,
       builder: (_) {
         final dialog = CreateFileDialog(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
 import 'package:cb_file_manager/ui/controllers/inline_rename_controller.dart';
 import 'package:cb_file_manager/ui/widgets/inline_rename_field.dart';
+import 'package:cb_file_manager/helpers/tags/tag_manager.dart';
 
 import '../../../../bloc/selection/selection_bloc.dart';
 import '../../../../bloc/selection/selection_event.dart';
@@ -57,6 +59,8 @@ class FileGridItem extends StatefulWidget {
 
 class _FileGridItemState extends State<FileGridItem> {
   bool _isHovering = false;
+  late List<String> _fileTags;
+  StreamSubscription? _tagChangeSubscription;
 
   void _showContextMenu(BuildContext context, Offset globalPosition) {
     try {
@@ -110,6 +114,80 @@ class _FileGridItemState extends State<FileGridItem> {
         debugPrint('Critical error showing fallback context menu: $e2');
       }
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize from state if available; will be refreshed from TagManager on first event
+    _fileTags = widget.state?.getTagsForFile(widget.file.path) ?? [];
+    _tagChangeSubscription = TagManager.onTagChanged.listen(_onTagChanged);
+    // Only load from TagManager when tags are actually shown.
+    // Calling getTags() when showFileTags=false was causing 50+ concurrent
+    // TagManager.initialize() calls on every grid render, saturating the DB.
+    if (widget.showFileTags) {
+      _loadTagsFromTagManager();
+    }
+  }
+
+  @override
+  void dispose() {
+    _tagChangeSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(FileGridItem oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Sync from state when bloc emits a new state (e.g. after reload)
+    if (widget.state != oldWidget.state) {
+      final newTags = widget.state?.getTagsForFile(widget.file.path) ?? [];
+      if (!_areTagListsEqual(newTags, _fileTags) && newTags.isNotEmpty) {
+        // State has fresh data; prefer it if it actually has tags
+        if (mounted) setState(() => _fileTags = newTags);
+      }
+    }
+  }
+
+  void _onTagChanged(String changedFilePath) {
+    // Handle global notifications
+    if (changedFilePath == 'global:tag_updated' ||
+        changedFilePath == 'global:tag_deleted') {
+      _loadTagsFromTagManager();
+      return;
+    }
+
+    // Extract actual path from prefixed events
+    String actualPath = changedFilePath;
+    if (changedFilePath.startsWith('preserve_scroll:')) {
+      actualPath = changedFilePath.substring('preserve_scroll:'.length);
+    } else if (changedFilePath.startsWith('tag_only:')) {
+      actualPath = changedFilePath.substring('tag_only:'.length);
+    }
+
+    if (actualPath == widget.file.path) {
+      _loadTagsFromTagManager();
+    }
+  }
+
+  /// Load tags directly from TagManager (source of truth) — avoids reading
+  /// from widget.state which may still be stale when the tag event fires.
+  Future<void> _loadTagsFromTagManager() async {
+    if (!mounted) return;
+    final newTags = await TagManager.getTags(widget.file.path);
+    if (mounted && !_areTagListsEqual(newTags, _fileTags)) {
+      setState(() => _fileTags = newTags);
+    }
+  }
+
+  bool _areTagListsEqual(List<String> list1, List<String> list2) {
+    if (list1.length != list2.length) return false;
+    final s1 = List<String>.from(list1)..sort();
+    final s2 = List<String>.from(list2)..sort();
+    for (int i = 0; i < s1.length; i++) {
+      if (s1[i] != s2[i]) return false;
+    }
+    return true;
   }
 
   @override
@@ -315,8 +393,7 @@ class _FileGridItemState extends State<FileGridItem> {
   Widget _buildTagsDisplay(BuildContext context) {
     if (widget.state == null) return const SizedBox.shrink();
 
-    final List<String> fileTags =
-        widget.state!.getTagsForFile(widget.file.path);
+    final List<String> fileTags = _fileTags;
     if (fileTags.isEmpty) return const SizedBox.shrink();
 
     final List<String> tagsToShow = fileTags.take(2).toList();

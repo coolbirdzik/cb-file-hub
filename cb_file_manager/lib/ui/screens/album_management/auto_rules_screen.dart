@@ -3,6 +3,7 @@ import 'package:cb_file_manager/services/album_auto_rule_service.dart';
 import 'package:cb_file_manager/services/album_service.dart';
 import 'package:cb_file_manager/models/objectbox/album.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 
 class AutoRulesScreen extends StatefulWidget {
   final int? scopedAlbumId;
@@ -56,7 +57,7 @@ class _AutoRulesScreenState extends State<AutoRulesScreen> {
     }
 
     if (mounted) {
-      final result = await showDialog<AlbumAutoRule>(
+      final result = await RouteUtils.showAcrylicDialog<AlbumAutoRule>(
         context: context,
         builder: (context) => CreateAutoRuleDialog(fixedAlbum: fixedAlbum),
       );
@@ -69,7 +70,7 @@ class _AutoRulesScreenState extends State<AutoRulesScreen> {
   }
 
   Future<void> _showEditRuleDialog(AlbumAutoRule rule) async {
-    final result = await showDialog<AlbumAutoRule>(
+    final result = await RouteUtils.showAcrylicDialog<AlbumAutoRule>(
       context: context,
       builder: (context) => EditAutoRuleDialog(rule: rule),
     );
@@ -100,7 +101,7 @@ class _AutoRulesScreenState extends State<AutoRulesScreen> {
 
   Future<void> _deleteRule(AlbumAutoRule rule) async {
     final theme = Theme.of(context);
-    final confirmed = await showDialog<bool>(
+    final confirmed = await RouteUtils.showAcrylicDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Rule'),

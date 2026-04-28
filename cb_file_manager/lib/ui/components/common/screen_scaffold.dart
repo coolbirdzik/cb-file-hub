@@ -1,6 +1,5 @@
 import '../../../bloc/selection/selection.dart';
 import '../../tab_manager/components/index.dart' as tab_components;
-import '../../utils/fluent_background.dart';
 import 'package:flutter/material.dart';
 
 class ScreenScaffold extends StatelessWidget {
@@ -74,12 +73,11 @@ class ScreenScaffold extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDesktop ? Colors.transparent : null,
       appBar: showAppBar
-          ? FluentBackground.appBar(
-              context: context,
+          ? AppBar(
+              backgroundColor: isDesktop ? Colors.transparent : null,
+              elevation: isDesktop ? 0 : null,
               title: showSearchBar ? searchBar : pathNavigationBar,
               actions: actions,
-              blurAmount: isDesktop ? 18.0 : 12.0,
-              opacity: isDesktop ? 0.18 : 0.6,
             )
           : null,
       body: body,

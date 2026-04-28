@@ -310,6 +310,7 @@ class FolderListBloc extends Bloc<FolderListEvent, FolderListState> {
     // ignore: invalid_use_of_visible_for_testing_member
     emit(state.copyWith(
       isLoading: navState.isLoading,
+      isRefreshing: navState.isRefreshing,
       error: navState.error,
       currentPath: navState.currentPath,
       folders: navState.folders,

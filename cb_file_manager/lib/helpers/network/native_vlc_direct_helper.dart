@@ -104,7 +104,7 @@ class NativeVlcDirectHelper {
 
       if (context.mounted) {
         final l10n = AppLocalizations.of(context)!;
-        showDialog(
+        RouteUtils.showAcrylicDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             title: Text(l10n.mediaPlaybackError),

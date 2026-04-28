@@ -860,6 +860,18 @@ class EnglishLocalizations implements AppLocalizations {
   String get useSystemDefaultForVideoEnabled =>
       'Videos will open with the system default app';
   @override
+  @override
+  String get seekSpeed => 'Seek speed';
+  @override
+  String get seekSpeedDescription =>
+      'How fast the video skips when holding the seek key or long-pressing on mobile';
+  @override
+  String get seekSpeedSlow => 'Slow';
+  @override
+  String get seekSpeedMedium => 'Medium';
+  @override
+  String get seekSpeedFast => 'Fast';
+  @override
   String get useSystemDefaultForVideoDisabled =>
       'Videos will open in the in-app player';
   @override
@@ -1464,6 +1476,15 @@ class EnglishLocalizations implements AppLocalizations {
 
   @override
   String get tempFiles => 'Temp files:';
+
+  @override
+  String get videoLibraryCache => 'Video gallery cache:';
+
+  @override
+  String get clearVideoLibraryCache => 'Clear video gallery cache';
+
+  @override
+  String get videoLibraryCacheCleared => 'Video gallery cache cleared';
 
   @override
   String get notInitialized => 'Not initialized';

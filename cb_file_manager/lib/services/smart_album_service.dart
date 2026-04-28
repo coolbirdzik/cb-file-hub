@@ -14,6 +14,46 @@ class SmartAlbumService {
 
   SmartAlbumService._();
 
+  // ── In-memory scan result cache ─────────────────────────────────────────────
+  // Persists scan results across AlbumDetailScreen lifecycle (widget dispose/recreate).
+  // When the user navigates away and back, a NEW AlbumDetailScreen is created but
+  // SmartAlbumService is a singleton — this cache survives.
+  // TTL: 10 minutes. After that, a fresh scan is preferred for freshness.
+  static const int _maxMemoryCachedAlbums = 3;
+  static const int _maxMemoryCachedFilesPerAlbum = 5000;
+
+  static final Map<int, List<String>> _scanResultCache = {};
+  static final Map<int, DateTime> _scanResultTimestamp = {};
+  static final List<int> _scanResultLru = [];
+
+  static const Duration _scanCacheTtl = Duration(minutes: 10);
+
+  void _touchScanCache(int albumId) {
+    _scanResultLru.remove(albumId);
+    _scanResultLru.add(albumId);
+    while (_scanResultLru.length > _maxMemoryCachedAlbums) {
+      final oldest = _scanResultLru.removeAt(0);
+      _scanResultCache.remove(oldest);
+      _scanResultTimestamp.remove(oldest);
+    }
+  }
+
+  void _removeScanCache(int albumId) {
+    _scanResultCache.remove(albumId);
+    _scanResultTimestamp.remove(albumId);
+    _scanResultLru.remove(albumId);
+  }
+
+  void _storeScanMemoryCache(int albumId, List<String> files) {
+    if (files.length > _maxMemoryCachedFilesPerAlbum) {
+      _removeScanCache(albumId);
+      return;
+    }
+    _scanResultCache[albumId] = List<String>.from(files, growable: false);
+    _scanResultTimestamp[albumId] = DateTime.now();
+    _touchScanCache(albumId);
+  }
+
   Future<String> _getFilePath() async {
     final dir = await getApplicationDocumentsDirectory();
     return '${dir.path}/$_fileName';
@@ -104,19 +144,45 @@ class SmartAlbumService {
     await setScanRoots(albumId, updated);
   }
 
-  // Cache scanned file paths and last scan timestamp per album
+  // Cache scanned file paths and last scan timestamp per album.
+  // Reads from in-memory cache first (instant), falls back to disk JSON cache.
   Future<List<String>> getCachedFiles(int albumId) async {
+    // Fast path: in-memory cache (survives widget dispose/recreate).
+    final cached = _scanResultCache[albumId];
+    final timestamp = _scanResultTimestamp[albumId];
+    if (cached != null && timestamp != null) {
+      if (DateTime.now().difference(timestamp) < _scanCacheTtl) {
+        _touchScanCache(albumId);
+        return List<String>.from(cached);
+      }
+      // Expired — remove.
+      _removeScanCache(albumId);
+    }
+
+    // Slow path: read from disk JSON.
     final data = await _read();
     final cache = (data['cache'] as Map?) ?? {};
     final entry = cache['$albumId'];
     if (entry is Map) {
       final files = entry['files'];
-      if (files is List) return files.map((e) => e.toString()).toList();
+      if (files is List) {
+        final result = files.map((e) => e.toString()).toList();
+        // Promote to in-memory cache.
+        _storeScanMemoryCache(albumId, result);
+        return result;
+      }
     }
     return [];
   }
 
   Future<DateTime?> getLastScanTime(int albumId) async {
+    // Check in-memory first.
+    final timestamp = _scanResultTimestamp[albumId];
+    if (timestamp != null) {
+      _touchScanCache(albumId);
+      return timestamp;
+    }
+
     final data = await _read();
     final cache = (data['cache'] as Map?) ?? {};
     final entry = cache['$albumId'];
@@ -132,6 +198,10 @@ class SmartAlbumService {
   }
 
   Future<void> setCachedFiles(int albumId, List<String> files) async {
+    // Update in-memory cache immediately.
+    _storeScanMemoryCache(albumId, files);
+
+    // Persist to disk JSON for cross-session survival.
     final data = await _read();
     final cache =
         (data['cache'] as Map?)?.map((k, v) => MapEntry(k.toString(), v)) ?? {};

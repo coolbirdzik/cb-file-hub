@@ -13,6 +13,7 @@ import 'package:cb_file_manager/ui/widgets/tag_management_section.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:cb_file_manager/ui/utils/file_type_utils.dart';
 import '../../utils/format_utils.dart';
+import '../../utils/route.dart';
 
 class FileDetailsScreen extends StatefulWidget {
   final File file;
@@ -600,7 +601,7 @@ class _FileDetailsScreenState extends State<FileDetailsScreen> {
   }
 
   void _showOpenWithDialog({bool saveAsDefaultOnSelect = false}) {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => OpenWithDialog(
         filePath: widget.file.path,

@@ -18,21 +18,30 @@ class FileNavigationInit extends FileNavigationEvent {
 class FileNavigationLoad extends FileNavigationEvent {
   final String path;
 
-  const FileNavigationLoad(this.path);
+  /// If true, the path is a virtual path (e.g. '#video-library/{id}') and
+  /// the parent bloc should skip processing so a specialized child bloc
+  /// (e.g. VideoLibraryNavigationBloc) can handle it.
+  final bool isVirtualPath;
+
+  const FileNavigationLoad(this.path, {this.isVirtualPath = false});
 
   @override
-  List<Object> get props => [path];
+  List<Object> get props => [path, isVirtualPath];
 }
 
 class FileNavigationRefresh extends FileNavigationEvent {
   final String path;
   final bool forceRegenerateThumbnails;
 
+  /// If true, the path is a virtual path and the parent bloc should skip
+  /// processing so a specialized child bloc can handle it.
+  final bool isVirtualPath;
+
   const FileNavigationRefresh(this.path,
-      {this.forceRegenerateThumbnails = false});
+      {this.forceRegenerateThumbnails = false, this.isVirtualPath = false});
 
   @override
-  List<Object> get props => [path, forceRegenerateThumbnails];
+  List<Object> get props => [path, forceRegenerateThumbnails, isVirtualPath];
 }
 
 class FileNavigationReloadCurrentFolder extends FileNavigationEvent {

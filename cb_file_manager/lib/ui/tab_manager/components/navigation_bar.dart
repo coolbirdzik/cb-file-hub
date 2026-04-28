@@ -1,11 +1,12 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../core/tab_manager.dart';
-import '../../../config/theme_config.dart';
 import '../../../config/languages/app_localizations.dart';
 import 'address_bar_menu.dart';
-import 'path_autocomplete_text_field.dart';
+import '../../../ui/components/common/breadcrumb_address_bar.dart';
 
 /// Navigation bar component that includes back/forward buttons and path input field
 class PathNavigationBar extends StatefulWidget {
@@ -67,6 +68,40 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
     }
   }
 
+  // Converts the current filesystem path into breadcrumb segments.
+  List<BreadcrumbSegment> _buildSegments() {
+    final path = widget.currentPath;
+    if (path.isEmpty) {
+      return [
+        const BreadcrumbSegment(
+          label: 'This PC',
+          icon: PhosphorIconsLight.desktopTower,
+        ),
+      ];
+    }
+
+    final parts = path.split(Platform.pathSeparator);
+    final segments = <BreadcrumbSegment>[];
+
+    for (int i = 0; i < parts.length; i++) {
+      final part = parts[i];
+      // Skip the empty leading token from Unix absolute paths ("/foo" → ["", "foo"])
+      if (part.isEmpty && i == 0) continue;
+
+      final isLast = i == parts.length - 1;
+      final segmentPath = parts.sublist(0, i + 1).join(Platform.pathSeparator);
+
+      segments.add(BreadcrumbSegment(
+        label: part,
+        // Show a drive/hard-disk icon only on the first (root) segment.
+        icon: segments.isEmpty ? PhosphorIconsLight.hardDrive : null,
+        onTap: isLast ? null : () => widget.onPathSubmitted(segmentPath),
+      ));
+    }
+
+    return segments.isEmpty ? [BreadcrumbSegment(label: path)] : segments;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Gọi lại _updateNavigationState để đảm bảo trạng thái mới nhất
@@ -113,34 +148,13 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
               ),
             ),
           ),
+          // Normal path: breadcrumb chips, click last chip to type
         ] else ...[
           Expanded(
-            child: PathAutocompleteTextField(
-              controller: widget.pathController,
-              onSubmitted: widget.onPathSubmitted,
-              decoration: InputDecoration(
-                hintText: 'Path',
-                contentPadding: const EdgeInsets.symmetric(
-                  vertical: 8.0,
-                  horizontal: 12.0,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16.0),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16.0),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16.0),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: ThemeConfig.addressBarFillColorFor(
-                    Theme.of(context).brightness),
-              ),
-              textInputAction: TextInputAction.go,
+            child: BreadcrumbAddressBar(
+              segments: _buildSegments(),
+              editController: widget.pathController,
+              onPathSubmitted: widget.onPathSubmitted,
             ),
           ),
         ],

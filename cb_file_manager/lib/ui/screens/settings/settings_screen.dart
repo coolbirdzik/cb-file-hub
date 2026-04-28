@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:cb_file_manager/helpers/core/user_preferences.dart';
@@ -8,14 +9,15 @@ import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/helpers/media/video_thumbnail_helper.dart';
 import 'package:cb_file_manager/helpers/network/network_thumbnail_helper.dart';
-import 'package:cb_file_manager/helpers/network/win32_smb_helper.dart';
 import 'package:cb_file_manager/helpers/core/app_path_helper.dart';
+import 'package:cb_file_manager/ui/screens/settings/cache_management_screen.dart';
 import 'package:cb_file_manager/ui/screens/settings/database_settings_screen.dart';
 import 'package:cb_file_manager/ui/utils/format_utils.dart';
 import 'package:cb_file_manager/config/theme_config.dart';
 import 'package:cb_file_manager/config/design_system_config.dart';
 import 'package:cb_file_manager/providers/theme_provider.dart';
 import 'package:cb_file_manager/models/database/database_manager.dart';
+import 'package:cb_file_manager/services/video_library_cache_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:cb_file_manager/config/languages/app_localizations.dart';
@@ -57,12 +59,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   static const String _appAuthor = 'COOLBIRDZIK - ngtanhung41@gmail.com';
 
-  // Cache clearing states
-  bool _isClearingVideoCache = false;
-  bool _isClearingNetworkCache = false;
-  bool _isClearingTempFiles = false;
-  bool _isClearingCache = false;
-
   // Database section state
   bool _isCloudSyncEnabled = false;
   bool _isSyncingCloud = false;
@@ -78,6 +74,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   int? _networkThumbnailFiles;
   int? _videoThumbnailBytes;
   int? _videoThumbnailFiles;
+  int? _videoLibraryBytes;
+  int? _videoLibraryFiles;
   int? _tempFilesBytes;
   int? _tempFilesCount;
 
@@ -282,59 +280,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _clearVideoThumbnailCache() async {
-    setState(() {
-      _isClearingVideoCache = true;
-      _isClearingCache = true;
-    });
-
-    try {
-      await VideoThumbnailHelper.clearCache();
-
-      if (mounted) {
-        PaintingBinding.instance.imageCache.clear();
-        PaintingBinding.instance.imageCache.clearLiveImages();
-        VideoThumbnailHelper.setVerboseLogging(true);
-
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.thumbnailCleared),
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            width: 320,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '${AppLocalizations.of(context)!.errorClearingThumbnail}$e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            duration: const Duration(seconds: 2),
-            behavior: SnackBarBehavior.floating,
-            width: 320,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          ),
-        );
-      }
-      debugPrint('Error clearing video thumbnail cache: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isClearingVideoCache = false;
-          _isClearingCache = false;
-        });
-      }
-    }
-  }
-
   Future<void> _loadCacheInfo() async {
     try {
       if (mounted) {
@@ -351,6 +296,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final videoStats = await _directoryStats(videoDir);
       final tempStats = await _directoryStats(tempDir);
 
+      // Video library cache stats
+      final videoLibDir =
+          await VideoLibraryCacheService.instance.getCacheDirectory();
+      final videoLibStats = await _directoryStats(videoLibDir);
+
       if (!mounted) return;
       setState(() {
         _cacheRootPath = root.path;
@@ -360,6 +310,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
         _videoThumbnailBytes = videoStats.totalBytes;
         _videoThumbnailFiles = videoStats.fileCount;
+
+        _videoLibraryBytes = videoLibStats.totalBytes;
+        _videoLibraryFiles = videoLibStats.fileCount;
 
         _tempFilesBytes = tempStats.totalBytes;
         _tempFilesCount = tempStats.fileCount;
@@ -757,183 +710,152 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildCacheManagementSection() {
+    final theme = Theme.of(context);
+    final totalBytes = (_networkThumbnailBytes ?? 0) +
+        (_videoThumbnailBytes ?? 0) +
+        (_videoLibraryBytes ?? 0) +
+        (_tempFilesBytes ?? 0);
+    final totalFiles = (_networkThumbnailFiles ?? 0) +
+        (_videoThumbnailFiles ?? 0) +
+        (_videoLibraryFiles ?? 0) +
+        (_tempFilesCount ?? 0);
+
     return _buildSectionCard(
       title: AppLocalizations.of(context)!.cacheManagement,
       icon: PhosphorIconsLight.broom,
       children: [
-        // Cache info summary
-        Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context)
-                .colorScheme
-                .surfaceContainerHighest
-                .withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                PhosphorIconsLight.info,
-                size: 16,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  AppLocalizations.of(context)!.cacheManagementDescription,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface.withValues(alpha: 0.38),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.10),
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      AppLocalizations.of(context)!.cacheFolder,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            PhosphorIconsLight.hardDrives,
+                            color: theme.colorScheme.primary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Cache overview',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                AppLocalizations.of(context)!
+                                    .cacheManagementDescription,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _buildMetricPill(
+                          'Total',
+                          FormatUtils.formatFileSize(totalBytes),
+                        ),
+                        _buildMetricPill('Files', '$totalFiles'),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _cacheRootPath ??
+                          AppLocalizations.of(context)!.notInitialized,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: _isLoadingCacheInfo
-                        ? null
-                        : () async {
-                            await _loadCacheInfo();
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(AppLocalizations.of(context)!
-                                    .cacheInfoUpdated),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          },
-                    icon: const Icon(PhosphorIconsLight.arrowsClockwise,
-                        size: 14),
-                    label: Text(
-                      AppLocalizations.of(context)!.refreshCacheInfo,
-                      style: const TextStyle(fontSize: 12),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isLoadingCacheInfo
+                                ? null
+                                : () async {
+                                    await _loadCacheInfo();
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            AppLocalizations.of(context)!
+                                                .cacheInfoUpdated),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  },
+                            icon: const Icon(
+                              PhosphorIconsLight.arrowsClockwise,
+                              size: 16,
+                            ),
+                            label: Text(
+                              AppLocalizations.of(context)!.refreshCacheInfo,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton.tonalIcon(
+                            onPressed: () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const CacheManagementScreen(),
+                                ),
+                              );
+                              if (mounted) {
+                                await _loadCacheInfo();
+                              }
+                            },
+                            icon: const Icon(
+                              PhosphorIconsLight.slidersHorizontal,
+                              size: 16,
+                            ),
+                            label: const Text('Manage cache'),
+                          ),
+                        ),
+                      ],
                     ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _cacheRootPath ??
-                      AppLocalizations.of(context)!.notInitialized,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  ],
                 ),
               ),
-              const SizedBox(height: 10),
-              _buildCacheStatRow(
-                icon: PhosphorIconsLight.cloud,
-                label: AppLocalizations.of(context)!.networkThumbnails,
-                bytes: _networkThumbnailBytes,
-                files: _networkThumbnailFiles,
-              ),
-              const SizedBox(height: 6),
-              _buildCacheStatRow(
-                icon: PhosphorIconsLight.videoCamera,
-                label: AppLocalizations.of(context)!.videoThumbnailsCache,
-                bytes: _videoThumbnailBytes,
-                files: _videoThumbnailFiles,
-              ),
-              const SizedBox(height: 6),
-              _buildCacheStatRow(
-                icon: PhosphorIconsLight.folderMinus,
-                label: AppLocalizations.of(context)!.tempFiles,
-                bytes: _tempFilesBytes,
-                files: _tempFilesCount,
-              ),
-              const SizedBox(height: 12),
-            ],
-          ),
-        ),
-
-        // Quick clear buttons
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _buildCacheButton(
-                label: AppLocalizations.of(context)!.clearVideoThumbnailsCache,
-                icon: PhosphorIconsLight.videoCamera,
-                isLoading: _isClearingVideoCache,
-                onTap: _clearVideoThumbnailCache,
-              ),
-              _buildCacheButton(
-                label:
-                    AppLocalizations.of(context)!.clearNetworkThumbnailsCache,
-                icon: PhosphorIconsLight.cloud,
-                isLoading: _isClearingNetworkCache,
-                onTap: _clearNetworkCache,
-              ),
-              _buildCacheButton(
-                label: AppLocalizations.of(context)!.clearTempFilesCache,
-                icon: PhosphorIconsLight.folderMinus,
-                isLoading: _isClearingTempFiles,
-                onTap: _clearTempFiles,
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 16),
-
-        // Clear all button
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16),
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _isAnyCacheClearing ? null : _clearAllCache,
-            icon: _isAnyCacheClearing
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(PhosphorIconsLight.trash),
-            label: Text(AppLocalizations.of(context)!.clearAllCache),
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  Theme.of(context).colorScheme.error.withValues(alpha: 0.1),
-              foregroundColor: Theme.of(context).colorScheme.error,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
           ),
         ),
@@ -1707,29 +1629,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildCacheButton({
-    required String label,
-    required IconData icon,
-    required bool isLoading,
-    required VoidCallback onTap,
-  }) {
-    return OutlinedButton.icon(
-      onPressed: isLoading ? null : onTap,
-      icon: isLoading
-          ? const SizedBox(
-              width: 12,
-              height: 12,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(icon, size: 14),
-      label: Text(
-        label,
-        style: const TextStyle(fontSize: 12),
+  Widget _buildMetricPill(String label, String value) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.24),
+        borderRadius: BorderRadius.circular(14),
       ),
-      style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2195,168 +2121,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             )
           : null,
       onTap: () => _updateLanguage(value),
-    );
-  }
-
-  bool get _isAnyCacheClearing =>
-      _isClearingVideoCache ||
-      _isClearingNetworkCache ||
-      _isClearingTempFiles ||
-      _isClearingCache;
-
-  Future<void> _clearNetworkCache() async {
-    setState(() {
-      _isClearingNetworkCache = true;
-    });
-
-    try {
-      final networkHelper = NetworkThumbnailHelper();
-      await networkHelper.clearCache();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.networkCacheCleared),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        _loadCacheInfo();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('${AppLocalizations.of(context)!.errorClearingCache}$e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isClearingNetworkCache = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _clearTempFiles() async {
-    setState(() {
-      _isClearingTempFiles = true;
-    });
-
-    try {
-      final win32Helper = Win32SmbHelper();
-      await win32Helper.clearTempFileCache();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.tempFilesCleared),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        _loadCacheInfo();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('${AppLocalizations.of(context)!.errorClearingCache}$e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isClearingTempFiles = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _clearAllCache() async {
-    setState(() {
-      _isClearingCache = true;
-    });
-
-    try {
-      await VideoThumbnailHelper.clearCache();
-      final networkHelper = NetworkThumbnailHelper();
-      await networkHelper.clearCache();
-      final win32Helper = Win32SmbHelper();
-      await win32Helper.clearTempFileCache();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.allCacheCleared),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        _loadCacheInfo();
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content:
-                Text('${AppLocalizations.of(context)!.errorClearingCache}$e'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isClearingCache = false;
-        });
-      }
-    }
-  }
-
-  Widget _buildCacheStatRow({
-    required IconData icon,
-    required String label,
-    required int? bytes,
-    required int? files,
-  }) {
-    final sizeText = bytes == null
-        ? AppLocalizations.of(context)!.notInitialized
-        : FormatUtils.formatFileSize(bytes);
-    final fileCountText = files == null ? '' : (files > 0 ? ' • $files' : '');
-
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-        if (_isLoadingCacheInfo) ...[
-          const SizedBox(
-            width: 12,
-            height: 12,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ] else ...[
-          Text(
-            '$sizeText$fileCountText',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

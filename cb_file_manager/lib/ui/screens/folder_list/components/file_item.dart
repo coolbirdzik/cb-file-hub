@@ -19,6 +19,7 @@ import 'package:cb_file_manager/bloc/selection/selection_event.dart';
 import 'package:cb_file_manager/ui/dialogs/open_with_dialog.dart';
 import 'package:cb_file_manager/helpers/files/external_app_helper.dart';
 import 'package:cb_file_manager/helpers/files/file_icon_helper.dart';
+import 'package:cb_file_manager/ui/utils/route.dart';
 import 'package:cb_file_manager/ui/widgets/tag_chip.dart'; // Import the new TagChip widget
 import '../../../components/common/shared_file_context_menu.dart';
 import 'package:cb_file_manager/ui/widgets/thumbnail_loader.dart'; // Import ThumbnailLoader
@@ -265,7 +266,7 @@ class _FileItemState extends State<FileItem> {
               ExternalAppHelper.openWithSystemDefault(widget.file.path)
                   .then((success) {
                 if (!success && mounted) {
-                  showDialog(
+                  RouteUtils.showAcrylicDialog(
                       context: context,
                       builder: (dialogContext) =>
                           OpenWithDialog(filePath: widget.file.path));
@@ -293,7 +294,7 @@ class _FileItemState extends State<FileItem> {
             .then((success) {
           if (!success) {
             if (mounted) {
-              showDialog(
+              RouteUtils.showAcrylicDialog(
                   context: context,
                   builder: (dialogContext) =>
                       OpenWithDialog(filePath: widget.file.path));

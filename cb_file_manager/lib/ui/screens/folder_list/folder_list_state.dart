@@ -91,6 +91,7 @@ enum MediaType { image, video, audio, document }
 class FolderListState extends Equatable {
   static const Object _unset = Object();
   final bool isLoading;
+  final bool isRefreshing;
   final String? error;
   final Directory currentPath;
   final List<FileSystemEntity> folders;
@@ -121,6 +122,7 @@ class FolderListState extends Equatable {
   FolderListState(
     String initialPath, {
     this.isLoading = false,
+    this.isRefreshing = false,
     this.error,
     List<FileSystemEntity>? folders,
     List<FileSystemEntity>? files,
@@ -166,6 +168,7 @@ class FolderListState extends Equatable {
   // Create a new state with updated fields
   FolderListState copyWith({
     bool? isLoading,
+    bool? isRefreshing,
     Object? error = _unset,
     Directory? currentPath,
     List<FileSystemEntity>? folders,
@@ -194,6 +197,7 @@ class FolderListState extends Equatable {
     return FolderListState(
       currentPath?.path ?? this.currentPath.path,
       isLoading: isLoading ?? this.isLoading,
+      isRefreshing: isRefreshing ?? this.isRefreshing,
       error: error == _unset ? this.error : error as String?,
       folders: folders ?? this.folders,
       files: files ?? this.files,
@@ -234,6 +238,7 @@ class FolderListState extends Equatable {
   @override
   List<Object?> get props => [
         isLoading,
+        isRefreshing,
         error,
         currentPath.path,
         folders,

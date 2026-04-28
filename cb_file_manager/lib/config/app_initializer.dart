@@ -18,6 +18,7 @@ import '../services/windowing/windows_native_tab_drag_drop_service.dart';
 import '../services/windowing/window_acrylic_service.dart';
 import '../helpers/ui/frame_timing_optimizer.dart';
 import '../helpers/media/folder_thumbnail_service.dart';
+import '../helpers/media/photo_thumbnail_helper.dart';
 import '../helpers/media/video_thumbnail_helper.dart';
 import '../helpers/media/media_kit_audio_helper.dart';
 import '../helpers/tags/batch_tag_manager.dart';
@@ -151,10 +152,14 @@ Future<void> initializeRenderingAndPerformance({
     SystemChrome.setSystemUIChangeCallback((_) async {});
   }
 
-  // Image cache tuning for scrolling performance
-  PaintingBinding.instance.imageCache.maximumSize = imageCacheMaximumSize;
-  PaintingBinding.instance.imageCache.maximumSizeBytes =
-      imageCacheMaximumSizeBytes;
+  // Image cache tuning for scrolling performance.
+  // On desktop (more RAM) use a larger cache so 512 px thumbnails
+  // decoded by Image.file stay resident across scroll sessions.
+  PaintingBinding.instance.imageCache.maximumSize =
+      isDesktopPlatform ? 600 : imageCacheMaximumSize;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = isDesktopPlatform
+      ? 400 * 1024 * 1024 // 400 MB on desktop
+      : imageCacheMaximumSizeBytes;
 
   // Optimize image rendering after first frame
   SchedulerBinding.instance.addPostFrameCallback((_) {
@@ -219,6 +224,15 @@ Future<void> initializeHeavyBackgroundServices() async {
     }
   } catch (e) {
     debugPrint('Error initializing video thumbnail cache: $e');
+  }
+
+  try {
+    debugPrint('Initializing photo thumbnail cache system');
+    await PhotoThumbnailHelper.initializeCache();
+    // Opportunistic cleanup of stale disk thumbnails (>24 h, throttled 1/h).
+    unawaited(PhotoThumbnailHelper.cleanupOldEntries());
+  } catch (e) {
+    debugPrint('Error initializing photo thumbnail cache: $e');
   }
 
   try {

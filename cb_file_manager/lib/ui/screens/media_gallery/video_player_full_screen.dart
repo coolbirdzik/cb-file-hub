@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import '../../utils/route.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as pathlib;
 import 'package:window_manager/window_manager.dart';
@@ -281,7 +282,7 @@ class _VideoPlayerFullScreenState extends State<VideoPlayerFullScreen> {
 
   void _showVideoInfo(BuildContext context) {
     if (widget.file == null) return;
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => VideoInfoDialog(
         file: widget.file!,

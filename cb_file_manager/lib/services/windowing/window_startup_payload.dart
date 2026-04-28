@@ -34,6 +34,12 @@ class WindowStartupPayload {
   static const String envStartHiddenKey = 'CB_START_HIDDEN';
   static const String envWindowRoleKey = 'CB_WINDOW_ROLE';
 
+  // Progress window IPC
+  static const String envProgressIpcPortKey = 'CB_PROGRESS_IPC_PORT';
+  static const String envProgressTitleKey = 'CB_PROGRESS_TITLE';
+  static const String envProgressTotalKey = 'CB_PROGRESS_TOTAL';
+  static const String envProgressIndeterminateKey = 'CB_PROGRESS_INDETERMINATE';
+
   final List<WindowTabPayload> tabs;
   final int? activeIndex;
 

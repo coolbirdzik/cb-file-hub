@@ -8,9 +8,7 @@ import 'package:cb_file_manager/config/languages/app_localizations.dart';
 import 'package:cb_file_manager/ui/widgets/chips_input.dart';
 import 'package:cb_file_manager/helpers/tags/batch_tag_manager.dart';
 import 'package:cb_file_manager/helpers/core/uri_utils.dart';
-import 'dart:ui' as ui; // Import for ImageFilter
 import 'package:cb_file_manager/ui/widgets/tag_management_section.dart';
-import 'package:cb_file_manager/ui/widgets/tag_chip.dart';
 import 'package:cb_file_manager/utils/app_logger.dart';
 import '../../utils/route.dart';
 import '../core/tab_manager.dart';
@@ -59,7 +57,7 @@ void showAddTagToFileDialog(BuildContext context, String filePath) {
     TagManager.instance.notifyTagChanged("global:tag_updated");
   }
 
-  showDialog(
+  RouteUtils.showAcrylicDialog(
     context: context,
     builder: (dialogContext) {
       AppLogger.debug('[ManageTags][Dialog] showDialog builder for $filePath');
@@ -277,28 +275,6 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
     }
   }
 
-  Widget _buildSuggestions() {
-    if (_tagSuggestions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return _buildSectionCard(
-      icon: PhosphorIconsLight.magnifyingGlass,
-      title: AppLocalizations.of(context)!.tagSuggestions,
-      subtitle: 'Click to add',
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        children: _tagSuggestions.map((suggestion) {
-          return TagChip(
-            tag: suggestion,
-            onTap: () => _addTag(suggestion),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   Widget _buildTagInputSection(AppLocalizations l10n) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
@@ -312,6 +288,8 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
         children: [
           ChipsInput<String>(
             values: _selectedTags,
+            suggestions: _tagSuggestions,
+            onSuggestionSelected: _addTag,
             decoration: InputDecoration(
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -363,10 +341,6 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
               );
             },
           ),
-          if (_tagSuggestions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _buildSuggestions(),
-          ],
         ],
       ),
     );
@@ -447,129 +421,123 @@ class _SingleFileTagDialogState extends State<_SingleFileTagDialog> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
 
-    return BackdropFilter(
-      filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-      child: AlertDialog(
-        titlePadding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              l10n.manageTags,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerHighest
-                    .withValues(alpha: 0.24),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color:
-                      theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
-                ),
+    return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(28, 24, 28, 0),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.manageTags,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest
+                  .withValues(alpha: 0.24),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.3),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    PhosphorIconsLight.file,
-                    size: 18,
-                    color: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.filePath,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  PhosphorIconsLight.file,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    widget.filePath,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        contentPadding: const EdgeInsets.fromLTRB(28, 20, 28, 16),
-        content: Container(
-          width: double.maxFinite,
-          constraints: BoxConstraints(
-            maxWidth: widget.dialogWidth,
-            maxHeight: widget.dialogHeight,
-            minHeight: widget.dialogHeight * 0.72,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildTagInputSection(l10n),
-                      const SizedBox(height: 18),
-                      _buildSectionCard(
-                        icon: PhosphorIconsLight.sparkle,
-                        title: 'Quick Picks',
-                        subtitle: 'Choose from popular or recently used tags',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            PopularTagsWidget(
-                              onTagSelected: _addTag,
-                            ),
-                            const SizedBox(height: 20),
-                            RecentTagsWidget(
-                              onTagSelected: _addTag,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
-        ),
-        actions: [
-          TextFieldTapRegion(
-            child: TextButton(
-              onPressed: _isSaving
-                  ? null
-                  : () {
-                      AppLogger.info('[ManageTags][Dialog] Close pressed',
-                          error: 'filePath=${widget.filePath}');
-                      Navigator.of(context, rootNavigator: true).pop(false);
-                    },
-              style: TextButton.styleFrom(
-                textStyle: const TextStyle(fontSize: 16),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              child: Text(l10n.close.toUpperCase()),
-            ),
-          ),
-          TextFieldTapRegion(
-            child: ElevatedButton(
-              onPressed: _isSaving ? null : _save,
-              style: ElevatedButton.styleFrom(
-                textStyle: const TextStyle(fontSize: 16),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              ),
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.save.toUpperCase()),
+              ],
             ),
           ),
         ],
       ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      contentPadding: const EdgeInsets.fromLTRB(28, 20, 28, 16),
+      content: Container(
+        width: double.maxFinite,
+        constraints: BoxConstraints(
+          maxWidth: widget.dialogWidth,
+          maxHeight: widget.dialogHeight,
+          minHeight: widget.dialogHeight * 0.72,
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTagInputSection(l10n),
+                    const SizedBox(height: 18),
+                    _buildSectionCard(
+                      icon: PhosphorIconsLight.sparkle,
+                      title: 'Quick Picks',
+                      subtitle: 'Choose from popular or recently used tags',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          PopularTagsWidget(
+                            onTagSelected: _addTag,
+                          ),
+                          const SizedBox(height: 20),
+                          RecentTagsWidget(
+                            onTagSelected: _addTag,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+      ),
+      actions: [
+        TextFieldTapRegion(
+          child: TextButton(
+            onPressed: _isSaving
+                ? null
+                : () {
+                    AppLogger.info('[ManageTags][Dialog] Close pressed',
+                        error: 'filePath=${widget.filePath}');
+                    Navigator.of(context, rootNavigator: true).pop(false);
+                  },
+            style: TextButton.styleFrom(
+              textStyle: const TextStyle(fontSize: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            child: Text(l10n.close.toUpperCase()),
+          ),
+        ),
+        TextFieldTapRegion(
+          child: ElevatedButton(
+            onPressed: _isSaving ? null : _save,
+            style: ElevatedButton.styleFrom(
+              textStyle: const TextStyle(fontSize: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: _isSaving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(l10n.save.toUpperCase()),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -582,110 +550,105 @@ void showDeleteTagDialog(
 ) {
   String? selectedTag = tags.isNotEmpty ? tags.first : null;
 
-  showDialog(
+  RouteUtils.showAcrylicDialog(
     context: context,
     builder: (context) {
       return StatefulBuilder(
         builder: (context, setState) {
-          return BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: AlertDialog(
-              title: Text(AppLocalizations.of(context)!.removeTag),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+          return AlertDialog(
+            title: Text(AppLocalizations.of(context)!.removeTag),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+            content: Container(
+              width: double.maxFinite,
+              constraints: const BoxConstraints(
+                maxWidth: 450,
+                minWidth: 350,
+                minHeight: 100,
               ),
-              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-              content: Container(
-                width: double.maxFinite,
-                constraints: const BoxConstraints(
-                  maxWidth: 450,
-                  minWidth: 350,
-                  minHeight: 100,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(AppLocalizations.of(context)!.selectTagToRemove),
-                    const SizedBox(height: 16),
-                    DropdownButton<String>(
-                      isExpanded: true,
-                      value: selectedTag,
-                      items: tags.map((tag) {
-                        return DropdownMenuItem<String>(
-                          value: tag,
-                          child: Text(tag),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(AppLocalizations.of(context)!.selectTagToRemove),
+                  const SizedBox(height: 16),
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: selectedTag,
+                    items: tags.map((tag) {
+                      return DropdownMenuItem<String>(
+                        value: tag,
+                        child: Text(tag),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedTag = value;
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  RouteUtils.safePopDialog(context);
+                },
+                child: Text(AppLocalizations.of(context)!.cancel.toUpperCase()),
+              ),
+              TextButton(
+                onPressed: () async {
+                  if (selectedTag != null) {
+                    // Pre-extract all context-dependent values before async gap
+                    final l10n = AppLocalizations.of(context)!;
+                    final bloc =
+                        BlocProvider.of<FolderListBloc>(context, listen: false);
+                    final scaffoldMessenger = ScaffoldMessenger.of(context);
+                    final navigator = Navigator.of(context);
+
+                    try {
+                      await TagManager.removeTag(filePath, selectedTag!);
+                      TagManager.clearCache();
+
+                      try {
+                        bloc.add(RemoveTagFromFile(filePath, selectedTag!));
+                      } catch (_) {}
+
+                      TagManager.instance
+                          .notifyTagChanged("tag_only:$filePath");
+
+                      try {
+                        scaffoldMessenger.showSnackBar(
+                          SnackBar(
+                            content: Text(l10n.tagDeleted(selectedTag!)),
+                            duration: const Duration(seconds: 1),
+                          ),
                         );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          selectedTag = value;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    RouteUtils.safePopDialog(context);
-                  },
-                  child:
-                      Text(AppLocalizations.of(context)!.cancel.toUpperCase()),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (selectedTag != null) {
-                      // Pre-extract all context-dependent values before async gap
-                      final l10n = AppLocalizations.of(context)!;
-                      final bloc = BlocProvider.of<FolderListBloc>(context,
-                          listen: false);
-                      final scaffoldMessenger = ScaffoldMessenger.of(context);
-                      final navigator = Navigator.of(context);
-
+                        navigator.pop();
+                      } catch (_) {}
+                    } catch (e) {
                       try {
-                        await TagManager.removeTag(filePath, selectedTag!);
-                        TagManager.clearCache();
-
-                        try {
-                          bloc.add(RemoveTagFromFile(filePath, selectedTag!));
-                        } catch (_) {}
-
-                        TagManager.instance
-                            .notifyTagChanged("tag_only:$filePath");
-
-                        try {
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content: Text(l10n.tagDeleted(selectedTag!)),
-                              duration: const Duration(seconds: 1),
-                            ),
-                          );
-                          navigator.pop();
-                        } catch (_) {}
-                      } catch (e) {
-                        try {
-                          scaffoldMessenger.showSnackBar(
-                            SnackBar(
-                              content:
-                                  Text(l10n.errorDeletingTag(e.toString())),
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        } catch (_) {}
-                      }
-                    } else {
-                      try {
-                        Navigator.of(context).pop();
+                        scaffoldMessenger.showSnackBar(
+                          SnackBar(
+                            content: Text(l10n.errorDeletingTag(e.toString())),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
                       } catch (_) {}
                     }
-                  },
-                  child: Text(
-                      AppLocalizations.of(context)!.removeTag.toUpperCase()),
-                ),
-              ],
-            ),
+                  } else {
+                    try {
+                      Navigator.of(context).pop();
+                    } catch (_) {}
+                  }
+                },
+                child:
+                    Text(AppLocalizations.of(context)!.removeTag.toUpperCase()),
+              ),
+            ],
           );
         },
       );
@@ -758,7 +721,7 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
     AppLogger.info('[ManageTags][BatchDialog] Loaded common tags',
         error: 'selectedFiles=$selectedFiles commonTags=$commonTags');
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -785,279 +748,246 @@ void showBatchAddTagDialog(BuildContext context, List<String> selectedFiles) {
               _openTagSearchTab(context, tag);
             }
 
-            return BackdropFilter(
-              filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: AlertDialog(
-                title: Text(
-                  AppLocalizations.of(context)!
-                      .batchAddTags(selectedFiles.length),
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
+            return AlertDialog(
+              title: Text(
+                AppLocalizations.of(context)!
+                    .batchAddTags(selectedFiles.length),
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              content: Container(
+                width: double.maxFinite,
+                constraints: BoxConstraints(
+                  maxWidth: dialogWidth,
+                  maxHeight: dialogHeight,
+                  minHeight: dialogHeight * 0.7,
                 ),
-                contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-                content: Container(
-                  width: double.maxFinite,
-                  constraints: BoxConstraints(
-                    maxWidth: dialogWidth,
-                    maxHeight: dialogHeight,
-                    minHeight: dialogHeight * 0.7,
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Focus(
-                          focusNode: focusNode,
-                          child: ChipsInput<String>(
-                            values: selectedTags,
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16.0),
-                              ),
-                              labelText: AppLocalizations.of(context)!.tagName,
-                              hintText:
-                                  AppLocalizations.of(context)!.enterTagName,
-                              prefixIcon: const Icon(PhosphorIconsLight.tag),
-                              filled: true,
-                              fillColor: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? Colors.grey[800]
-                                  : Colors.grey[100],
-                            ),
-                            onChanged: (updatedTags) {
-                              setState(() {
-                                selectedTags.clear();
-                                selectedTags.addAll(updatedTags);
-                              });
-                            },
-                            onTextChanged: handleTextChange,
-                            onSubmitted: handleTagSubmit,
-                            chipBuilder: (context, tag) {
-                              return TagInputChip(
-                                tag: tag,
-                                onDeleted: (removedTag) {
-                                  setState(() {
-                                    selectedTags.remove(removedTag);
-                                  });
-                                },
-                                onSelected: (selectedTag) {},
-                              );
-                            },
-                          ),
-                        ),
-                        if (tagSuggestions.isNotEmpty)
-                          Container(
-                            margin: const EdgeInsets.only(top: 8),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? Colors.grey[800]
-                                  : Colors.grey[100],
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Focus(
+                        focusNode: focusNode,
+                        child: ChipsInput<String>(
+                          values: selectedTags,
+                          suggestions: tagSuggestions,
+                          onSuggestionSelected: (tag) {
+                            setState(() {
+                              addTag(tag);
+                              tagSuggestions = [];
+                            });
+                          },
+                          decoration: InputDecoration(
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(16.0),
-                              border: Border.all(
-                                color: Colors.grey.withValues(alpha: 0.2),
+                            ),
+                            labelText: AppLocalizations.of(context)!.tagName,
+                            hintText:
+                                AppLocalizations.of(context)!.enterTagName,
+                            prefixIcon: const Icon(PhosphorIconsLight.tag),
+                            filled: true,
+                            fillColor:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[100],
+                          ),
+                          onChanged: (updatedTags) {
+                            setState(() {
+                              selectedTags.clear();
+                              selectedTags.addAll(updatedTags);
+                            });
+                          },
+                          onTextChanged: handleTextChange,
+                          onSubmitted: handleTagSubmit,
+                          chipBuilder: (context, tag) {
+                            return TagInputChip(
+                              tag: tag,
+                              onDeleted: (removedTag) {
+                                setState(() {
+                                  selectedTags.remove(removedTag);
+                                });
+                              },
+                              onSelected: (selectedTag) {},
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      if (selectedTags.isNotEmpty)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppLocalizations.of(context)!.selectedTags,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
                               ),
                             ),
-                            child: ListView.builder(
-                              shrinkWrap: true,
-                              physics: const ClampingScrollPhysics(),
-                              itemCount: tagSuggestions.length > 5
-                                  ? 5
-                                  : tagSuggestions.length,
-                              itemBuilder: (context, index) {
-                                final suggestion = tagSuggestions[index];
-                                return ListTile(
-                                  dense: true,
-                                  leading: const Icon(PhosphorIconsLight.tag,
-                                      size: 18),
-                                  title: Text(suggestion),
-                                  onTap: () {
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8.0,
+                              runSpacing: 8.0,
+                              children: selectedTags.map((tag) {
+                                return Chip(
+                                  label: Text(tag),
+                                  onDeleted: () {
                                     setState(() {
-                                      addTag(suggestion);
-                                      tagSuggestions = [];
+                                      selectedTags.remove(tag);
                                     });
                                   },
+                                  deleteIcon: const Icon(PhosphorIconsLight.x,
+                                      size: 16),
                                 );
-                              },
+                              }).toList(),
                             ),
-                          ),
-                        const SizedBox(height: 24),
-                        if (selectedTags.isNotEmpty)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                AppLocalizations.of(context)!.selectedTags,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8.0,
-                                runSpacing: 8.0,
-                                children: selectedTags.map((tag) {
-                                  return Chip(
-                                    label: Text(tag),
-                                    onDeleted: () {
-                                      setState(() {
-                                        selectedTags.remove(tag);
-                                      });
-                                    },
-                                    deleteIcon: const Icon(PhosphorIconsLight.x,
-                                        size: 16),
-                                  );
-                                }).toList(),
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 24),
-                        PopularTagsWidget(onTagSelected: handleTagSelected),
-                        const SizedBox(height: 24),
-                        RecentTagsWidget(onTagSelected: handleTagSelected),
-                      ],
-                    ),
+                          ],
+                        ),
+                      const SizedBox(height: 24),
+                      PopularTagsWidget(onTagSelected: handleTagSelected),
+                      const SizedBox(height: 24),
+                      RecentTagsWidget(onTagSelected: handleTagSelected),
+                    ],
                   ),
                 ),
-                actions: [
-                  TextFieldTapRegion(
-                    child: TextButton(
-                      onPressed: () {
-                        RouteUtils.safePopDialog(context);
-                      },
-                      style: TextButton.styleFrom(
-                        textStyle: const TextStyle(fontSize: 16),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                      ),
-                      child: Text(
-                          AppLocalizations.of(context)!.cancel.toUpperCase()),
+              ),
+              actions: [
+                TextFieldTapRegion(
+                  child: TextButton(
+                    onPressed: () {
+                      RouteUtils.safePopDialog(context);
+                    },
+                    style: TextButton.styleFrom(
+                      textStyle: const TextStyle(fontSize: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
                     ),
+                    child: Text(
+                        AppLocalizations.of(context)!.cancel.toUpperCase()),
                   ),
-                  TextFieldTapRegion(
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        AppLogger.info('[ManageTags][BatchDialog] Save pressed',
-                            error:
-                                'selectedFiles=$selectedFiles selectedTags=$selectedTags draftTagText=$draftTagText');
-                        final l10n = AppLocalizations.of(context)!;
-                        final bloc = BlocProvider.of<FolderListBloc>(context,
-                            listen: false);
-                        final scaffoldMessenger = ScaffoldMessenger.of(context);
-                        final navigator = Navigator.of(context);
+                ),
+                TextFieldTapRegion(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      AppLogger.info('[ManageTags][BatchDialog] Save pressed',
+                          error:
+                              'selectedFiles=$selectedFiles selectedTags=$selectedTags draftTagText=$draftTagText');
+                      final l10n = AppLocalizations.of(context)!;
+                      final bloc = BlocProvider.of<FolderListBloc>(context,
+                          listen: false);
+                      final scaffoldMessenger = ScaffoldMessenger.of(context);
+                      final navigator = Navigator.of(context);
 
+                      try {
+                        setState(() {
+                          commitDraftTag();
+                        });
                         try {
-                          setState(() {
-                            commitDraftTag();
-                          });
-                          try {
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(
-                                content: Text(l10n.applyingChanges),
-                                duration: const Duration(seconds: 1),
-                              ),
-                            );
-                          } catch (_) {}
-
-                          TagManager.clearCache();
-
-                          final commonTags = await batchTagManager
-                              .findCommonTags(selectedFiles);
-
-                          int tagsAdded = 0;
-                          int tagsRemoved = 0;
-
-                          for (final filePath in selectedFiles) {
-                            AppLogger.info(
-                                '[ManageTags][BatchDialog] Processing file',
-                                error:
-                                    'filePath=$filePath selectedTags=$selectedTags commonTags=$commonTags');
-                            final existingTags =
-                                await TagManager.getTags(filePath);
-
-                            final Set<String> originalTagsSet =
-                                Set.from(existingTags);
-                            final Set<String> currentTagsSet =
-                                Set.from(selectedTags);
-                            final Set<String> commonTagsSet =
-                                Set.from(commonTags);
-
-                            final updatedTags =
-                                Set<String>.from(originalTagsSet);
-
-                            final commonTagsToRemove =
-                                commonTagsSet.difference(currentTagsSet);
-                            updatedTags.removeAll(commonTagsToRemove);
-                            tagsRemoved += commonTagsToRemove.length;
-
-                            final tagsToAdd =
-                                currentTagsSet.difference(originalTagsSet);
-                            updatedTags.addAll(tagsToAdd);
-                            tagsAdded += tagsToAdd.length;
-
-                            await TagManager.setTags(
-                                filePath, updatedTags.toList());
-
-                            try {
-                              for (String tag in commonTagsToRemove) {
-                                bloc.add(RemoveTagFromFile(filePath, tag));
-                              }
-                              for (String tag in tagsToAdd) {
-                                bloc.add(AddTagToFile(filePath, tag));
-                              }
-                            } catch (_) {}
-                          }
-
-                          refreshParentUIBatch();
-                          AppLogger.info(
-                              '[ManageTags][BatchDialog] Save completed',
-                              error:
-                                  'selectedFiles=$selectedFiles tagsAdded=$tagsAdded tagsRemoved=$tagsRemoved');
-
-                          try {
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(
-                                content: Text(l10n.tagsUpdated(
-                                    selectedFiles.length,
-                                    tagsAdded,
-                                    tagsRemoved)),
-                              ),
-                            );
-                            navigator.pop();
-                          } catch (_) {}
-                        } catch (e) {
-                          AppLogger.error(
-                            '[ManageTags][BatchDialog] Save failed',
-                            error: 'selectedFiles=$selectedFiles error=$e',
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.applyingChanges),
+                              duration: const Duration(seconds: 1),
+                            ),
                           );
-                          AppLogger.warning('Error processing batch tags: $e');
+                        } catch (_) {}
+
+                        TagManager.clearCache();
+
+                        final commonTags =
+                            await batchTagManager.findCommonTags(selectedFiles);
+
+                        int tagsAdded = 0;
+                        int tagsRemoved = 0;
+
+                        for (final filePath in selectedFiles) {
+                          AppLogger.info(
+                              '[ManageTags][BatchDialog] Processing file',
+                              error:
+                                  'filePath=$filePath selectedTags=$selectedTags commonTags=$commonTags');
+                          final existingTags =
+                              await TagManager.getTags(filePath);
+
+                          final Set<String> originalTagsSet =
+                              Set.from(existingTags);
+                          final Set<String> currentTagsSet =
+                              Set.from(selectedTags);
+                          final Set<String> commonTagsSet =
+                              Set.from(commonTags);
+
+                          final updatedTags = Set<String>.from(originalTagsSet);
+
+                          final commonTagsToRemove =
+                              commonTagsSet.difference(currentTagsSet);
+                          updatedTags.removeAll(commonTagsToRemove);
+                          tagsRemoved += commonTagsToRemove.length;
+
+                          final tagsToAdd =
+                              currentTagsSet.difference(originalTagsSet);
+                          updatedTags.addAll(tagsToAdd);
+                          tagsAdded += tagsToAdd.length;
+
+                          await TagManager.setTags(
+                              filePath, updatedTags.toList());
+
                           try {
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(
-                                  content: Text('Error processing tags: $e')),
-                            );
+                            for (String tag in commonTagsToRemove) {
+                              bloc.add(RemoveTagFromFile(filePath, tag));
+                            }
+                            for (String tag in tagsToAdd) {
+                              bloc.add(AddTagToFile(filePath, tag));
+                            }
                           } catch (_) {}
                         }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        textStyle: const TextStyle(fontSize: 16),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
-                      ),
-                      child: Text(
-                          AppLocalizations.of(context)!.save.toUpperCase()),
+
+                        refreshParentUIBatch();
+                        AppLogger.info(
+                            '[ManageTags][BatchDialog] Save completed',
+                            error:
+                                'selectedFiles=$selectedFiles tagsAdded=$tagsAdded tagsRemoved=$tagsRemoved');
+
+                        try {
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.tagsUpdated(
+                                  selectedFiles.length,
+                                  tagsAdded,
+                                  tagsRemoved)),
+                            ),
+                          );
+                          navigator.pop();
+                        } catch (_) {}
+                      } catch (e) {
+                        AppLogger.error(
+                          '[ManageTags][BatchDialog] Save failed',
+                          error: 'selectedFiles=$selectedFiles error=$e',
+                        );
+                        AppLogger.warning('Error processing batch tags: $e');
+                        try {
+                          scaffoldMessenger.showSnackBar(
+                            SnackBar(
+                                content: Text('Error processing tags: $e')),
+                          );
+                        } catch (_) {}
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      textStyle: const TextStyle(fontSize: 16),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
                     ),
+                    child:
+                        Text(AppLocalizations.of(context)!.save.toUpperCase()),
                   ),
-                ],
-              ),
+                ),
+              ],
             );
           },
         );
@@ -1097,7 +1027,7 @@ void showRemoveTagsDialog(BuildContext context, List<String> filePaths) {
     } catch (_) {}
   }
 
-  showDialog(
+  RouteUtils.showAcrylicDialog(
     context: context,
     builder: (context) => RemoveTagsChipDialog(
       filePaths: filePaths,
@@ -1244,161 +1174,155 @@ class _RemoveTagsChipDialogState extends State<RemoveTagsChipDialog> {
     final double dialogWidth = screenSize.width * 0.5;
     final double dialogHeight = screenSize.height * 0.6;
 
-    return BackdropFilter(
-      filter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-      child: AlertDialog(
-        title: Text(
-          'Xóa thẻ cho ${widget.filePaths.length} tệp',
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
+    return AlertDialog(
+      title: Text(
+        'Xóa thẻ cho ${widget.filePaths.length} tệp',
+        style: const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      content: Container(
+        width: double.maxFinite,
+        constraints: BoxConstraints(
+          maxWidth: dialogWidth,
+          maxHeight: dialogHeight,
+          minHeight: dialogHeight * 0.7,
         ),
-        contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-        content: Container(
-          width: double.maxFinite,
-          constraints: BoxConstraints(
-            maxWidth: dialogWidth,
-            maxHeight: dialogHeight,
-            minHeight: dialogHeight * 0.7,
-          ),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_isLoading)
-                const Expanded(
-                  child: Center(
-                      child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 16),
-                      Text("Đang tải thẻ...")
-                    ],
-                  )),
-                )
-              else if (_commonTags.isEmpty && !_isLoading)
-                Expanded(
-                  child: Center(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isLoading)
+              const Expanded(
+                child: Center(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(PhosphorIconsLight.info,
-                            size: 48, color: Colors.grey.shade400),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Không có thẻ chung nào giữa các tệp đã chọn',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: Colors.grey.shade600),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                Expanded(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text("Đang tải thẻ...")
+                  ],
+                )),
+              )
+            else if (_commonTags.isEmpty && !_isLoading)
+              Expanded(
+                child: Center(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (_selectedTagsToRemove.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: Text(
-                              AppLocalizations.of(context)!
-                                  .tagsSelected(_selectedTagsToRemove.length),
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                                fontWeight: FontWeight.bold,
-                              )),
-                        ),
-                      const Text(
-                        'Chọn thẻ chung để xóa:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Icon(PhosphorIconsLight.info,
+                          size: 48, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.grey[800]
-                                    : Colors.grey[100],
-                            borderRadius: BorderRadius.circular(16.0),
-                            border: Border.all(
-                              color: Colors.grey.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: ListView(
-                            padding: const EdgeInsets.all(8),
-                            children: _commonTags.map((tag) {
-                              final isSelected =
-                                  _selectedTagsToRemove.contains(tag);
-                              return CheckboxListTile(
-                                title: Text(tag),
-                                value: isSelected,
-                                onChanged: (_) => _toggleTagSelection(tag),
-                                activeColor:
-                                    Theme.of(context).colorScheme.error,
-                                checkColor: Colors.white,
-                                controlAffinity:
-                                    ListTileControlAffinity.leading,
-                                dense: true,
-                              );
-                            }).toList(),
-                          ),
-                        ),
+                      Text(
+                        'Không có thẻ chung nào giữa các tệp đã chọn',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed:
-                _isRemoving ? null : () => RouteUtils.safePopDialog(context),
-            style: TextButton.styleFrom(
-              textStyle: const TextStyle(fontSize: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            ),
-            child: Text(AppLocalizations.of(context)!.cancel.toUpperCase()),
-          ),
-          ElevatedButton(
-            onPressed: _selectedTagsToRemove.isEmpty ||
-                    _isRemoving ||
-                    _commonTags.isEmpty
-                ? null
-                : _removeSelectedTags,
-            style: ElevatedButton.styleFrom(
-              textStyle: const TextStyle(fontSize: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Colors.white,
-            ),
-            child: _isRemoving
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
+              )
+            else
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_selectedTagsToRemove.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: Text(
+                            AppLocalizations.of(context)!
+                                .tagsSelected(_selectedTagsToRemove.length),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                              fontWeight: FontWeight.bold,
+                            )),
+                      ),
+                    const Text(
+                      'Chọn thẻ chung để xóa:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  )
-                : Text(AppLocalizations.of(context)!.removeTag.toUpperCase()),
-          ),
-        ],
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey[800]
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(16.0),
+                          border: Border.all(
+                            color: Colors.grey.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: ListView(
+                          padding: const EdgeInsets.all(8),
+                          children: _commonTags.map((tag) {
+                            final isSelected =
+                                _selectedTagsToRemove.contains(tag);
+                            return CheckboxListTile(
+                              title: Text(tag),
+                              value: isSelected,
+                              onChanged: (_) => _toggleTagSelection(tag),
+                              activeColor: Theme.of(context).colorScheme.error,
+                              checkColor: Colors.white,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              dense: true,
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
       ),
+      actions: [
+        TextButton(
+          onPressed:
+              _isRemoving ? null : () => RouteUtils.safePopDialog(context),
+          style: TextButton.styleFrom(
+            textStyle: const TextStyle(fontSize: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          child: Text(AppLocalizations.of(context)!.cancel.toUpperCase()),
+        ),
+        ElevatedButton(
+          onPressed: _selectedTagsToRemove.isEmpty ||
+                  _isRemoving ||
+                  _commonTags.isEmpty
+              ? null
+              : _removeSelectedTags,
+          style: ElevatedButton.styleFrom(
+            textStyle: const TextStyle(fontSize: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            foregroundColor: Colors.white,
+          ),
+          child: _isRemoving
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : Text(AppLocalizations.of(context)!.removeTag.toUpperCase()),
+        ),
+      ],
     );
   }
 }

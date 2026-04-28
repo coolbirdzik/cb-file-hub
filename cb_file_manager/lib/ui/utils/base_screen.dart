@@ -16,6 +16,11 @@ import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
 /// including drawer, back button, and home button navigation.
 class BaseScreen extends StatefulWidget {
   final String title;
+
+  /// Optional widget to use as the AppBar title instead of [Text(title)].
+  /// Useful for address bars, breadcrumbs, etc.
+  final Widget? titleWidget;
+
   final Widget body;
   final List<Widget>? actions;
   final FloatingActionButton? floatingActionButton;
@@ -49,6 +54,7 @@ class BaseScreen extends StatefulWidget {
   const BaseScreen({
     Key? key,
     required this.title,
+    this.titleWidget,
     required this.body,
     this.actions,
     this.floatingActionButton,
@@ -176,7 +182,7 @@ class _BaseScreenState extends State<BaseScreen> {
               ? AppBar(
                   backgroundColor: isDesktop ? Colors.transparent : null,
                   elevation: isDesktop ? 0 : null,
-                  title: Text(widget.title),
+                  title: widget.titleWidget ?? Text(widget.title),
                   leading: widget.automaticallyImplyLeading
                       ? _buildLeadingIcon(context)
                       : null,

@@ -69,8 +69,10 @@ class _RefreshableFileListViewState extends State<RefreshableFileListView> {
 
     // Now set up the listener
     subscription = widget.folderListBloc.stream.listen((state) {
-      // When loading is done (changed from true to false), complete the Future
-      if (!state.isLoading) {
+      // Refresh is done when isRefreshing goes false AND isLoading is also false.
+      // (isRefreshing covers FolderListRefresh; isLoading covers initial loads via
+      // tag-search paths that still use isLoading to signal completion.)
+      if (!state.isRefreshing && !state.isLoading) {
         // Add success haptic feedback for mobile
         if (Platform.isAndroid || Platform.isIOS) {
           HapticFeedback.selectionClick();

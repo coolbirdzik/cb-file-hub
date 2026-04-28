@@ -355,7 +355,7 @@ class MobileTabView extends StatelessWidget {
     // Lấy TabManagerBloc reference trước khi tạo dialog
     final tabBloc = context.read<TabManagerBloc>();
 
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Đóng tất cả các tab?'),
@@ -386,7 +386,7 @@ class MobileTabView extends StatelessWidget {
 
   /// Hiển thị thông tin chi tiết về tab
   void _showTabInfoDialog(BuildContext context, TabData tab) {
-    showDialog(
+    RouteUtils.showAcrylicDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(tab.name),

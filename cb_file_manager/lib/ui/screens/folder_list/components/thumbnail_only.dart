@@ -26,9 +26,12 @@ class _ThumbnailOnlyState extends State<ThumbnailOnly>
     with AutomaticKeepAliveClientMixin {
   late Future<Widget> _iconFuture;
 
-  // PERFORMANCE: Changed to false to reduce memory pressure during scrolling
   @override
-  bool get wantKeepAlive => false; // Changed from true
+  bool get wantKeepAlive {
+    final extension = p.extension(widget.file.path).toLowerCase();
+    final category = FileTypeRegistry.getCategory(extension);
+    return category == FileCategory.video || category == FileCategory.image;
+  }
 
   @override
   void initState() {

@@ -48,6 +48,7 @@ class UserPreferences {
       'video_gallery_thumbnail_size';
   static const String _videoPlayerVolumeKey = 'video_player_volume';
   static const String _videoPlayerMuteKey = 'video_player_mute';
+  static const String _videoSeekSpeedKey = 'video_seek_speed';
   static const String _drawerPinnedKey = 'drawer_pinned';
   static const String _themePreferenceKey = 'theme_preference';
   static const String _keySearchTipShown = 'search_tip_shown';
@@ -974,6 +975,20 @@ class UserPreferences {
   /// Save video player mute state
   Future<bool> setVideoPlayerMute(bool isMuted) async {
     return await _savePreference<bool>(_videoPlayerMuteKey, isMuted);
+  }
+
+  /// Get video seek speed preference: 0=slow, 1=medium, 2=fast
+  Future<int> getVideoSeekSpeed() async {
+    return await _getPreference<int>(
+          _videoSeekSpeedKey,
+          defaultValue: 1, // medium
+        ) ??
+        1;
+  }
+
+  /// Save video seek speed preference
+  Future<bool> setVideoSeekSpeed(int speed) async {
+    return await _savePreference<int>(_videoSeekSpeedKey, speed.clamp(0, 2));
   }
 
   /// Get drawer pinned state

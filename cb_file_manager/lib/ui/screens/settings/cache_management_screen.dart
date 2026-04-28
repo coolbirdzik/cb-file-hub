@@ -1,0 +1,626 @@
+import 'dart:io';
+import 'dart:ui';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+
+import 'package:cb_file_manager/config/languages/app_localizations.dart';
+import 'package:cb_file_manager/helpers/core/app_path_helper.dart';
+import 'package:cb_file_manager/helpers/files/external_app_helper.dart';
+import 'package:cb_file_manager/helpers/media/photo_thumbnail_helper.dart';
+import 'package:cb_file_manager/helpers/media/video_thumbnail_helper.dart';
+import 'package:cb_file_manager/helpers/network/network_thumbnail_helper.dart';
+import 'package:cb_file_manager/helpers/network/win32_smb_helper.dart';
+import 'package:cb_file_manager/services/video_library_cache_service.dart';
+import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
+import 'package:cb_file_manager/ui/utils/base_screen.dart';
+import 'package:cb_file_manager/ui/utils/format_utils.dart';
+
+class CacheManagementScreen extends StatefulWidget {
+  const CacheManagementScreen({Key? key}) : super(key: key);
+
+  @override
+  State<CacheManagementScreen> createState() => _CacheManagementScreenState();
+}
+
+class _CacheManagementScreenState extends State<CacheManagementScreen> {
+  bool _isLoading = false;
+  bool _isClearingAll = false;
+  final Set<String> _clearingKeys = <String>{};
+
+  String? _rootPath;
+
+  _CacheEntry? _photoThumbs;
+  _CacheEntry? _videoThumbs;
+  _CacheEntry? _networkThumbs;
+  _CacheEntry? _videoLibrary;
+  _CacheEntry? _tempFiles;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final root = await AppPathHelper.getRootDir();
+      final photoDir = await AppPathHelper.getPhotoCacheDir();
+      final videoDir = await AppPathHelper.getVideoCacheDir();
+      final networkDir = await AppPathHelper.getNetworkCacheDir();
+      final tempDir = await AppPathHelper.getTempFilesDir();
+      final videoLibDir =
+          await VideoLibraryCacheService.instance.getCacheDirectory();
+      final networkStats = await NetworkThumbnailHelper().getCacheStats();
+
+      final photoStats = await _directoryStats(photoDir);
+      final videoStats = await _directoryStats(videoDir);
+      final tempStats = await _directoryStats(tempDir);
+      final videoLibStats = await _directoryStats(videoLibDir);
+
+      if (!mounted) return;
+      setState(() {
+        _rootPath = root.path;
+        _photoThumbs = _CacheEntry(
+          key: 'photo',
+          title: 'Photo thumbnails',
+          subtitle: 'Generated JPEG previews for image grids and viewers',
+          icon: PhosphorIconsLight.image,
+          directory: photoDir,
+          bytes: photoStats.totalBytes,
+          files: photoStats.fileCount,
+          accent: Colors.pinkAccent,
+        );
+        _videoThumbs = _CacheEntry(
+          key: 'video',
+          title: 'Video thumbnails',
+          subtitle: 'Cached frame previews for videos',
+          icon: PhosphorIconsLight.videoCamera,
+          directory: videoDir,
+          bytes: videoStats.totalBytes,
+          files: videoStats.fileCount,
+          accent: Colors.deepPurpleAccent,
+        );
+        _networkThumbs = _CacheEntry(
+          key: 'network',
+          title: 'Network thumbnails',
+          subtitle: 'SMB / FTP / WebDAV thumbnail cache',
+          icon: PhosphorIconsLight.cloud,
+          directory: networkDir,
+          bytes: (networkStats['totalSize'] as int?) ?? 0,
+          files: (networkStats['fileCount'] as int?) ?? 0,
+          accent: Colors.lightBlueAccent,
+        );
+        _videoLibrary = _CacheEntry(
+          key: 'library',
+          title: 'Video library cache',
+          subtitle: 'Video library metadata and cached artifacts',
+          icon: PhosphorIconsLight.filmStrip,
+          directory: videoLibDir,
+          bytes: videoLibStats.totalBytes,
+          files: videoLibStats.fileCount,
+          accent: Colors.amberAccent,
+        );
+        _tempFiles = _CacheEntry(
+          key: 'temp',
+          title: 'Temporary files',
+          subtitle: 'Transient downloads and working files',
+          icon: PhosphorIconsLight.folderMinus,
+          directory: tempDir,
+          bytes: tempStats.totalBytes,
+          files: tempStats.fileCount,
+          accent: Colors.orangeAccent,
+        );
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load cache info: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  int get _totalBytes =>
+      (_photoThumbs?.bytes ?? 0) +
+      (_videoThumbs?.bytes ?? 0) +
+      (_networkThumbs?.bytes ?? 0) +
+      (_videoLibrary?.bytes ?? 0) +
+      (_tempFiles?.bytes ?? 0);
+
+  int get _totalFiles =>
+      (_photoThumbs?.files ?? 0) +
+      (_videoThumbs?.files ?? 0) +
+      (_networkThumbs?.files ?? 0) +
+      (_videoLibrary?.files ?? 0) +
+      (_tempFiles?.files ?? 0);
+
+  List<_CacheEntry> get _entries => [
+        if (_photoThumbs != null) _photoThumbs!,
+        if (_videoThumbs != null) _videoThumbs!,
+        if (_networkThumbs != null) _networkThumbs!,
+        if (_videoLibrary != null) _videoLibrary!,
+        if (_tempFiles != null) _tempFiles!,
+      ];
+
+  Future<void> _browseInApp(Directory dir, String title) async {
+    try {
+      final tabBloc = context.read<TabManagerBloc>();
+      tabBloc.add(AddTab(path: dir.path, name: title, switchToTab: true));
+    } catch (_) {
+      await _openInSystem(dir.path);
+    }
+  }
+
+  Future<void> _openInSystem(String path) async {
+    final ok = await ExternalAppHelper.openWithSystemDefault(path);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Could not open folder in system explorer')),
+      );
+    }
+  }
+
+  Future<void> _clearEntry(_CacheEntry entry) async {
+    setState(() => _clearingKeys.add(entry.key));
+    try {
+      switch (entry.key) {
+        case 'photo':
+          await _clearDirectory(entry.directory);
+          PhotoThumbnailHelper.clearMemoryCache();
+          break;
+        case 'video':
+          await VideoThumbnailHelper.clearCache();
+          break;
+        case 'network':
+          await NetworkThumbnailHelper().clearCache();
+          break;
+        case 'library':
+          await VideoLibraryCacheService.instance.clearAll();
+          break;
+        case 'temp':
+          await Win32SmbHelper().clearTempFileCache();
+          break;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${entry.title} cleared')),
+        );
+      }
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to clear ${entry.title}: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _clearingKeys.remove(entry.key));
+    }
+  }
+
+  Future<void> _clearAll() async {
+    setState(() => _isClearingAll = true);
+    try {
+      await _clearDirectory(await AppPathHelper.getPhotoCacheDir());
+      PhotoThumbnailHelper.clearMemoryCache();
+      await VideoThumbnailHelper.clearCache();
+      await NetworkThumbnailHelper().clearCache();
+      await VideoLibraryCacheService.instance.clearAll();
+      await Win32SmbHelper().clearTempFileCache();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All cache cleared')),
+        );
+      }
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to clear cache: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isClearingAll = false);
+    }
+  }
+
+  static Future<void> _clearDirectory(Directory dir) async {
+    if (!await dir.exists()) return;
+    await for (final entity in dir.list(recursive: false, followLinks: false)) {
+      try {
+        await entity.delete(recursive: true);
+      } catch (_) {}
+    }
+  }
+
+  static Future<_DirectoryStats> _directoryStats(Directory dir) async {
+    try {
+      if (!await dir.exists()) {
+        return const _DirectoryStats(fileCount: 0, totalBytes: 0);
+      }
+      int totalBytes = 0;
+      int fileCount = 0;
+      await for (final entity
+          in dir.list(recursive: true, followLinks: false)) {
+        if (entity is File) {
+          fileCount++;
+          try {
+            totalBytes += await entity.length();
+          } catch (_) {}
+        }
+      }
+      return _DirectoryStats(fileCount: fileCount, totalBytes: totalBytes);
+    } catch (_) {
+      return const _DirectoryStats(fileCount: 0, totalBytes: 0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final totalBytes = _totalBytes;
+
+    return BaseScreen(
+      title: 'Cache Management',
+      actions: [
+        IconButton(
+          tooltip: AppLocalizations.of(context)?.refreshCacheInfo ?? 'Refresh',
+          onPressed: _isLoading ? null : _load,
+          icon: _isLoading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(PhosphorIconsLight.arrowsClockwise),
+        ),
+      ],
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildHeroOverview(theme),
+          const SizedBox(height: 16),
+          _buildRootLocationCard(theme),
+          const SizedBox(height: 16),
+          ..._entries.map((e) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildEntryCard(theme, e, totalBytes),
+              )),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: _isClearingAll ? null : _clearAll,
+            style: FilledButton.styleFrom(
+              backgroundColor: theme.colorScheme.errorContainer,
+              foregroundColor: theme.colorScheme.onErrorContainer,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            icon: _isClearingAll
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(PhosphorIconsLight.trash),
+            label: const Text('Clear all cache'),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroOverview(ThemeData theme) {
+    return _buildAcrylicPanel(
+      theme,
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Icon(
+                  PhosphorIconsLight.hardDrives,
+                  color: theme.colorScheme.primary,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cache overview',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Short-term cache used for thumbnails, library artifacts and temporary files.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _buildMetricChip(
+                  theme, 'Total size', FormatUtils.formatFileSize(_totalBytes)),
+              _buildMetricChip(theme, 'Files', _totalFiles.toString()),
+              _buildMetricChip(theme, 'Buckets', _entries.length.toString()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRootLocationCard(ThemeData theme) {
+    return _buildAcrylicPanel(
+      theme,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(PhosphorIconsLight.folderOpen,
+                  color: theme.colorScheme.primary, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Cache root',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SelectableText(
+            _rootPath ?? 'Not initialized',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _rootPath == null
+                    ? null
+                    : () => _browseInApp(Directory(_rootPath!), 'Cache Root'),
+                icon: const Icon(PhosphorIconsLight.folderSimplePlus, size: 16),
+                label: const Text('Browse in app'),
+              ),
+              OutlinedButton.icon(
+                onPressed:
+                    _rootPath == null ? null : () => _openInSystem(_rootPath!),
+                icon: const Icon(PhosphorIconsLight.arrowSquareOut, size: 16),
+                label: const Text('Open folder'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEntryCard(ThemeData theme, _CacheEntry entry, int totalBytes) {
+    final busy = _clearingKeys.contains(entry.key);
+    final ratio = totalBytes <= 0 ? 0.0 : entry.bytes / totalBytes;
+
+    return _buildAcrylicPanel(
+      theme,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: entry.accent.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Icon(entry.icon, color: entry.accent, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.title,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        entry.subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      FormatUtils.formatFileSize(entry.bytes),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${entry.files} files',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 8,
+                value: ratio.clamp(0.0, 1.0),
+                backgroundColor: theme.colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.35),
+                valueColor: AlwaysStoppedAnimation<Color>(entry.accent),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              totalBytes <= 0
+                  ? '0% of total cache'
+                  : '${(ratio * 100).toStringAsFixed(1)}% of total cache',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _browseInApp(entry.directory, entry.title),
+                  icon: const Icon(PhosphorIconsLight.folderOpen, size: 16),
+                  label: const Text('Browse in app'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _openInSystem(entry.directory.path),
+                  icon: const Icon(PhosphorIconsLight.arrowSquareOut, size: 16),
+                  label: const Text('Open folder'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: busy ? null : () => _clearEntry(entry),
+                  icon: busy
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(PhosphorIconsLight.broom, size: 16),
+                  label: const Text('Clear'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMetricChip(ThemeData theme, String label, String value) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.12),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAcrylicPanel(
+    ThemeData theme, {
+    EdgeInsetsGeometry padding = const EdgeInsets.all(0),
+    required Widget child,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface.withValues(alpha: 0.42),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.12),
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _CacheEntry {
+  final String key;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Directory directory;
+  final int bytes;
+  final int files;
+  final Color accent;
+
+  const _CacheEntry({
+    required this.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.directory,
+    required this.bytes,
+    required this.files,
+    required this.accent,
+  });
+}
+
+class _DirectoryStats {
+  final int fileCount;
+  final int totalBytes;
+
+  const _DirectoryStats({required this.fileCount, required this.totalBytes});
+}

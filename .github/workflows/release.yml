@@ -92,8 +92,19 @@ jobs:
           VERSION="${{ steps.version.outputs.version_name }}"
           CURRENT_TAG="v$VERSION"
 
-          # Get previous tag (most recent tag before the current one)
-          PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1)
+          # Find the nearest previous tag by walking back from HEAD.
+          # `git describe --tags --abbrev=0 HEAD^` returns the most recent
+          # tag reachable from the parent of the current commit, which is
+          # exactly "the tag right before this release".
+          PREV_TAG=""
+          if git rev-parse HEAD^ >/dev/null 2>&1; then
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          fi
+
+          # Fallback: if describe failed (e.g. shallow clone), try sorted tag list
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1 || true)
+          fi
 
           echo "Previous tag: ${PREV_TAG:-'(none)'}"
           echo "Current tag:  $CURRENT_TAG"
@@ -106,7 +117,9 @@ jobs:
           if [ -z "$PREV_TAG" ]; then
             echo "Initial release" >> release_notes.md
           else
-            RANGE="$PREV_TAG..$CURRENT_TAG"
+            # Collect ALL commits from the previous tag to the current HEAD
+            # (which is the commit that the current tag points to).
+            RANGE="$PREV_TAG..HEAD"
 
             # Patterns to exclude from release notes (ci, build, chore, bump, merge commits)
             EXCLUDE_PATTERN="^(ci:|build:|chore:|bump |Merge branch|Merge pull request|ci\(.*\):|build\(.*\):|chore\(.*\):)"
@@ -114,7 +127,7 @@ jobs:
             # Helper: log commits matching a grep pattern, excluding noise commits
             log_section() {
               local grep_pattern="$1"
-              git log "$RANGE" --pretty=format:"- %s (%h)" --grep="$grep_pattern" \
+              git log --no-merges "$RANGE" --pretty=format:"- %s (%h)" --grep="$grep_pattern" \
                 | grep -vE "$EXCLUDE_PATTERN" || true
             }
 
@@ -150,7 +163,7 @@ jobs:
             write_section "### ♻️ Refactoring & Performance" "- No refactoring changes" "$REFACTOR"
 
             # Other Changes — everything NOT feat/fix/docs/refactor/perf AND NOT excluded
-            OTHER=$(git log "$RANGE" --pretty=format:"- %s (%h)" \
+            OTHER=$(git log --no-merges "$RANGE" --pretty=format:"- %s (%h)" \
               --invert-grep --grep="^feat" --grep="^fix" --grep="^docs" --grep="^refactor" --grep="^perf" \
               | grep -vE "$EXCLUDE_PATTERN" || true)
             write_section "### 🔧 Other Changes" "- No other changes" "$OTHER"
