@@ -19,10 +19,12 @@ class FtpServiceAdapter {
   FtpServiceAdapter({
     required String host,
     int port = 21,
+    FtpSecurity security = FtpSecurity.none,
     String username = 'anonymous',
     String password = 'anonymous@',
   }) : _client = FtpClient(
          host: host,
+         security: security,
          port: port,
          username: username,
          password: password,
@@ -38,7 +40,7 @@ class FtpServiceAdapter {
       return _isConnected;
     } catch (e) {
       debugPrint('FTP connection error: $e');
-      return false;
+      rethrow;
     }
   }
 

@@ -10,10 +10,10 @@ import 'network_service_base.dart';
 
 /// Service for FTP (File Transfer Protocol) network file access
 class FTPService implements NetworkServiceBase {
-  static const String _ftpPrefix = 'ftp://';
   static const int _defaultFtpPort = 21;
 
   // State variables
+  FtpSecurity _security = FtpSecurity.none;
   String _host = '';
   int _port = _defaultFtpPort;
   String _username = '';
@@ -52,7 +52,12 @@ class FTPService implements NetworkServiceBase {
   bool get isConnected => _connected;
 
   @override
-  String get basePath => '$_ftpPrefix$_username@$_host:$_port';
+  String get basePath => Uri(
+    scheme: _security == FtpSecurity.none ? 'ftp' : 'ftps',
+    userInfo: _username,
+    host: _host,
+    port: _port,
+  ).toString();
 
   // Method to get connection diagnostic info
   Map<String, dynamic> getConnectionDiagnostics() {
@@ -76,6 +81,7 @@ class FTPService implements NetworkServiceBase {
     int? port,
     Map<String, dynamic>? additionalOptions,
   }) async {
+    FtpServiceAdapter? pendingClient;
     try {
       // Check if we have a passive mode setting
       bool usePassiveMode = true; // Default to passive mode
@@ -89,9 +95,15 @@ class FTPService implements NetworkServiceBase {
       );
 
       // Create and connect to FTP server
-      final client = FtpServiceAdapter(
+      _security = FtpSecurity.values.byName(
+        additionalOptions?['ftpSecurity'] as String? ?? 'none',
+      );
+      final effectivePort =
+          port ?? (_security == FtpSecurity.implicitTls ? 990 : 21);
+      final client = pendingClient = FtpServiceAdapter(
+        security: _security,
         host: host,
-        port: port ?? 21,
+        port: effectivePort,
         username: username,
         password: password ?? 'anonymous',
       );
@@ -132,19 +144,20 @@ class FTPService implements NetworkServiceBase {
       _ftpClient = client;
 
       // Generate unique path for FTP connection
-      final basePath = 'ftp://$username@$host:${port ?? 21}/';
+
       _host = host;
-      _port = port ?? 21;
+      _port = effectivePort;
       _username = username;
       _password = password ?? 'anonymous';
       _connected = true;
       _currentPath = '/';
 
       // Start keep-alive timer
-      _startKeepAlive();
+      if (_security == FtpSecurity.none) _startKeepAlive();
 
       return ConnectionResult(success: true, connectedPath: basePath);
     } catch (e) {
+      await pendingClient?.disconnect();
       debugPrint('FTPService: Connection error: $e');
       _connected = false;
       _connectionError = 'Failed to connect to FTP server: $e';
@@ -360,7 +373,7 @@ class FTPService implements NetworkServiceBase {
     }
 
     // Otherwise, construct a proper network path
-    final hostPart = Uri.encodeComponent('$_username@$_host:$_port');
+    final hostPart = Uri.encodeComponent(Uri.parse(basePath).authority);
 
     // Make sure ftpPath starts with /
     final normalizedPath = ftpPath.startsWith('/') ? ftpPath : '/$ftpPath';
@@ -613,9 +626,7 @@ class FTPService implements NetworkServiceBase {
     try {
       String oldNormalized = _normalizePath(oldPath);
       String newNormalized = _normalizePath(newPath);
-      String newName = path.basename(newNormalized);
-
-      return await _ftpClient!.rename(oldNormalized, newName);
+      return await _ftpClient!.rename(oldNormalized, newNormalized);
     } catch (e) {
       throw Exception('Error renaming file/directory: $e');
     }
@@ -630,7 +641,7 @@ class FTPService implements NetworkServiceBase {
     }
 
     // Remove the protocol and server prefix if present
-    String prefix = '$_ftpPrefix$_username@$_host:$_port';
+    String prefix = basePath;
     if (filePath.startsWith(prefix)) {
       filePath = filePath.substring(prefix.length);
     }

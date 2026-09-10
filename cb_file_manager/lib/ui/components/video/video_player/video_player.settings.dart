@@ -6,7 +6,7 @@ part of 'video_player.dart';
 
 abstract class _VideoPlayerSettingsHost extends _VideoPlayerVolumeHost {
   // Video controller (needed to recreate when hw-accel changes)
-  set _videoController(VideoController? v);
+  set _videoController(PlaybackVideoController? v);
 
   // Subtitle
   List<SubtitleTrack> get _subtitleTracks;
@@ -53,7 +53,7 @@ abstract class _VideoPlayerSettingsHost extends _VideoPlayerVolumeHost {
   // Methods from main state that the mixin delegates to
   void _cancelSleepTimer();
   void _setSleepTimer(Duration duration);
-  VideoControllerConfiguration _buildVideoControllerConfig();
+  PlaybackVideoConfiguration _buildVideoControllerConfig();
 }
 
 // ── Settings mixin ───────────────────────────────────────────────────────────
@@ -228,12 +228,12 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
                       expand: true,
                       items: const [
                         CbSelectItem(
-                          value: 'cover',
-                          label: 'Cover (Fill & Crop)',
+                          value: 'contain',
+                          label: 'Fit to Window (Keep Ratio, No Crop)',
                         ),
                         CbSelectItem(
-                          value: 'contain',
-                          label: 'Contain (Fit All)',
+                          value: 'cover',
+                          label: 'Cover (Fill & Crop)',
                         ),
                         CbSelectItem(value: 'fill', label: 'Fill (Stretch)'),
                         CbSelectItem(value: 'fitWidth', label: 'Fit Width'),
@@ -266,7 +266,7 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
                           _hardwareAcceleration = value;
                           _videoDecoder = value ? 'hardware' : 'software';
                           if (_player != null) {
-                            _videoController = VideoController(
+                            _videoController = PlaybackVideoController(
                               _player!,
                               configuration: _buildVideoControllerConfig(),
                             );
@@ -308,7 +308,7 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
                             _hardwareAcceleration = true;
                           }
                           if (_player != null) {
-                            _videoController = VideoController(
+                            _videoController = PlaybackVideoController(
                               _player!,
                               configuration: _buildVideoControllerConfig(),
                             );
@@ -472,8 +472,7 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
   void _setPlaybackSpeed(double speed) {
     if (_player != null) {
       _player!.setRate(speed);
-    } else if (_vlcController != null) {
-      _vlcController!.setPlaybackSpeed(speed);
+      setState(() => _playbackSpeed = speed);
     }
   }
 
@@ -510,11 +509,8 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
       final prefs = UserPreferences.instance;
       await prefs.init();
 
-      // One-time Windows migration: previous versions defaulted hardware
-      // acceleration ON, which crashes media_kit's D3D11 decoder path on some
-      // Windows GPUs/drivers ("Failed to create D3D11 Device" -> "Lost
-      // connection to device"). Force it OFF once on Windows so existing
-      // users get the safe default. The user can still re-enable it manually.
+      // Retain the existing Windows software-decoding migration preference.
+      // Users can still enable VLC hardware decoding explicitly.
       if (!kIsWeb && Platform.isWindows) {
         final migrated =
             await prefs.getVideoPlayerBool(
@@ -538,10 +534,7 @@ mixin _VideoPlayerSettingsMixin on _VideoPlayerSettingsHost {
             defaultValue: 'auto',
           ) ??
           'auto';
-      // Default hardware acceleration OFF on Windows: media_kit's D3D11/ANGLE
-      // rendering path can fail to create a device (E_OUTOFMEMORY) on some
-      // GPUs/drivers and crash the engine ("Lost connection to device").
-      // Software decoding avoids that. Mirrors the desktop PiP windows.
+      // Preserve the established Windows default across the backend migration.
       final hwAccelDefault = kIsWeb ? true : !Platform.isWindows;
       _hardwareAcceleration =
           await prefs.getVideoPlayerBool(

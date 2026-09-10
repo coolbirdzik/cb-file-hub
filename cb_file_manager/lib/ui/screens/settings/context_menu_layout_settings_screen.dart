@@ -267,6 +267,16 @@ List<_ContextMenuCommandDescriptor> _descriptorsFor(
       label: l10n.cut,
       icon: PhosphorIconsLight.scissors,
     ),
+    'share': _ContextMenuCommandDescriptor(
+      id: 'share',
+      label: l10n.share,
+      icon: PhosphorIconsLight.shareNetwork,
+    ),
+    'paste': _ContextMenuCommandDescriptor(
+      id: 'paste',
+      label: l10n.pasteHere,
+      icon: PhosphorIconsLight.clipboard,
+    ),
     'rename': _ContextMenuCommandDescriptor(
       id: 'rename',
       label: l10n.rename,
@@ -340,6 +350,8 @@ List<_ContextMenuCommandDescriptor> _descriptorsFor(
         ),
         common['copy']!,
         common['cut']!,
+        common['share']!,
+        common['paste']!,
         common['rename']!,
         common['tags']!,
         common['properties']!,
@@ -372,14 +384,12 @@ List<_ContextMenuCommandDescriptor> _descriptorsFor(
         ),
         common['copy']!,
         common['cut']!,
-        _ContextMenuCommandDescriptor(
-          id: 'paste',
-          label: l10n.pasteHere,
-          icon: PhosphorIconsLight.clipboard,
-        ),
+        common['share']!,
+        common['paste']!,
         common['rename']!,
         common['tags']!,
         common['properties']!,
+        common['delete']!,
         common[contextMenuThirdPartyAppsId]!,
         common['more_options']!,
       ];
@@ -387,6 +397,8 @@ List<_ContextMenuCommandDescriptor> _descriptorsFor(
       return <_ContextMenuCommandDescriptor>[
         common['copy']!,
         common['cut']!,
+        common['share']!,
+        common['paste']!,
         common['tags']!,
         common['delete']!,
         common[contextMenuThirdPartyAppsId]!,

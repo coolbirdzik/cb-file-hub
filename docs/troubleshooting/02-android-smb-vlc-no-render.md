@@ -1,3 +1,6 @@
+> Historical note: this describes the removed `flutter_vlc_player` fallback.
+> Current builds use the shared VLC backend; see [VLC playback](../technical/07-vlc-playback.md).
+
 # Android: SMB VLC Plays Audio But Video Does Not Render
 
 ## Symptoms

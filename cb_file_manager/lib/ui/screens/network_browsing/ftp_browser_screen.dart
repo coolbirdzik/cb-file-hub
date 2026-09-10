@@ -1,3 +1,5 @@
+import 'dart:convert';
+import '../../../design_system/primitives/cb_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -104,7 +106,8 @@ class _FTPBrowserScreenState extends State<FTPBrowserScreen>
   void _handleSuccessfulConnection(String connectionPath) {
     if (!connectionPath.startsWith('#network/FTP/')) return;
 
-    final host = Uri.decodeComponent(connectionPath.split('/')[2]);
+    final authority = Uri.decodeComponent(connectionPath.split('/')[2]);
+    final host = Uri.parse('ftp://$authority').host;
 
     final credentialId = _pendingTabCredentialMap[host];
     if (credentialId != null) {
@@ -154,6 +157,11 @@ class _FTPBrowserScreenState extends State<FTPBrowserScreen>
         host: credentials.host,
         username: credentials.username,
         password: credentials.password,
+        additionalOptions: credentials.additionalOptions == null
+            ? null
+            : Map<String, dynamic>.from(
+                jsonDecode(credentials.additionalOptions!),
+              ),
         port: credentials.port,
       ),
     );
@@ -169,18 +177,20 @@ class _FTPBrowserScreenState extends State<FTPBrowserScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return SystemScreen(
+      tabId: widget.tabId,
+      onRefresh: _refreshData,
       title: context.tr.ftpConnections,
       systemId: '#ftp',
       icon: PhosphorIconsLight.cloudArrowUp,
       showAppBar: true,
       actions: [
-        IconButton(
-          icon: const Icon(PhosphorIconsLight.arrowsClockwise),
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowsClockwise,
           onPressed: _refreshData,
           tooltip: context.tr.refreshData,
         ),
-        IconButton(
-          icon: const Icon(PhosphorIconsLight.plus),
+        CbButton.icon(
+          icon: PhosphorIconsLight.plus,
           onPressed: _connectToFTPServer,
           tooltip: context.tr.addConnection,
         ),
@@ -248,7 +258,9 @@ class _FTPBrowserScreenState extends State<FTPBrowserScreen>
         color: theme.colorScheme.tertiary,
       ),
       title: Text(host),
-      subtitle: Text(context.tr.connecting),
+      subtitle: Text(
+        entry.value.basePath.startsWith('ftps://') ? 'FTPS' : 'FTP',
+      ),
       onTap: () => _openTabForConnection(entry.key, host),
     );
   }
@@ -263,7 +275,9 @@ class _FTPBrowserScreenState extends State<FTPBrowserScreen>
         color: theme.colorScheme.primary,
       ),
       title: Text(credentials.host),
-      subtitle: Text(credentials.username),
+      subtitle: Text(
+        '${credentials.username} · ${credentials.port ?? 21}${credentials.additionalOptions?.contains('Tls') == true ? ' · FTPS' : ''}',
+      ),
       trailing: IconButton(
         icon: isConnecting
             ? const SizedBox(

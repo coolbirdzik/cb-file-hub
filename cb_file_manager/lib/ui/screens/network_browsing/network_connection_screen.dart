@@ -9,6 +9,8 @@ import '../../../bloc/network_browsing/network_browsing_state.dart';
 import '../../../services/network_browsing/network_service_base.dart';
 import '../../tab_manager/core/tab_manager.dart';
 import '../../utils/route.dart';
+import '../../../design_system/primitives/cb_button.dart';
+import '../system_screen.dart';
 // Import TabData
 // Import TabMainScreen
 import 'network_connection_dialog.dart';
@@ -17,7 +19,9 @@ import 'network_connection_dialog.dart';
 
 /// Screen to display and manage network connections
 class NetworkConnectionScreen extends StatefulWidget {
-  const NetworkConnectionScreen({super.key});
+  final String? tabId;
+
+  const NetworkConnectionScreen({super.key, this.tabId});
 
   @override
   State<NetworkConnectionScreen> createState() =>
@@ -38,81 +42,94 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    return Scaffold(
-      appBar: AppBar(),
-      body: BlocBuilder<NetworkBrowsingBloc, NetworkBrowsingState>(
-        builder: (context, state) {
-          if (state.isLoading && state.connections.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (state.hasError) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+    return SystemScreen(
+      tabId: widget.tabId ?? context.read<TabManagerBloc>().state.activeTabId,
+      title: l10n.networkConnections,
+      systemId: '#network',
+      icon: PhosphorIconsLight.globe,
+      showAppBar: true,
+      onRefresh: () => context.read<NetworkBrowsingBloc>().add(
+        const NetworkServicesListRequested(),
+      ),
+      actions: [
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowClockwise,
+          tooltip: l10n.refresh,
+          onPressed: () => context.read<NetworkBrowsingBloc>().add(
+            const NetworkServicesListRequested(),
+          ),
+        ),
+        CbButton.icon(
+          icon: PhosphorIconsLight.plus,
+          tooltip: l10n.addConnection,
+          onPressed: () => _showConnectionDialog(context),
+        ),
+      ],
+      child: ClipRect(
+        child: BlocBuilder<NetworkBrowsingBloc, NetworkBrowsingState>(
+          builder: (context, state) {
+            return RefreshIndicator(
+              onRefresh: () async {
+                context.read<NetworkBrowsingBloc>().add(
+                  const NetworkServicesListRequested(),
+                );
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 24),
                 children: [
-                  Icon(
-                    PhosphorIconsLight.warning,
-                    size: 48,
-                    color: theme.colorScheme.error,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.errorWithMessage(
-                      state.errorMessage ?? l10n.unknownError,
+                  // An operation error must never replace connection controls.
+                  if (state.hasError)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            PhosphorIconsLight.warningCircle,
+                            color: theme.colorScheme.error,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: Text(state.errorMessage!)),
+                        ],
+                      ),
+                    ),
+                  // Active Connections Section
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
+                    child: Text(
+                      l10n.activeConnectionsTitle,
+                      style: theme.textTheme.titleLarge,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => context.read<NetworkBrowsingBloc>().add(
-                      const NetworkServicesListRequested(),
+                  _buildActiveConnections(state.connections),
+
+                  const Divider(height: 32),
+
+                  // Available Services Section
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
+                    child: Text(
+                      l10n.availableServices,
+                      style: theme.textTheme.titleLarge,
                     ),
-                    child: Text(l10n.tryAgain),
+                  ),
+                  _buildAvailableServices(state.services ?? []),
+                  ListTile(
+                    leading: const Icon(PhosphorIconsLight.terminalWindow),
+                    title: Text(l10n.sshWorkspace),
+                    subtitle: Text(
+                      '${l10n.sshHosts} · ${l10n.sshKeys} · Terminal',
+                    ),
+                    onTap: () =>
+                        _openBrowserInTab(context, '#ssh', l10n.sshWorkspace),
                   ),
                 ],
               ),
             );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              context.read<NetworkBrowsingBloc>().add(
-                const NetworkServicesListRequested(),
-              );
-            },
-            child: ListView(
-              children: [
-                // Active Connections Section
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 24.0, 16.0, 8.0),
-                  child: Text(
-                    l10n.activeConnectionsTitle,
-                    style: theme.textTheme.titleLarge,
-                  ),
-                ),
-                _buildActiveConnections(state.connections),
-
-                const Divider(height: 32),
-
-                // Available Services Section
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16.0, 8.0, 16.0, 8.0),
-                  child: Text(
-                    l10n.availableServices,
-                    style: theme.textTheme.titleLarge,
-                  ),
-                ),
-                _buildAvailableServices(state.services ?? []),
-              ],
-            ),
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: null, // Disable hero animation to avoid conflicts
-        onPressed: () => _showConnectionDialog(context),
-        tooltip: l10n.addConnection,
-        child: const Icon(PhosphorIconsLight.plus),
+          },
+        ),
       ),
     );
   }
@@ -157,11 +174,20 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
       itemCount: connections.length,
       itemBuilder: (context, index) {
         final entry = connections.entries.elementAt(index);
-        final path = entry.key;
         final service = entry.value;
+        final uri = Uri.parse(service.basePath);
+        final authority =
+            service.serviceName == 'FTP' || service.serviceName == 'SFTP'
+            ? uri.authority
+            : uri.host;
+        final path = entry.key.startsWith('#network/')
+            ? entry.key
+            : '#network/${service.serviceName.toUpperCase()}/${Uri.encodeComponent(authority)}/';
 
         String displayName = l10n.unknownConnection;
-        String subtitle = service.serviceName;
+        String subtitle = service.basePath.startsWith('ftps://')
+            ? 'FTPS'
+            : service.serviceName;
 
         if (path.startsWith('#network/')) {
           final parts = path.substring('#network/'.length).split('/');
@@ -169,7 +195,9 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
             final serviceName = parts[0];
             final host = Uri.decodeComponent(parts[1]);
             displayName = host;
-            subtitle = l10n.serviceTypeConnection(serviceName);
+            subtitle = l10n.serviceTypeConnection(
+              service.basePath.startsWith('ftps://') ? 'FTPS' : serviceName,
+            );
           }
         }
 
@@ -215,6 +243,8 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
           onTap: () {
             if (service.serviceName == 'SMB') {
               _openBrowserInTab(context, '#smb', l10n.smbNetwork);
+            } else if (service.serviceName == 'SFTP') {
+              _openBrowserInTab(context, '#sftp', 'SFTP');
             } else if (service.serviceName == 'FTP') {
               _openBrowserInTab(context, '#ftp', l10n.ftpConnections);
             } else if (service.serviceName == 'WebDAV') {
@@ -237,7 +267,11 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
       context: context,
       builder: (dialogContext) => BlocProvider.value(
         value: networkBloc,
-        child: NetworkConnectionDialog(initialService: initialService),
+        child: NetworkConnectionDialog(
+          initialService: initialService,
+          onConnectionRequested: (path, name) =>
+              _navigateInCurrentTab(path, tabName: name),
+        ),
       ),
     );
   }
@@ -284,9 +318,10 @@ class _NetworkConnectionScreenState extends State<NetworkConnectionScreen> {
         return;
       }
 
-      tabBloc.add(UpdateTabPath(activeTab.id, path));
+      final targetTabId = widget.tabId ?? activeTab.id;
+      tabBloc.add(UpdateTabPath(targetTabId, path));
       if (tabName != null && tabName.trim().isNotEmpty) {
-        tabBloc.add(UpdateTabName(activeTab.id, tabName));
+        tabBloc.add(UpdateTabName(targetTabId, tabName));
       }
     } catch (e) {
       debugPrint('Error navigating in current tab: $e');

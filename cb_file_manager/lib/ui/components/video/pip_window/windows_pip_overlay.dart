@@ -2,13 +2,11 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:cb_file_manager/services/media/vlc_playback.dart';
 
 import '../video_player/video_player_utils.dart';
-import '../../../../helpers/core/path_utils.dart';
 
-/// Modeless, draggable PiP overlay for Windows (in‑process), using media_kit.
+/// Modeless, draggable PiP overlay for Windows (in‑process), using VLC.
 ///
 /// This avoids launching a second process and behaves like a floating dialog
 /// that can be dragged within the app window.
@@ -68,8 +66,8 @@ class _WindowsPipOverlayWidget extends StatefulWidget {
 }
 
 class _WindowsPipOverlayWidgetState extends State<_WindowsPipOverlayWidget> {
-  Player? _player;
-  VideoController? _controller;
+  PlaybackPlayer? _player;
+  PlaybackVideoController? _controller;
   bool _isPlaying = true;
   Offset _offset = const Offset(24, 24);
   Size _size = const Size(384, 216); // 16:9
@@ -90,34 +88,23 @@ class _WindowsPipOverlayWidgetState extends State<_WindowsPipOverlayWidget> {
   }
 
   Future<void> _init() async {
-    MediaKit.ensureInitialized();
-
-    _player = Player();
-    _controller = VideoController(
+    _player = PlaybackPlayer();
+    _controller = PlaybackVideoController(
       _player!,
-      configuration: VideoControllerConfiguration(
+      configuration: PlaybackVideoConfiguration(
         enableHardwareAcceleration: !Platform.isWindows,
       ),
     );
 
-    final type = (widget.args['sourceType'] as String?) ?? 'url';
-    var src = (widget.args['source'] as String?) ?? '';
+    final src = (widget.args['source'] as String?) ?? '';
     final positionMs = (widget.args['positionMs'] as int?) ?? 0;
     final initialVolume = (widget.args['volume'] as num?)?.toDouble();
     final shouldPlay = widget.args['playing'] == null
         ? true
         : (widget.args['playing'] == true);
 
-    if (Platform.isWindows) {
-      if (type == 'smb') {
-        src = smbMrlToUnc(src);
-      } else if (type == 'file') {
-        src = _normalizeToFileUri(src);
-      }
-    }
-
     try {
-      await _player!.open(Media(src));
+      await _player!.open(PlaybackMedia(src), play: shouldPlay);
     } catch (e) {
       setState(() => _openError = '$e');
     }
@@ -186,11 +173,7 @@ class _WindowsPipOverlayWidgetState extends State<_WindowsPipOverlayWidget> {
     if (_controller != null) {
       innerChildren.add(
         Positioned.fill(
-          child: Video(
-            controller: _controller!,
-            controls: NoVideoControls,
-            fill: Colors.black,
-          ),
+          child: PlaybackVideo(controller: _controller!, fill: Colors.black),
         ),
       );
     }
@@ -427,16 +410,5 @@ class _WindowsPipOverlayWidgetState extends State<_WindowsPipOverlayWidget> {
         ],
       ),
     );
-  }
-
-  String _normalizeToFileUri(String path) {
-    try {
-      if (Platform.isWindows) {
-        return Uri.file(path, windows: true).toString();
-      }
-      return path;
-    } catch (_) {
-      return path;
-    }
   }
 }

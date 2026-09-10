@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:cb_file_manager/ui/components/common/app_toast.dart';
 import '../../controllers/file_operations_handler.dart';
 import '../../controllers/archive_operations_handler.dart';
@@ -52,6 +53,7 @@ class ContextMenuAction {
   final bool isDestructive;
   final bool isChecked;
   final bool isEnabled;
+  final bool isLoading;
   final String? group;
   final List<ContextMenuSection>? childSections;
   final Future<List<ContextMenuSection>> Function(BuildContext context)?
@@ -69,6 +71,7 @@ class ContextMenuAction {
     this.isDestructive = false,
     this.isChecked = false,
     this.isEnabled = true,
+    this.isLoading = false,
     this.group,
     this.childSections,
     this.loadChildSections,
@@ -424,7 +427,6 @@ List<ContextMenuSection> _applyContextMenuLayout({
                 label: AppLocalizations.of(context)!.thirdPartyApps,
                 icon: PhosphorIconsLight.appWindow,
                 loadChildSections: loadShellSections,
-                preloadChildren: true,
               ),
             ],
           ),
@@ -483,37 +485,37 @@ Future<void> showContextMenuPopup({
   if (overlay == null) return;
   _removeContextSubmenu();
 
-  final RelativeRect position = RelativeRect.fromRect(
-    Rect.fromPoints(
-      overlay.globalToLocal(globalPosition),
-      overlay.globalToLocal(globalPosition),
-    ),
-    Offset.zero & overlay.size,
-  );
+  const quickActionIds = ['cut', 'copy', 'share', 'paste', 'delete'];
+  final quickActions = <ContextMenuAction>[
+    for (final id in quickActionIds)
+      for (final section in sections)
+        for (final action in section.actions)
+          if (action.id == id && !_contextMenuActionHasSubmenu(action)) action,
+  ];
+  final quickIds = quickActions.map((action) => action.id).toSet();
+  final menuSections = <ContextMenuSection>[
+    for (final section in sections)
+      if (section.actions.any((action) => !quickIds.contains(action.id)))
+        ContextMenuSection(
+          actions: section.actions
+              .where((action) => !quickIds.contains(action.id))
+              .toList(),
+        ),
+  ];
+  final cursor = overlay.globalToLocal(globalPosition);
+  final opensUp = cursor.dy > overlay.size.height / 2;
   final menuColor = Theme.of(context).colorScheme.surface.withAlpha(255);
   final popupItems = <PopupMenuEntry<String>>[];
 
-  for (var sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
-    final section = sections[sectionIndex];
+  for (
+    var sectionIndex = 0;
+    sectionIndex < menuSections.length;
+    sectionIndex++
+  ) {
+    final section = menuSections[sectionIndex];
     final actions = section.actions;
     if (actions.isEmpty) {
       continue;
-    }
-
-    if (section.title != null && section.title!.isNotEmpty) {
-      popupItems.add(
-        PopupMenuItem<String>(
-          enabled: false,
-          height: 32,
-          child: Text(
-            section.title!,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ),
-      );
     }
 
     for (final action in actions) {
@@ -522,7 +524,7 @@ Future<void> showContextMenuPopup({
           PopupMenuItem<String>(
             enabled: false,
             padding: EdgeInsets.zero,
-            height: 48,
+            height: 36,
             child: _ContextMenuPopupSubmenuTrigger(
               actionContext: context,
               overlayBox: overlay,
@@ -535,6 +537,7 @@ Future<void> showContextMenuPopup({
           PopupMenuItem<String>(
             value: action.id,
             enabled: action.isEnabled,
+            height: 36,
             child: MouseRegion(
               onEnter: (_) => _scheduleContextSubmenuRemoval(),
               child: _buildContextMenuActionRow(
@@ -548,16 +551,63 @@ Future<void> showContextMenuPopup({
       }
     }
 
-    if (sectionIndex < sections.length - 1) {
-      popupItems.add(const PopupMenuDivider());
+    if (sectionIndex < menuSections.length - 1) {
+      popupItems.add(const PopupMenuDivider(height: 9));
     }
   }
 
+  // Allow two label lines at the user's text scale, plus icon and padding.
+  final quickActionsHeight = math.max(
+    68.0,
+    40 + MediaQuery.textScalerOf(context).scale(11) * 1.2 * 2,
+  );
+  if (quickActions.isNotEmpty) {
+    final strip = _ContextMenuQuickActions(
+      actions: quickActions,
+      height: quickActionsHeight,
+    );
+    if (opensUp) {
+      if (popupItems.isNotEmpty) {
+        popupItems.add(const PopupMenuDivider(height: 9));
+      }
+      popupItems.add(strip);
+    } else {
+      if (popupItems.isNotEmpty) {
+        popupItems.insert(0, const PopupMenuDivider(height: 9));
+      }
+      popupItems.insert(0, strip);
+    }
+  }
+  if (popupItems.isEmpty) return;
+
+  final menuHeight = math.min(
+    popupItems.fold<double>(8, (height, item) => height + item.height),
+    math.max(
+      quickActionsHeight + 8,
+      (opensUp ? cursor.dy : overlay.size.height - cursor.dy) - 10,
+    ),
+  );
+  final anchor = quickActions.isEmpty
+      ? cursor
+      : cursor.translate(0, opensUp ? -menuHeight - 2 : 2);
+  final position = RelativeRect.fromRect(
+    Rect.fromPoints(anchor, anchor),
+    Offset.zero & overlay.size,
+  );
   final selectedId = await showMenu<String>(
     context: context,
     position: position,
     color: menuColor,
     items: popupItems,
+    initialValue: quickActions.isEmpty ? null : _ContextMenuQuickActions.value,
+    menuPadding: const EdgeInsets.symmetric(vertical: 4),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    constraints: BoxConstraints(
+      minWidth: 244,
+      maxWidth: 300,
+      minHeight: quickActions.isEmpty ? 0 : menuHeight,
+      maxHeight: quickActions.isEmpty ? overlay.size.height - 16 : menuHeight,
+    ),
     popUpAnimationStyle: AnimationStyle.noAnimation,
   );
   _removeContextSubmenu();
@@ -578,6 +628,91 @@ Future<void> showContextMenuPopup({
     return;
   }
   await action.onSelected!(context);
+}
+
+class _ContextMenuQuickActions extends PopupMenuEntry<String> {
+  static const value = '__context_menu_quick_actions__';
+  final List<ContextMenuAction> actions;
+
+  @override
+  final double height;
+
+  const _ContextMenuQuickActions({required this.actions, required this.height});
+
+  @override
+  bool represents(String? value) => value == _ContextMenuQuickActions.value;
+
+  @override
+  State<_ContextMenuQuickActions> createState() =>
+      _ContextMenuQuickActionsState();
+}
+
+class _ContextMenuQuickActionsState extends State<_ContextMenuQuickActions> {
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => _removeContextSubmenu(),
+      child: Container(
+        color: Theme.of(context).colorScheme.surface.withAlpha(255),
+        key: const ValueKey('context-menu-quick-actions'),
+        height: widget.height,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Row(
+            children: [
+              for (final action in widget.actions)
+                Expanded(
+                  child: Tooltip(
+                    message: action.label,
+                    child: TextButton(
+                      key: ValueKey('context-menu-action-${action.id}'),
+                      onPressed: action.isEnabled
+                          ? () => Navigator.of(context).pop(action.id)
+                          : null,
+                      style: TextButton.styleFrom(
+                        // App buttons have a fixed 32px height. This two-line
+                        // control must explicitly override that theme size.
+                        fixedSize: Size.fromHeight(widget.height),
+                        minimumSize: Size.zero,
+                        maximumSize: Size.infinite,
+                        visualDensity: VisualDensity.standard,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 2,
+                          vertical: 6,
+                        ),
+                        foregroundColor: action.isDestructive
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.onSurface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(action.icon, size: 20),
+                          const SizedBox(height: 4),
+                          Text(
+                            action.id == 'delete'
+                                ? AppLocalizations.of(context)!.delete
+                                : action.label,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11, height: 1.2),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 Future<void> showContextMenuSheet({
@@ -610,6 +745,7 @@ Widget _buildContextMenuActionRow(
   BuildContext context,
   ContextMenuAction action, {
   bool forPopup = false,
+  bool isLoading = false,
 }) {
   final theme = Theme.of(context);
   final bool isDestructive = action.isDestructive;
@@ -621,7 +757,12 @@ Widget _buildContextMenuActionRow(
 
   final iconSize = forPopup ? 18.0 : 20.0;
   final Widget icon;
-  if (action.iconBytes != null) {
+  if (isLoading || action.isLoading) {
+    icon = SizedBox.square(
+      dimension: iconSize,
+      child: const CircularProgressIndicator(strokeWidth: 2),
+    );
+  } else if (action.iconBytes != null) {
     icon = Image.memory(
       action.iconBytes!,
       width: iconSize,
@@ -767,10 +908,18 @@ class _ContextMenuPopupSubmenuTriggerState
   void _startLoading() {
     final loader = widget.action.loadChildSections;
     if (_sectionsFuture != null || loader == null) return;
-    final future = Future<List<ContextMenuSection>>.sync(
-      () => loader(widget.actionContext),
-    );
-    _sectionsFuture = future;
+    final future = () async {
+      // Paint the loading row/cursor before invoking a potentially blocking
+      // native Shell extension on the Windows platform thread.
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !widget.actionContext.mounted) {
+        return const <ContextMenuSection>[];
+      }
+      return loader(widget.actionContext);
+    }();
+    setState(() {
+      _sectionsFuture = future;
+    });
     unawaited(_replaceLoadingSubmenu(future));
   }
 
@@ -785,6 +934,7 @@ class _ContextMenuPopupSubmenuTriggerState
                 'Loading...',
             icon: PhosphorIconsLight.hourglass,
             isEnabled: false,
+            isLoading: true,
           ),
         ],
       ),
@@ -833,9 +983,9 @@ class _ContextMenuPopupSubmenuTriggerState
     } catch (_) {
       sections = const <ContextMenuSection>[];
     }
-    _resolvedSections = sections;
-    if (!mounted ||
-        !_isContextSubmenuOwnerActive(0, _submenuOwner) ||
+    if (!mounted) return;
+    setState(() => _resolvedSections = sections);
+    if (!_isContextSubmenuOwnerActive(0, _submenuOwner) ||
         !widget.actionContext.mounted) {
       return;
     }
@@ -843,6 +993,7 @@ class _ContextMenuPopupSubmenuTriggerState
   }
 
   void _openSubmenu() {
+    if (!widget.action.isEnabled) return;
     _cancelContextSubmenuRemoval();
     final childSections = widget.action.childSections;
     if (childSections != null && childSections.isNotEmpty) {
@@ -869,18 +1020,21 @@ class _ContextMenuPopupSubmenuTriggerState
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = _sectionsFuture != null && _resolvedSections == null;
     return MouseRegion(
       key: _itemKey,
+      cursor: isLoading ? SystemMouseCursors.progress : MouseCursor.defer,
       onEnter: (_) => _openSubmenu(),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _openSubmenu,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: _buildContextMenuActionRow(
             widget.actionContext,
             widget.action,
             forPopup: true,
+            isLoading: isLoading,
           ),
         ),
       ),
@@ -1093,6 +1247,7 @@ class _ContextSubmenuActionRowState extends State<_ContextSubmenuActionRow> {
                 'Loading...',
             icon: PhosphorIconsLight.hourglass,
             isEnabled: false,
+            isLoading: true,
           ),
         ],
       ),
@@ -1140,9 +1295,9 @@ class _ContextSubmenuActionRowState extends State<_ContextSubmenuActionRow> {
     } catch (_) {
       sections = const <ContextMenuSection>[];
     }
-    _resolvedSections = sections;
-    if (!mounted ||
-        !_isContextSubmenuOwnerActive(_childDepth, _submenuOwner) ||
+    if (!mounted) return;
+    setState(() => _resolvedSections = sections);
+    if (!_isContextSubmenuOwnerActive(_childDepth, _submenuOwner) ||
         !widget.actionContext.mounted) {
       return;
     }
@@ -1176,8 +1331,16 @@ class _ContextSubmenuActionRowState extends State<_ContextSubmenuActionRow> {
     }
     _showSections(_loadingSections());
     if (_sectionsFuture == null) {
-      final sectionsFuture = loader(widget.actionContext);
-      _sectionsFuture = sectionsFuture;
+      final sectionsFuture = () async {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted || !widget.actionContext.mounted) {
+          return const <ContextMenuSection>[];
+        }
+        return loader(widget.actionContext);
+      }();
+      setState(() {
+        _sectionsFuture = sectionsFuture;
+      });
       unawaited(_replaceLoadingSubmenu(sectionsFuture));
     }
   }
@@ -1200,6 +1363,9 @@ class _ContextSubmenuActionRowState extends State<_ContextSubmenuActionRow> {
   @override
   Widget build(BuildContext context) {
     final hasSubmenu = _contextMenuActionHasSubmenu(widget.action);
+    final isLoading =
+        widget.action.isLoading ||
+        (_sectionsFuture != null && _resolvedSections == null);
     return MouseRegion(
       key: _itemKey,
       onEnter: (_) {
@@ -1211,6 +1377,7 @@ class _ContextSubmenuActionRowState extends State<_ContextSubmenuActionRow> {
         }
       },
       child: InkWell(
+        mouseCursor: isLoading ? SystemMouseCursors.progress : null,
         key: ValueKey<String>('context-menu-action-tap-${widget.action.id}'),
         onTap: widget.action.isEnabled ? _selectAction : null,
         child: Padding(
@@ -1219,6 +1386,7 @@ class _ContextSubmenuActionRowState extends State<_ContextSubmenuActionRow> {
             widget.actionContext,
             widget.action,
             forPopup: true,
+            isLoading: isLoading,
           ),
         ),
       ),
@@ -1603,6 +1771,39 @@ class SharedFolderContextMenu extends StatelessWidget {
   }
 }
 
+ContextMenuAction _shareContextMenuAction(
+  BuildContext context,
+  List<String> paths, {
+  bool enabled = true,
+}) {
+  final l10n = AppLocalizations.of(context)!;
+  return ContextMenuAction(
+    id: 'share',
+    label: l10n.share,
+    icon: PhosphorIconsLight.shareNetwork,
+    isEnabled: enabled && paths.isNotEmpty,
+    onSelected: (actionContext) async {
+      final box = actionContext.findRenderObject();
+      final origin = box is RenderBox && box.hasSize
+          ? box.localToGlobal(Offset.zero) & box.size
+          : null;
+      try {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: paths.map((path) => XFile(path)).toList(),
+            sharePositionOrigin: origin,
+          ),
+        );
+      } catch (error) {
+        AppLogger.error('Unable to share selected files', error: error);
+        if (actionContext.mounted) {
+          AppToast.error(actionContext, l10n.operationFailed);
+        }
+      }
+    },
+  );
+}
+
 List<ContextMenuSection> _buildFileContextMenuSections({
   required BuildContext context,
   FolderListBloc? folderListBloc,
@@ -1621,9 +1822,9 @@ List<ContextMenuSection> _buildFileContextMenuSections({
   final currentService = StreamingHelper.instance.currentNetworkService;
   final isDesktopPlatform =
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-  final canShowShellMenu =
-      Platform.isWindows &&
-      FileSystemEntity.typeSync(file.path) != FileSystemEntityType.notFound;
+  // Native Shell validates targets on invocation; don't stat disks/network
+  // paths on the UI isolate just to decide whether to show More options.
+  final canShowShellMenu = Platform.isWindows && file.path.isNotEmpty;
   final canDownloadRemote =
       (currentService is WebDAVService || currentService is FTPService) &&
       remotePath != null;
@@ -1766,6 +1967,7 @@ List<ContextMenuSection> _buildFileContextMenuSections({
           onSelected: (_) => FileOperationsHandler.copyToClipboard(
             context: context,
             entity: file,
+            folderListBloc: folderListBloc,
           ),
         ),
         ContextMenuAction(
@@ -1775,6 +1977,7 @@ List<ContextMenuSection> _buildFileContextMenuSections({
           onSelected: (_) => FileOperationsHandler.cutToClipboard(
             context: context,
             entity: file,
+            folderListBloc: folderListBloc,
           ),
         ),
         ContextMenuAction(
@@ -1785,6 +1988,20 @@ List<ContextMenuSection> _buildFileContextMenuSections({
             context: context,
             entity: file,
             folderListBloc: folderListBloc,
+          ),
+        ),
+        _shareContextMenuAction(context, [
+          file.path,
+        ], enabled: !canDownloadRemote),
+        ContextMenuAction(
+          id: 'paste',
+          label: l10n.pasteHere,
+          icon: PhosphorIconsLight.clipboard,
+          isEnabled: (folderListBloc ?? _maybeFolderListBloc(context)) != null,
+          onSelected: (_) => FileOperationsHandler.pasteFromClipboard(
+            context: context,
+            destinationPath: file.parent.path,
+            folderListBloc: (folderListBloc ?? _maybeFolderListBloc(context)),
           ),
         ),
         ContextMenuAction(
@@ -2191,9 +2408,7 @@ List<ContextMenuSection> _buildFolderContextMenuSections({
   final l10n = AppLocalizations.of(context)!;
   final isDesktopPlatform =
       Platform.isWindows || Platform.isLinux || Platform.isMacOS;
-  final canShowShellMenu =
-      Platform.isWindows &&
-      FileSystemEntity.typeSync(folder.path) != FileSystemEntityType.notFound;
+  final canShowShellMenu = Platform.isWindows && folder.path.isNotEmpty;
 
   return [
     ContextMenuSection(
@@ -2262,6 +2477,7 @@ List<ContextMenuSection> _buildFolderContextMenuSections({
           onSelected: (_) => FileOperationsHandler.copyToClipboard(
             context: context,
             entity: folder,
+            folderListBloc: folderListBloc,
           ),
         ),
         ContextMenuAction(
@@ -2271,6 +2487,7 @@ List<ContextMenuSection> _buildFolderContextMenuSections({
           onSelected: (_) => FileOperationsHandler.cutToClipboard(
             context: context,
             entity: folder,
+            folderListBloc: folderListBloc,
           ),
         ),
         ContextMenuAction(
@@ -2280,6 +2497,7 @@ List<ContextMenuSection> _buildFolderContextMenuSections({
           onSelected: (_) => FileOperationsHandler.pasteFromClipboard(
             context: context,
             destinationPath: folder.path,
+            folderListBloc: folderListBloc,
           ),
         ),
         ContextMenuAction(
@@ -2291,6 +2509,27 @@ List<ContextMenuSection> _buildFolderContextMenuSections({
             entity: folder,
             folderListBloc: folderListBloc,
           ),
+        ),
+        // The platform share sheet accepts files, not directories.
+        _shareContextMenuAction(context, const [], enabled: false),
+        ContextMenuAction(
+          id: 'delete',
+          label: l10n.moveToTrash,
+          icon: PhosphorIconsLight.trash,
+          isDestructive: true,
+          isEnabled: (folderListBloc ?? _maybeFolderListBloc(context)) != null,
+          onSelected: (_) async {
+            final bloc = (folderListBloc ?? _maybeFolderListBloc(context));
+            if (bloc == null) return;
+            await FileOperationsHandler.handleDelete(
+              context: context,
+              folderListBloc: bloc,
+              selectedFiles: const [],
+              selectedFolders: [folder.path],
+              permanent: false,
+              onClearSelection: () {},
+            );
+          },
         ),
         ContextMenuAction(
           id: 'tags',
@@ -2565,16 +2804,10 @@ List<ContextMenuSection> _buildMultiSelectionContextMenuSections({
   Offset? globalPosition,
 }) {
   final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
-  final bloc = folderListBloc;
+  final bloc = (folderListBloc ?? _maybeFolderListBloc(context));
   final l10n = AppLocalizations.of(context)!;
   final count = selectedPaths.length;
-  final canShowShellMenu =
-      Platform.isWindows &&
-      selectedPaths.isNotEmpty &&
-      selectedPaths.every(
-        (path) =>
-            FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound,
-      );
+  final canShowShellMenu = Platform.isWindows && selectedPaths.isNotEmpty;
 
   final entitiesList = <FileSystemEntity>[];
   final files = <String>[];
@@ -2594,6 +2827,21 @@ List<ContextMenuSection> _buildMultiSelectionContextMenuSections({
     ContextMenuSection(
       title: l10n.itemsSelected(count),
       actions: [
+        _shareContextMenuAction(context, files, enabled: folders.isEmpty),
+        ContextMenuAction(
+          id: 'paste',
+          label: l10n.pasteHere,
+          icon: PhosphorIconsLight.clipboard,
+          isEnabled: bloc != null,
+          onSelected: (_) {
+            if (bloc == null) return;
+            FileOperationsHandler.pasteFromClipboard(
+              context: context,
+              destinationPath: bloc.state.currentPath.path,
+              folderListBloc: bloc,
+            );
+          },
+        ),
         ContextMenuAction(
           id: 'copy',
           label: l10n.copy,

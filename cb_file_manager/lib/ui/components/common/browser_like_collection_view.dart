@@ -2,6 +2,7 @@
 
 import 'package:cb_file_manager/ui/screens/folder_list/folder_list_state.dart';
 import 'package:cb_file_manager/ui/widgets/tree_view/tree_view.dart';
+import 'package:cb_file_manager/ui/widgets/adaptive_file_list.dart';
 import 'package:flutter/material.dart';
 
 class BrowserLikeCollectionView<T> extends StatelessWidget {
@@ -50,6 +51,9 @@ class BrowserLikeCollectionView<T> extends StatelessWidget {
   final double? gridCacheExtent;
   final double? detailsCacheExtent;
 
+  /// Use the file browser's compact, column-filling List layout.
+  final bool useAdaptiveList;
+
   /// When false the per-item position registration (used for lasso/drag
   /// selection) is skipped — every visible item then avoids a per-frame
   /// `LayoutBuilder` + `addPostFrameCallback` + `localToGlobal` round-trip.
@@ -86,6 +90,7 @@ class BrowserLikeCollectionView<T> extends StatelessWidget {
     this.listCacheExtent,
     this.gridCacheExtent,
     this.detailsCacheExtent,
+    this.useAdaptiveList = false,
     this.measurePositions = true,
   });
 
@@ -213,6 +218,16 @@ class BrowserLikeCollectionView<T> extends StatelessWidget {
         treeChildrenLoader: treeChildrenLoader,
         treeItemBuilder: treeItemBuilder!,
         scrollController: scrollController,
+      );
+    }
+
+    if (viewMode == ViewMode.list && useAdaptiveList) {
+      return AdaptiveFileList(
+        isDesktop: isDesktop,
+        controller: scrollController,
+        itemCount: items.length,
+        itemBuilder: (context, index) =>
+            buildItem(context, index, listItemBuilder),
       );
     }
 

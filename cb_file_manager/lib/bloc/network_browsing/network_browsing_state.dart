@@ -248,6 +248,7 @@ class NetworkBrowsingState extends Equatable {
     String? lastSuccessfullyConnectedPath,
     bool clearLastSuccessfullyConnectedPath = false,
     NetworkServiceBase? currentService,
+    bool clearCurrentService = false,
     String? currentPath,
     List<Directory>? directories,
     bool clearDirectories = false,
@@ -269,7 +270,9 @@ class NetworkBrowsingState extends Equatable {
       lastSuccessfullyConnectedPath: clearLastSuccessfullyConnectedPath
           ? null
           : lastSuccessfullyConnectedPath ?? this.lastSuccessfullyConnectedPath,
-      currentService: currentService ?? this.currentService,
+      currentService: clearCurrentService
+          ? null
+          : currentService ?? this.currentService,
       currentPath: currentPath ?? this.currentPath,
       directories: clearDirectories ? null : directories ?? this.directories,
       files: clearFiles ? null : files ?? this.files,

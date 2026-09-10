@@ -12,6 +12,7 @@ import 'package:cb_file_manager/helpers/files/archive_path_utils.dart';
 import 'package:cb_file_manager/ui/screens/system_screen_router.dart';
 import 'package:cb_file_manager/ui/utils/fluent_background.dart';
 import 'package:cb_file_manager/ui/widgets/app_progress_indicator.dart';
+import 'package:cb_file_manager/ui/components/common/skeleton_helper.dart';
 import 'package:cb_file_manager/helpers/ui/frame_timing_optimizer.dart';
 
 /// Router for folder content that handles different path types
@@ -110,10 +111,9 @@ class FolderContentRouter {
     // Apply frame timing optimization before heavy UI operations
     FrameTimingOptimizer().optimizeBeforeHeavyOperation();
 
-    // Show content as soon as we have any files/folders (lazy loading)
-    // Only show skeleton when truly empty and loading
+    // Show content as soon as we have any files/folders (lazy loading).
+    // Only show skeleton when truly empty and loading.
     final bool hasContent = state.folders.isNotEmpty || state.files.isNotEmpty;
-    // Top bar: only for initial loads (no existing content yet).
     // Refresh operations show at the bottom and don't affect content layout.
     final bool shouldShowSkeleton =
         !hasContent &&
@@ -137,7 +137,13 @@ class FolderContentRouter {
             context: context,
             enableBlur: isDesktopPlatform,
             child: shouldShowSkeleton
-                ? const SizedBox.shrink() // Show an empty space while loading
+                ? SkeletonHelper.responsive(
+                    isGridView: state.viewMode == ViewMode.grid,
+                    isAlbum: false,
+                    crossAxisCount: state.gridZoomLevel,
+                    itemCount: 12,
+                    wrapInCardOnDesktop: true,
+                  )
                 : mainContentBuilder(
                     context,
                     state,

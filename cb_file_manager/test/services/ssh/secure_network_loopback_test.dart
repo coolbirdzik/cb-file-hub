@@ -1,0 +1,248 @@
+import 'package:cb_file_manager/services/network_browsing/network_service_registry.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:cb_file_manager/services/network_browsing/ftp_client/ftp_client.dart';
+import 'package:cb_file_manager/services/network_browsing/sftp_service.dart';
+import 'package:cb_file_manager/services/ssh/ssh_profile_store.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+// Opt in: python -m pip install asyncssh pyftpdlib pyopenssl
+// flutter test --dart-define=CB_SECURE_NETWORK_TEST=true test/services/ssh/secure_network_loopback_test.dart
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  const enabled = bool.fromEnvironment('CB_SECURE_NETWORK_TEST');
+  late Process server;
+  late Directory root;
+  late Map<String, dynamic> config;
+  setUpAll(() async {
+    if (!enabled) return;
+    FlutterSecureStorage.setMockInitialValues({});
+    root = await Directory.systemTemp.createTemp('cb-secure-network-');
+    server = await Process.start('python', [
+      'test/support/secure_network_server.py',
+      root.path,
+    ]);
+    server.stderr.transform(utf8.decoder).listen((_) {});
+    final line = await server.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .first
+        .timeout(const Duration(seconds: 20));
+    config = jsonDecode(line);
+  });
+  tearDownAll(() async {
+    if (!enabled) return;
+    server.stdin.writeln('stop');
+    await server.stdin.flush();
+    await server.exitCode.timeout(const Duration(seconds: 10));
+    await root.delete(recursive: true);
+  });
+  for (final security in [
+    FtpSecurity.none,
+    FtpSecurity.explicitTls,
+    FtpSecurity.implicitTls,
+  ]) {
+    test(
+      '${security.name} encrypts login, listing, upload and download',
+      () async {
+        final ftp = FtpClient(
+          host: '127.0.0.1',
+          port: config[security.name],
+          username: 'developer',
+          password: 'fixture-password',
+          security: security,
+          trustedCertificatePath: config['certificate'],
+        );
+        addTearDown(ftp.disconnect);
+        expect(await ftp.connect(), isTrue);
+        expect(
+          (await ftp.listDirectory()).any((f) => f.name == 'hello.txt'),
+          isTrue,
+        );
+        expect(
+          utf8.decode((await ftp.downloadFile('/hello.txt'))!),
+          'secure network fixture',
+        );
+        final source = File('${root.path}/source.txt');
+        await source.writeAsString('encrypted upload');
+        expect(await ftp.uploadFile(source.path, '/uploaded.txt'), isTrue);
+        expect(
+          utf8.decode((await ftp.downloadFile('/uploaded.txt'))!),
+          'encrypted upload',
+        );
+        expect(await ftp.rename('/uploaded.txt', '/renamed.txt'), isTrue);
+        expect(await ftp.deleteFile('/renamed.txt'), isTrue);
+        expect(
+          await ftp.uploadFile(source.path, '/literal%20name.txt'),
+          isTrue,
+        );
+        expect(
+          utf8.decode((await ftp.downloadFile('/literal%20name.txt'))!),
+          'encrypted upload',
+        );
+        expect(
+          (await ftp.listDirectory()).any(
+            (f) => f.name == 'literal%20name.txt',
+          ),
+          isTrue,
+        );
+        expect(await ftp.deleteFile('/literal%20name.txt'), isTrue);
+        await expectLater(
+          ftp.deleteFile('bad\r\nDELE hello.txt'),
+          throwsArgumentError,
+        );
+      },
+      skip: !enabled,
+    );
+  }
+  test(
+    'FTPS rejects untrusted certificates and never falls back to plaintext',
+    () async {
+      final ftp = FtpClient(
+        host: '127.0.0.1',
+        port: config['explicitTls'],
+        username: 'developer',
+        password: 'fixture-password',
+        security: FtpSecurity.explicitTls,
+      );
+      addTearDown(ftp.disconnect);
+      await expectLater(ftp.connect(), throwsA(anything));
+      expect(ftp.isConnected, isFalse);
+    },
+    skip: !enabled,
+  );
+  test(
+    'SFTP operations and SSH password/key authentication share verified hosts',
+    () async {
+      var prompts = 0;
+      final service = SFTPService();
+      addTearDown(service.disconnect);
+      final connected = await service.connect(
+        host: '127.0.0.1',
+        username: 'developer',
+        password: 'fixture-password',
+        port: config['ssh'],
+        additionalOptions: {
+          'trustPrompt':
+              (String h, int port, String type, String fp, String? old) async {
+                prompts++;
+                return true;
+              },
+        },
+      );
+      expect(connected.success, isTrue, reason: connected.errorMessage);
+      expect(prompts, 1);
+      final authority = Uri.encodeComponent(
+        Uri.parse(service.basePath).authority,
+      );
+      final path = '#network/SFTP/$authority/';
+      expect(
+        (await service.listDirectory(
+          path,
+        )).any((f) => f.path.endsWith('/hello.txt')),
+        isTrue,
+      );
+      await service.createDirectory('${path}folder one');
+      final local = File('${root.path}/local.txt');
+      await local.writeAsString('SFTP bytes');
+      await service.putFile(local.path, '${path}folder one/a%.txt');
+      expect(
+        utf8.decode((await service.readFileData('${path}folder one/a%.txt'))!),
+        'SFTP bytes',
+      );
+      await service.rename(
+        '${path}folder one/a%.txt',
+        '${path}folder one/b.txt',
+      );
+      await service.getFile(
+        '${path}folder one/b.txt',
+        '${root.path}/downloaded.txt',
+      );
+      expect(
+        await File('${root.path}/downloaded.txt').readAsString(),
+        'SFTP bytes',
+      );
+      await service.deleteFile('${path}folder one/b.txt');
+      await service.deleteDirectory('${path}folder one');
+      expect(
+        () => service.resolveRemotePath('#network/SFTP/another-host/file'),
+        throwsArgumentError,
+      );
+      final store = SshProfileStore.instance;
+      final key = SshStoredKey.generate('test');
+      await store.saveKey(key);
+      await File('${root.path}/authorized_keys').writeAsString(key.publicKey);
+      final ssh = await SshConnector().connect(
+        SshProfile(
+          id: 'test',
+          name: 'test',
+          host: '127.0.0.1',
+          username: 'developer',
+          port: config['ssh'],
+          keyId: key.id,
+        ),
+      );
+      addTearDown(ssh.close);
+      final shell = await ssh.shell();
+      final output = shell.stdout
+          .cast<List<int>>()
+          .transform(utf8.decoder)
+          .join();
+      shell.write(utf8.encode('developer test\nexit\n'));
+      expect(
+        await output.timeout(const Duration(seconds: 10)),
+        contains('echo: developer test'),
+      );
+      await store.trust('127.0.0.1', config['ssh'], 'SHA256:changed');
+      await expectLater(
+        SshConnector().connect(
+          SshProfile(
+            id: '',
+            name: '',
+            host: '127.0.0.1',
+            username: 'developer',
+            password: 'fixture-password',
+            port: config['ssh'],
+          ),
+        ),
+        throwsA(anything),
+      );
+    },
+    skip: !enabled,
+    timeout: const Timeout(Duration(seconds: 45)),
+  );
+  test(
+    'SFTP sessions on different ports stay isolated and disconnect independently',
+    () async {
+      final registry = NetworkServiceRegistry.withServices([SFTPService()]);
+      addTearDown(registry.disconnectAll);
+      final paths = <String>[];
+      for (final port in [config['ssh'], config['ssh2']]) {
+        final result = await registry.connect(
+          serviceName: 'SFTP',
+          host: '127.0.0.1',
+          username: 'developer',
+          password: 'fixture-password',
+          port: port,
+          additionalOptions: {
+            'trustPrompt':
+                (String h, int p, String type, String fp, String? old) async =>
+                    true,
+          },
+        );
+        expect(result.success, isTrue, reason: result.errorMessage);
+        paths.add(result.connectedPath!);
+      }
+      final first = registry.getServiceForPath(paths[0]);
+      final second = registry.getServiceForPath(paths[1]);
+      expect(first, isNot(same(second)));
+      expect(registry.getServiceForPath('#network/SFTP/127.0.0.1/'), isNull);
+      await registry.disconnect(paths[0]);
+      expect(first!.isConnected, isFalse);
+      expect(second!.isConnected, isTrue);
+      expect(await second.listDirectory(paths[1]), isNotEmpty);
+    },
+    skip: !enabled,
+  );
+}

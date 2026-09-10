@@ -258,7 +258,7 @@ class StreamingHelper {
         }
       }
 
-      // LibSMB2 streaming removed - now using flutter_vlc_player for SMB direct streaming
+      // LibSMB2 streaming removed - now using the shared VLC backend for SMB direct streaming
 
       // Priority 3: Fallback to VLC Direct SMB streaming for other SMB services
       debugPrint('StreamingHelper: Checking for VLC Direct SMB fallback...');
@@ -632,7 +632,7 @@ class StreamingHelper {
         'StreamingHelper: Can stream directly: ${VlcDirectSmbHelper.canStreamDirectly(result.fileType!)}',
       );
 
-      // LibSMB2 streaming removed - now using flutter_vlc_player for SMB
+      // LibSMB2 streaming removed - now using the shared VLC backend for SMB
 
       // Fallback: VLC Direct SMB streaming
       if (result.streamingUrl == null &&

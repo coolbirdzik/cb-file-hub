@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tab_manager.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tab_data.dart';
+import '../../bloc/selection/selection.dart';
+import '../components/common/screen_scaffold.dart';
+import '../components/common/file_view_shell.dart';
+import '../components/common/browser_like_keyboard_shortcuts.dart';
+import 'folder_list/folder_list_state.dart';
+import 'network_browsing/components/network_navigation_bar.dart';
 
 /// A base class for all system screens in the application
 /// System screens are screens that are not tied to a file system path
@@ -24,6 +32,10 @@ class SystemScreen extends StatelessWidget {
 
   /// Additional actions to display in the app bar
   final List<Widget>? actions;
+  final String? tabId;
+  final VoidCallback? onRefresh;
+  final ViewMode viewMode;
+  final String? homePath;
 
   /// Constructor
   const SystemScreen({
@@ -34,12 +46,85 @@ class SystemScreen extends StatelessWidget {
     required this.child,
     this.showAppBar = false,
     this.actions,
+    this.tabId,
+    this.onRefresh,
+    this.viewMode = ViewMode.list,
+    this.homePath,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (tabId != null &&
+        const [
+          '#network',
+          '#smb',
+          '#ftp',
+          '#webdav',
+          '#sftp',
+          '#ssh',
+        ].contains(systemId)) {
+      final tabs = context.read<TabManagerBloc>();
+      void back() => tabs.backNavigationToPath(tabId!);
+      void forward() => tabs.forwardNavigationToPath(tabId!);
+      return Focus(
+        canRequestFocus: false,
+        onKeyEvent: (_, event) {
+          if (tabs.state.activeTabId != tabId ||
+              event is! KeyDownEvent ||
+              BrowserLikeKeyboardShortcuts.isTextInputFocused()) {
+            return KeyEventResult.ignored;
+          }
+          final alt = HardwareKeyboard.instance.isAltPressed;
+          if ((alt && event.logicalKey == LogicalKeyboardKey.arrowLeft) ||
+              event.logicalKey == LogicalKeyboardKey.backspace) {
+            back();
+            return KeyEventResult.handled;
+          }
+          if (alt && event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            forward();
+            return KeyEventResult.handled;
+          }
+          if (alt && event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            final parent = networkParentPath(systemId);
+            if (parent != null) navigateNetworkTab(context, tabId!, parent);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: ScreenScaffold(
+          selectionState: const SelectionState(),
+          isNetworkPath: true,
+          isDesktop: Platform.isWindows || Platform.isLinux || Platform.isMacOS,
+          onClearSelection: () {},
+          showRemoveTagsDialog: (_) {},
+          showManageAllTagsDialog: (_) {},
+          showDeleteConfirmationDialog: (_) {},
+          showAppBar: showAppBar,
+          showSearchBar: false,
+          searchBar: const SizedBox.shrink(),
+          pathNavigationBar: NetworkNavigationBar(
+            tabId: tabId!,
+            path: systemId,
+            homePath:
+                homePath ??
+                (const ['#ssh', '#sftp'].contains(systemId) ? '#ssh' : '#home'),
+          ),
+          actions: actions ?? const [],
+          body: ClipRect(
+            child: FileViewShell(
+              viewMode: viewMode,
+              onMouseBack: back,
+              onMouseForward: forward,
+              onRefresh: onRefresh,
+              child: Material(type: MaterialType.transparency, child: child),
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      // Network landing pages must reserve space for their visible toolbar.
+      extendBodyBehindAppBar: false,
       backgroundColor: Colors.transparent,
       appBar: showAppBar
           ? AppBar(

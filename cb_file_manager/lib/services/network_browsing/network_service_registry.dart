@@ -5,12 +5,21 @@ import 'smb_service.dart'; // Reverted back to the original smb_service
 import 'mobile_smb_service.dart'; // Mobile SMB service for Android/iOS
 import 'ftp_service.dart';
 import 'webdav_service.dart';
+import 'sftp_service.dart';
 
 /// Registry for managing all network service providers
 class NetworkServiceRegistry {
   static final NetworkServiceRegistry _instance = NetworkServiceRegistry._();
 
   factory NetworkServiceRegistry() => _instance;
+
+  /// An independent registry, useful for embedded sessions and tests without
+  /// loading platform-native providers.
+  NetworkServiceRegistry.withServices(Iterable<NetworkServiceBase> services) {
+    for (final service in services) {
+      _registerService(service);
+    }
+  }
 
   NetworkServiceRegistry._() {
     // Register all available services
@@ -21,6 +30,7 @@ class NetworkServiceRegistry {
       _registerService(SMBService()); // Original SMBService for Windows/Desktop
     }
     _registerService(FTPService());
+    _registerService(SFTPService());
     _registerService(WebDAVService());
   }
 
@@ -63,7 +73,12 @@ class NetworkServiceRegistry {
     int? port,
     Map<String, dynamic>? additionalOptions,
   }) async {
-    final service = getServiceByName(serviceName);
+    final prototype = getServiceByName(serviceName);
+    final service = switch (prototype) {
+      FTPService() => FTPService(),
+      SFTPService() => SFTPService(),
+      _ => prototype,
+    };
     if (service == null) {
       return ConnectionResult(
         success: false,
@@ -84,6 +99,20 @@ class NetworkServiceRegistry {
     if (serviceConnectionResult.success &&
         serviceConnectionResult.connectedPath != null) {
       String serviceBasePath = serviceConnectionResult.connectedPath!;
+      final replaced = _activeConnections.entries
+          .where(
+            (entry) =>
+                entry.key == serviceBasePath ||
+                (serviceName == 'FTP' &&
+                    entry.value.serviceName == 'FTP' &&
+                    Uri.parse(entry.key).authority ==
+                        Uri.parse(serviceBasePath).authority),
+          )
+          .toList();
+      for (final entry in replaced) {
+        if (!identical(entry.value, service)) await entry.value.disconnect();
+        _activeConnections.remove(entry.key);
+      }
       _activeConnections[serviceBasePath] =
           service; // Store with its native base path as key
 
@@ -91,8 +120,10 @@ class NetworkServiceRegistry {
       String type = service.serviceName.toUpperCase(); // SMB, FTP, WEBDAV
 
       // For FTP, always use encoded host format
-      if (type == "FTP") {
-        String hostComponent = Uri.encodeComponent(host);
+      if (type == "FTP" || type == "SFTP") {
+        String hostComponent = Uri.encodeComponent(
+          Uri.parse(serviceBasePath).authority,
+        );
         String tabPath = '#network/$type/$hostComponent/';
         return ConnectionResult(success: true, connectedPath: tabPath);
       }
@@ -127,27 +158,18 @@ class NetworkServiceRegistry {
     String serviceType = parts[0].toUpperCase(); // SMB, FTP, WEBDAV
     String hostComponent = Uri.decodeComponent(parts[1]);
 
-    // For FTP connections, we need special handling
-    if (serviceType == "FTP") {
-      // Log all available FTP services for debugging
-      bool anyFtpFound = false;
-      for (var entry in _activeConnections.entries) {
-        if (entry.value.serviceName.toUpperCase() == "FTP") {
-          anyFtpFound = true;
-        }
-      }
-
-      if (!anyFtpFound) {
-        return null;
-      }
-
-      // Always return ANY FTP service since we handle paths internally
-      for (var entry in _activeConnections.entries) {
-        final service = entry.value;
-        if (service.serviceName.toUpperCase() == "FTP") {
-          return service;
-        }
-      }
+    if (serviceType == 'FTP' || serviceType == 'SFTP') {
+      final matches = _activeConnections.entries.where((entry) {
+        if (entry.value.serviceName.toUpperCase() != serviceType) return false;
+        final uri = Uri.parse(entry.key);
+        if (uri.authority == hostComponent) return true;
+        final requested = Uri.tryParse('network://$hostComponent');
+        return requested != null &&
+            requested.host.toLowerCase() == uri.host.toLowerCase() &&
+            (!requested.hasPort || requested.port == uri.port) &&
+            (requested.userInfo.isEmpty || requested.userInfo == uri.userInfo);
+      }).toList();
+      return matches.length == 1 ? matches.single.value : null;
     }
     // For other services, do standard matching
     else {
@@ -284,22 +306,11 @@ class NetworkServiceRegistry {
 
     Uri parsedBasePath = Uri.parse(nativeServiceBasePath);
     String type = service.serviceName.toUpperCase(); // SMB, FTP, WEBDAV
-    String hostComponent = Uri.encodeComponent(parsedBasePath.host);
-    // Path component from the native base path (e.g., /share_name from smb://server/share_name)
-    String pathSegment = parsedBasePath.path.startsWith('/')
-        ? parsedBasePath.path.substring(1)
-        : parsedBasePath.path;
-    String encodedPathComponent = Uri.encodeComponent(pathSegment);
-
-    String tabPath = '#network/$type/$hostComponent';
-    if (encodedPathComponent.isNotEmpty) {
-      // For SMB, the 'share' is part of the host in some contexts, but here it's part of the path from Uri.parse.
-      // The S prefix helps distinguish this base path component from further subdirectories.
-      tabPath += '/S$encodedPathComponent';
-    }
-    if (!tabPath.endsWith('/')) {
-      tabPath += '/';
-    }
-    return tabPath;
+    String hostComponent = Uri.encodeComponent(
+      type == 'FTP' || type == 'SFTP'
+          ? parsedBasePath.authority
+          : parsedBasePath.host,
+    );
+    return '#network/$type/$hostComponent/';
   }
 }

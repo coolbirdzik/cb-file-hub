@@ -313,7 +313,9 @@ class VlcDirectSmbHelper {
 
     try {
       final smbUrl = createSmbUrl(smbService: smbService, smbPath: smbPath);
-      debugPrint('Generated SMB URL: $smbUrl');
+      debugPrint(
+        'Generated SMB URL: ${Uri.parse(smbUrl).replace(userInfo: '')}',
+      );
     } catch (e) {
       debugPrint('Error creating SMB URL: $e');
     }

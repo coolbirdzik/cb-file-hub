@@ -969,6 +969,22 @@ class UserPreferences {
     return ViewMode.values[resolvedIndex];
   }
 
+  /// Scoped preference for collections that support only Grid and List.
+  Future<ViewMode> getGridListCollectionMode(String collectionId) async {
+    final value = await _getPreference<String>('collection_view_$collectionId');
+    return value == ViewMode.list.name ? ViewMode.list : ViewMode.grid;
+  }
+
+  Future<void> setGridListCollectionMode(
+    String collectionId,
+    ViewMode mode,
+  ) async {
+    await _savePreference<String>(
+      'collection_view_$collectionId',
+      mode == ViewMode.list ? ViewMode.list.name : ViewMode.grid.name,
+    );
+  }
+
   Future<bool> setNetworkBrowserViewMode(ViewMode viewMode) async {
     return await _savePreference<int>(
       _networkBrowserViewModeKey,

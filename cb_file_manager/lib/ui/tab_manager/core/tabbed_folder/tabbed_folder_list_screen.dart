@@ -1694,8 +1694,9 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
       );
     }
 
-    // Show content as soon as we have any files/folders (lazy loading)
-    // Only show skeleton when truly empty and loading (initial navigation)
+    // Show content as soon as we have any files/folders (lazy loading).
+    // A path mismatch means that content belongs to the previous navigation,
+    // so it must never suppress the loading surface for the requested path.
     final bool hasContent = state.folders.isNotEmpty || state.files.isNotEmpty;
     final bool isPathMismatch =
         !_currentPath.startsWith('#') && _isPathMismatch(state);
@@ -1712,13 +1713,11 @@ class _TabbedFolderListScreenState extends State<TabbedFolderListScreen>
         !state.isRefreshing &&
         (state.isLoading || isPathMismatch);
     final bool shouldShowSkeleton =
-        (_isRestoringFromInactive && !hasContent) ||
-        (!hasContent &&
-            (state.isLoading || isPathMismatch) &&
-            state.error == null &&
-            state.searchResults.isEmpty &&
-            state.currentSearchTag == null &&
-            state.currentSearchQuery == null);
+        !searchResultsActive &&
+        state.error == null &&
+        ((_isRestoringFromInactive && !hasContent) ||
+            isPathMismatch ||
+            (!hasContent && state.isLoading));
 
     return Stack(
       children: [

@@ -1,3 +1,5 @@
+import 'ssh/ssh_workspace_screen.dart';
+import 'ssh/ssh_terminal_screen.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -100,12 +102,16 @@ class SystemScreenRouter {
       case '#settings':
         return const SettingsScreen();
       case '#network':
-        return const NetworkConnectionScreen();
+        return NetworkConnectionScreen(tabId: tabId);
       case '#smb':
         return BlocProvider<NetworkBrowsingBloc>(
           create: (_) => NetworkBrowsingBloc(),
           child: SMBBrowserScreen(tabId: tabId),
         );
+      case '#ssh':
+        return SshWorkspaceScreen(tabId: tabId);
+      case '#sftp':
+        return SshWorkspaceScreen(tabId: tabId, sftpOnly: true);
       case '#ftp':
         return FTPBrowserScreen(tabId: tabId);
       case '#webdav':
@@ -122,7 +128,12 @@ class SystemScreenRouter {
     }
 
     // 2. Handle dynamic paths
-    if (path.startsWith('#ai-chat')) {
+    if (path.startsWith('#ssh/session/')) {
+      return SshTerminalScreen(
+        tabId: tabId,
+        profileId: path.substring('#ssh/session/'.length),
+      );
+    } else if (path.startsWith('#ai-chat')) {
       return _handleAiChatRoute(path, tabId);
     } else if (path.startsWith('#album/')) {
       return _handleAlbumRoute(path);
@@ -317,65 +328,6 @@ class SystemScreenRouter {
       final tabBloc = BlocProvider.of<TabManagerBloc>(context);
       tabBloc.add(UpdateTabName(tabId, displayName));
 
-      // Kiểm tra loại dịch vụ
-      String serviceType = "Unknown";
-      if (path.startsWith('#network/')) {
-        final parts = path.substring('#network/'.length).split('/');
-        if (parts.isNotEmpty) {
-          serviceType = parts[0];
-
-          // Add special handling for FTP paths without connection
-          if (serviceType.toUpperCase() == "FTP" &&
-              !_networkRegistry.isNetworkPath(path)) {
-            // Build a helper widget for FTP that shows connection options
-            Widget ftpHelper = Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    PhosphorIconsLight.cloudArrowUp,
-                    size: 64,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    context.tr.ftpConnectionRequired,
-                    style: const TextStyle(fontSize: 24),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    context.tr.ftpConnectionDescription,
-                    style: const TextStyle(fontSize: 16),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Open FTP browser screen in this tab
-                      tabBloc.add(UpdateTabPath(tabId, '#ftp'));
-                      tabBloc.add(
-                        UpdateTabName(tabId, context.tr.ftpConnections),
-                      );
-                    },
-                    child: Text(context.tr.goToFtpConnections),
-                  ),
-                ],
-              ),
-            );
-
-            // Cache the helper widget
-            _cachedWidgets[cacheKey] = ftpHelper;
-            return ftpHelper;
-          }
-        }
-      } else if (path.contains('://')) {
-        serviceType = path.split('://')[0].toUpperCase();
-      }
-
-      // Create a TabbedFolderListScreen with network folder browsing capability
-      // This will make it look and behave like a regular folder, but with network paths
-
       Widget networkBrowserWidget = NetworkBrowserScreen(
         key: ValueKey(cacheKey), // Use cache key as widget key for stability
         path: path,
@@ -471,7 +423,9 @@ class SystemScreenRouter {
   static bool _isNetworkPath(String path) {
     // Basic check for network protocols
     return path.startsWith('smb://') ||
-        path.startsWith('ftp://') ||
+        (path.startsWith('ftp://') ||
+            path.startsWith('ftps://') ||
+            path.startsWith('sftp://')) ||
         path.startsWith('webdav://') ||
         // Also check if this path matches an active connection in the registry
         _networkRegistry.isNetworkPath(path);

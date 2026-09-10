@@ -1,3 +1,4 @@
+import '../../../design_system/primitives/cb_button.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -417,18 +418,20 @@ class _WebDAVBrowserScreenState extends State<WebDAVBrowserScreen>
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     return SystemScreen(
+      tabId: widget.tabId,
+      onRefresh: _refreshData,
       title: l10n.webdavConnections,
       systemId: '#webdav',
       icon: PhosphorIconsLight.globe,
       showAppBar: true,
       actions: [
-        IconButton(
-          icon: const Icon(PhosphorIconsLight.arrowsClockwise),
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowsClockwise,
           onPressed: _refreshData,
           tooltip: l10n.refresh,
         ),
-        IconButton(
-          icon: const Icon(PhosphorIconsLight.plus),
+        CbButton.icon(
+          icon: PhosphorIconsLight.plus,
           onPressed: _connectToWebDAVServer,
           tooltip: l10n.addConnection,
         ),

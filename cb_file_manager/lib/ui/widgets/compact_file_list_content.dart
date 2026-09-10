@@ -8,6 +8,7 @@ import '../../helpers/files/file_type_registry.dart';
 import '../components/common/optimized_interaction_handler.dart';
 import '../controllers/inline_rename_controller.dart';
 import 'inline_rename_field.dart';
+import 'compact_list_content.dart';
 
 /// Lightweight List content: no thumbnails, metadata or directory-size scans.
 class CompactFileListContent extends StatelessWidget {
@@ -30,52 +31,35 @@ class CompactFileListContent extends StatelessWidget {
     final rename = InlineRenameScope.maybeOf(context);
     final isRenaming = rename != null && rename.renamingPath == path;
     final style = Theme.of(context).textTheme.bodyMedium;
-    return SizedBox(
-      height:
-          40 *
-          (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(
-            1.0,
-            double.infinity,
-          ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: [
-            if (!isFolder && !isTag)
-              OptimizedFileIcon(
-                file: File(path),
-                isVideo: false,
-                isImage: false,
-                size: 20,
-                fallbackIcon: FileTypeRegistry.getIcon(p.extension(path)),
-                fallbackColor: FileTypeRegistry.getColor(p.extension(path)),
-              )
-            else
-              Icon(
-                isTag ? PhosphorIconsLight.tag : PhosphorIconsFill.folder,
-                size: 20,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: isRenaming
-                  ? InlineRenameField(
-                      controller: rename,
-                      onCommit: () => rename.commitRename(context),
-                      onCancel: rename.cancelRename,
-                      textStyle: style,
-                      textAlign: TextAlign.start,
-                    )
-                  : Text(
-                      name,
-                      style: style,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+    return CompactListContent(
+      leading: !isFolder && !isTag
+          ? OptimizedFileIcon(
+              file: File(path),
+              isVideo: false,
+              isImage: false,
+              size: 20,
+              fallbackIcon: FileTypeRegistry.getIcon(p.extension(path)),
+              fallbackColor: FileTypeRegistry.getColor(p.extension(path)),
+            )
+          : Icon(
+              isTag ? PhosphorIconsLight.tag : PhosphorIconsFill.folder,
+              size: 20,
+              color: Theme.of(context).colorScheme.primary,
             ),
-          ],
-        ),
-      ),
+      label: isRenaming
+          ? InlineRenameField(
+              controller: rename,
+              onCommit: () => rename.commitRename(context),
+              onCancel: rename.cancelRename,
+              textStyle: style,
+              textAlign: TextAlign.start,
+            )
+          : Text(
+              name,
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
     );
   }
 }

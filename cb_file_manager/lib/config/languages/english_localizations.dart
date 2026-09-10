@@ -2,6 +2,94 @@ import 'app_localizations.dart';
 
 class EnglishLocalizations implements AppLocalizations {
   @override
+  String get sshDisplayName => 'Name';
+  @override
+  String get sshRequired => 'This field is required.';
+  @override
+  String get sshInvalidHost =>
+      'Enter a hostname or IP address without a URL or path.';
+  @override
+  String get sshInvalidPort => 'Enter a port from 1 to 65535.';
+
+  @override
+  String get sshWorkspace => 'SSH workspace';
+  @override
+  String get sshHosts => 'Hosts';
+  @override
+  String get sshKeys => 'SSH keys';
+  @override
+  String get sshKnownHosts => 'Trusted hosts';
+  @override
+  String get sshAddHost => 'Add host';
+  @override
+  String get sshEditHost => 'Edit host';
+  @override
+  String get sshGenerateKey => 'Generate Ed25519 key';
+  @override
+  String get sshImportKey => 'Import private key';
+  @override
+  String get sshOpenTerminal => 'Open terminal';
+  @override
+  String get sshBrowseFiles => 'Browse SFTP';
+  @override
+  String get sshGroup => 'Group';
+  @override
+  String get sshAuthMethod => 'Authentication';
+  @override
+  String get sshPasswordAuth => 'Password';
+  @override
+  String get sshKeyAuth => 'SSH key';
+  @override
+  String get sshNoHosts =>
+      'Add an SSH host to open a terminal or browse its files.';
+  @override
+  String get sshNoKeys => 'Import a private key or generate an Ed25519 key.';
+  @override
+  String get sshNoTrustedHosts =>
+      'Host fingerprints appear here after you approve a connection.';
+  @override
+  String get sshPrivateKey => 'Private key (OpenSSH / PEM)';
+  @override
+  String get sshPassphrase => 'Key passphrase';
+  @override
+  String get sshCopyPublicKey => 'Copy public key';
+  @override
+  String get sshTrustHost => 'Trust this SSH host?';
+  @override
+  String get sshHostKeyChanged => 'SSH host key changed';
+  @override
+  String get sshVerifyFingerprint =>
+      'Verify this fingerprint with the server administrator before trusting it.';
+  @override
+  String get sshTrustAndConnect => 'Trust and connect';
+  @override
+  String get sshForgetHost => 'Forget trusted host';
+  @override
+  String get sshDeleteConfirm => 'Remove this saved item?';
+  @override
+  String get sshKeyInUse =>
+      'Change the authentication of hosts using this key before deleting it.';
+  @override
+  String get sshConnecting => 'Connecting…';
+  @override
+  String get sshDisconnected => 'Session disconnected';
+  @override
+  String get sshReconnect => 'Reconnect';
+  @override
+  String get sshClearTerminal => 'Clear terminal';
+  @override
+  String get sshVaultHint =>
+      'Passwords and private keys are saved in secure storage on this device.';
+  @override
+  String get ftpSecurity => 'Connection security';
+  @override
+  String get ftpPlain => 'FTP (unencrypted)';
+  @override
+  String get ftpExplicitTls => 'FTPS — Explicit TLS (21)';
+  @override
+  String get ftpImplicitTls => 'FTPS — Implicit TLS (990)';
+
+  @override
   String get appTitle => 'CB File Hub';
 
   // Common actions
@@ -2832,7 +2920,7 @@ class EnglishLocalizations implements AppLocalizations {
 
   @override
   String get screenshotNotAvailableVlcMessage =>
-      'Screenshot is not available with VLC player.\nPlease switch to Media Kit player in settings.';
+      'VLC could not capture this frame. Please wait for the video to load and try again.';
 
   @override
   String get screenshotFileNotFound => 'Image file not found';
@@ -3915,4 +4003,45 @@ class EnglishLocalizations implements AppLocalizations {
   String get localAiInvalidTokenCount => 'Please enter a valid number';
   @override
   String get aiReasoning => 'Thinking';
+
+  @override
+  String get sshLocalConfig => 'From ~/.ssh/config';
+  @override
+  String get sshLocalConfigHint =>
+      'Choose a local host to fill in the connection details.';
+  @override
+  String get sshNoLocalConfig =>
+      'No hosts found in ~/.ssh/config. Enter a host below.';
+  @override
+  String get sshLocalKeys => 'Keys on this computer';
+  @override
+  String get sshLocalKeysHint =>
+      'Detected in ~/.ssh. Choose a key to import it into the secure vault.';
+  @override
+  String get sshChooseKeyFile => 'Choose key file';
+  @override
+  String get sshPasteKey => 'Paste private key';
+  @override
+  String get sshPassphraseHint =>
+      'Only required if the private key is encrypted.';
+  @override
+  String get sshImportHint =>
+      'Use a local file or paste an OpenSSH / PEM private key.';
+  @override
+  String get sshGenerateHint =>
+      'Create an Ed25519 key. Copy its public key to your server after saving.';
+  @override
+  String get sshKeyImportFailed =>
+      'Could not save the key. Check the file, format and passphrase, then try again.';
+  @override
+  String get sshConnectionDetails => 'Connection details';
+  @override
+  String get sshLocalKeyPending =>
+      'This local key will be imported when you save or connect.';
+  @override
+  String get sshConfigUnsupported =>
+      'This host uses a proxy or SSH certificate that is not supported here. Check its settings before connecting.';
+  @override
+  String get sshDiscoveryIncomplete =>
+      'Some local SSH settings could not be loaded (unreadable files or conditional Match rules). Check the filled details.';
 }

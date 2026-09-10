@@ -11,13 +11,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:media_kit/media_kit.dart';
 import 'package:path/path.dart' as p;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
 
   testWidgets('video player chrome keeps a valid Windows AX tree', (
     tester,
@@ -159,7 +157,7 @@ void main() {
       ),
     );
 
-    // Wait for media_kit to open the real MP4 and begin advancing position.
+    // Wait for VLC to open the real MP4 and begin advancing position.
     for (var i = 0; i < 100; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }

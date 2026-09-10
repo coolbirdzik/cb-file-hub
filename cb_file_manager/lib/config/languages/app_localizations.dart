@@ -5,6 +5,48 @@ abstract class AppLocalizations {
     return Localizations.of<AppLocalizations>(context, AppLocalizations);
   }
 
+  String get sshWorkspace;
+  String get sshHosts;
+  String get sshKeys;
+  String get sshKnownHosts;
+  String get sshAddHost;
+  String get sshEditHost;
+  String get sshGenerateKey;
+  String get sshImportKey;
+  String get sshOpenTerminal;
+  String get sshBrowseFiles;
+  String get sshGroup;
+  String get sshAuthMethod;
+  String get sshPasswordAuth;
+  String get sshKeyAuth;
+  String get sshNoHosts;
+  String get sshNoKeys;
+  String get sshNoTrustedHosts;
+  String get sshPrivateKey;
+  String get sshPassphrase;
+  String get sshCopyPublicKey;
+  String get sshTrustHost;
+  String get sshHostKeyChanged;
+  String get sshVerifyFingerprint;
+  String get sshTrustAndConnect;
+  String get sshForgetHost;
+  String get sshDeleteConfirm;
+  String get sshKeyInUse;
+  String get sshConnecting;
+  String get sshDisconnected;
+  String get sshReconnect;
+  String get sshClearTerminal;
+  String get sshVaultHint;
+  String get ftpSecurity;
+  String get ftpPlain;
+  String get ftpExplicitTls;
+  String get ftpImplicitTls;
+
+  String get sshDisplayName;
+  String get sshRequired;
+  String get sshInvalidHost;
+  String get sshInvalidPort;
+
   // App title
   String get appTitle;
 
@@ -1708,4 +1750,20 @@ abstract class AppLocalizations {
   String get localAiTokensSuffix;
   String get localAiInvalidTokenCount;
   String get aiReasoning;
+
+  String get sshLocalConfig;
+  String get sshLocalConfigHint;
+  String get sshNoLocalConfig;
+  String get sshLocalKeys;
+  String get sshLocalKeysHint;
+  String get sshChooseKeyFile;
+  String get sshPasteKey;
+  String get sshPassphraseHint;
+  String get sshImportHint;
+  String get sshGenerateHint;
+  String get sshKeyImportFailed;
+  String get sshConnectionDetails;
+  String get sshLocalKeyPending;
+  String get sshConfigUnsupported;
+  String get sshDiscoveryIncomplete;
 }

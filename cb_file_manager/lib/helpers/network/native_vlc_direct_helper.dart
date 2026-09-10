@@ -70,7 +70,9 @@ class NativeVlcDirectHelper {
         debugPrint('NativeVlcDirectHelper: Fallback to constructed SMB URL');
       }
 
-      debugPrint('NativeVlcDirectHelper: Final SMB MRL => $finalSmbMrl');
+      debugPrint(
+        'NativeVlcDirectHelper: Final SMB MRL => ${Uri.parse(finalSmbMrl).replace(userInfo: '')}',
+      );
 
       if (context.mounted) {
         await Navigator.of(context).push(

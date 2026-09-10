@@ -12,10 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'ui/tab_manager/core/tab_main_screen.dart';
 import 'helpers/tags/tag_manager.dart';
 import 'helpers/tags/tag_hierarchy_manager.dart';
-import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'ui/components/video/pip_window/desktop_pip_window.dart';
-import 'helpers/media/media_kit_audio_helper.dart';
 import 'helpers/core/user_preferences.dart';
 import 'helpers/media/folder_thumbnail_service.dart';
 import 'helpers/media/video_thumbnail_helper.dart';
@@ -470,22 +468,6 @@ Future<void> runCbFileApp() async {
   PaintingBinding.instance.imageCache.maximumSize = 200;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024;
 
-  // Initialize Media Kit with proper audio configuration
-  MediaKit.ensureInitialized();
-
-  // Initialize our audio helper to ensure sound works
-  if (Platform.isWindows && !kCbE2EFast) {
-    if (isSecondaryWindow) {
-      deferredSecondaryInitializers.add(() async {
-        debugPrint('Deferred Windows audio configuration for secondary window');
-        await MediaKitAudioHelper.initialize();
-      });
-    } else {
-      debugPrint('Setting up Windows-specific audio configuration');
-      await MediaKitAudioHelper.initialize();
-    }
-  }
-
   // Initialize streaming service manager
   if (!kCbE2EFast) {
     if (isSecondaryWindow) {
@@ -614,11 +596,6 @@ Future<void> runCbFileApp() async {
   if (startupVideoPath != null) {
     // This process booted on the deferred "secondary window" path, so the bits
     // the player actually needs must be initialized here.
-    if (Platform.isWindows && !kCbE2EFast) {
-      try {
-        await MediaKitAudioHelper.initialize();
-      } catch (_) {}
-    }
     try {
       await locator<UserPreferences>().init();
     } catch (_) {}

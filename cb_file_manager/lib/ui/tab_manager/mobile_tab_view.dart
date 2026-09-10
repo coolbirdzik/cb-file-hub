@@ -791,7 +791,7 @@ class MobileTabView extends StatelessWidget {
       return BlocProvider<NetworkBrowsingBloc>.value(
         key: ValueKey('${activeTab.id}_network_connection_screen'),
         value: context.read<NetworkBrowsingBloc>(),
-        child: const NetworkConnectionScreen(),
+        child: NetworkConnectionScreen(tabId: activeTab.id),
       );
     } else if (activeTab.path == '#smb') {
       // Path for the dedicated SMB Browser Screen (discovery and connection management)
@@ -816,7 +816,7 @@ class MobileTabView extends StatelessWidget {
             '${activeTab.id}_network_connection_fallback_incomplete_path',
           ),
           value: context.read<NetworkBrowsingBloc>(),
-          child: const NetworkConnectionScreen(),
+          child: NetworkConnectionScreen(tabId: activeTab.id),
         );
       }
 

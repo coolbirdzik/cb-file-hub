@@ -2,8 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:cb_file_manager/services/media/vlc_playback.dart';
 import 'package:path/path.dart' as p;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cb_file_manager/helpers/core/app_path_helper.dart';
@@ -35,8 +34,8 @@ class VideoFramePickerDialog extends StatefulWidget {
 }
 
 class _VideoFramePickerDialogState extends State<VideoFramePickerDialog> {
-  late final Player _player;
-  late final VideoController _videoController;
+  late final PlaybackPlayer _player;
+  late final PlaybackVideoController _videoController;
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -52,8 +51,8 @@ class _VideoFramePickerDialogState extends State<VideoFramePickerDialog> {
   @override
   void initState() {
     super.initState();
-    _player = Player();
-    _videoController = VideoController(_player);
+    _player = PlaybackPlayer();
+    _videoController = PlaybackVideoController(_player);
     _initPlayer();
   }
 
@@ -87,7 +86,7 @@ class _VideoFramePickerDialogState extends State<VideoFramePickerDialog> {
       });
 
       // Open the video paused
-      await _player.open(Media(widget.videoPath), play: false);
+      await _player.open(PlaybackMedia(widget.videoPath), play: false);
 
       // Wait a bit for the first frame to render
       await Future.delayed(const Duration(milliseconds: 500));
@@ -156,7 +155,7 @@ class _VideoFramePickerDialogState extends State<VideoFramePickerDialog> {
 
       String? savedPath;
 
-      // Strategy 1 (WYSIWYG): capture exactly the frame media_kit is currently
+      // Strategy 1 (WYSIWYG): capture exactly the frame VLC is currently
       // showing. The player and the native extractor seek independently, so
       // re-seeking natively can land on a different (earlier) keyframe than the
       // one on screen. Screenshotting the displayed frame guarantees the saved
@@ -298,10 +297,7 @@ class _VideoFramePickerDialogState extends State<VideoFramePickerDialog> {
                       ),
                     )
                   : ClipRRect(
-                      child: Video(
-                        controller: _videoController,
-                        controls: NoVideoControls,
-                      ),
+                      child: PlaybackVideo(controller: _videoController),
                     ),
             ),
 

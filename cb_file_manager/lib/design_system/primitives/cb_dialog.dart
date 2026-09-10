@@ -4,16 +4,14 @@ import '../cb_tokens.dart';
 import '../tokens/cb_geometry_tokens.dart';
 import '../tokens/cb_type_tokens.dart';
 import 'cb_button.dart';
-import 'cb_surface.dart';
 
 /// The dialog primitive.
 ///
 /// Material's `AlertDialog` fixes the title/content/actions arrangement to
 /// mobile conventions: 24px insets everywhere, actions right-aligned in a
 /// `ButtonBar` with its own spacing rules, and a 280px minimum width. This
-/// one is built on [CbSurface] so it inherits the same radius, border and
-/// shadow as every other floating surface in the app, and it sizes for a
-/// desktop window.
+/// one retains a desktop layout while using the same [DialogTheme] surface
+/// as the app's other dialogs, including the desktop acrylic theme bridge.
 class CbDialog extends StatelessWidget {
   final String title;
 
@@ -30,7 +28,7 @@ class CbDialog extends StatelessWidget {
   /// Leading icon, typically used to mark destructive or warning dialogs.
   final IconData? icon;
 
-  /// Tints [icon] and its backing chip with the danger colour.
+  /// Tints [icon] with the danger colour.
   final bool destructive;
 
   final double width;
@@ -69,118 +67,105 @@ class CbDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.cbColors;
-    final Color accentColor = destructive ? c.status.danger : c.accent.text;
-    final Color accentSurface = destructive
-        ? c.status.dangerSurface
-        : c.accent.tint;
+    final dialogTheme = DialogTheme.of(context);
+    final iconColor = destructive ? c.status.danger : c.icon;
 
     return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
       insetPadding: const EdgeInsets.all(CbSpacing.xl),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: width,
           maxHeight: MediaQuery.of(context).size.height - CbSpacing.xxxl * 2,
         ),
-        child: CbSurface(
-          level: CbSurfaceLevel.modal,
-          bordered: true,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  CbSpacing.xl,
-                  CbSpacing.xl,
-                  CbSpacing.md,
-                  0,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (icon != null) ...[
-                      Container(
-                        width: CbSizes.controlMd,
-                        height: CbSizes.controlMd,
-                        decoration: BoxDecoration(
-                          color: accentSurface,
-                          borderRadius: CbRadii.mdAll,
-                        ),
-                        child: Icon(
-                          icon,
-                          size: CbSizes.iconLg,
-                          color: accentColor,
-                        ),
-                      ),
-                      const SizedBox(width: CbSpacing.md),
-                    ],
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            style: CbTypography.headingLg.copyWith(
-                              color: c.textPrimary,
-                            ),
-                          ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: CbSpacing.xs),
-                            Text(
-                              subtitle!,
-                              style: CbTypography.body.copyWith(
-                                color: c.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                CbSpacing.xl,
+                CbSpacing.xl,
+                CbSpacing.md,
+                0,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (icon != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: CbSpacing.xs),
+                      child: Icon(icon, size: CbSizes.iconLg, color: iconColor),
                     ),
-                    if (showCloseButton) ...[
-                      const SizedBox(width: CbSpacing.sm),
-                      CbButton.icon(
-                        icon: Icons.close,
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).closeButtonTooltip,
-                        size: CbButtonSize.sm,
-                        onPressed: () => Navigator.of(context).maybePop(),
-                      ),
-                    ],
+                    const SizedBox(width: CbSpacing.md),
                   ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style:
+                              dialogTheme.titleTextStyle ??
+                              CbTypography.headingLg.copyWith(
+                                color: c.textPrimary,
+                              ),
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: CbSpacing.xs),
+                          Text(
+                            subtitle!,
+                            style:
+                                dialogTheme.contentTextStyle ??
+                                CbTypography.body.copyWith(
+                                  color: c.textSecondary,
+                                ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (showCloseButton) ...[
+                    const SizedBox(width: CbSpacing.sm),
+                    CbButton.icon(
+                      icon: Icons.close,
+                      tooltip: MaterialLocalizations.of(
+                        context,
+                      ).closeButtonTooltip,
+                      size: CbButtonSize.sm,
+                      onPressed: () => Navigator.of(context).maybePop(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (content != null)
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    CbSpacing.xl,
+                    CbSpacing.lg,
+                    CbSpacing.xl,
+                    0,
+                  ),
+                  child: SingleChildScrollView(child: content),
                 ),
               ),
-              if (content != null)
-                Flexible(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      CbSpacing.xl,
-                      CbSpacing.lg,
-                      CbSpacing.xl,
-                      0,
-                    ),
-                    child: SingleChildScrollView(child: content),
+            if (actions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(CbSpacing.xl),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: CbSpacing.sm,
+                    runSpacing: CbSpacing.sm,
+                    children: actions,
                   ),
                 ),
-              if (actions.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(CbSpacing.xl),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      for (int i = 0; i < actions.length; i++) ...[
-                        if (i > 0) const SizedBox(width: CbSpacing.sm),
-                        actions[i],
-                      ],
-                    ],
-                  ),
-                )
-              else
-                const SizedBox(height: CbSpacing.xl),
-            ],
-          ),
+              )
+            else
+              const SizedBox(height: CbSpacing.xl),
+          ],
         ),
       ),
     );

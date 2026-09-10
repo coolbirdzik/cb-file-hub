@@ -41,7 +41,6 @@ dependencies:
   package_info_plus: ^10.2.1
   equatable: ^2.0.7
   permission_handler: ^13.0.2
-  video_player: ^2.8.1
   # video_thumbnail: ^0.5.3  # Commented out the pub.dev version
   # Sử dụng video_thumbnail trực tiếp từ GitHub repository
   video_thumbnail:
@@ -62,15 +61,9 @@ dependencies:
   sqflite_common: ^2.5.5
   sqflite_common_ffi: ^2.3.6
 
-  # Media Kit packages for cross-platform video playback (including Windows)
-  media_kit: ^1.1.11 # Primary package
-  media_kit_video: ^2.0.1 # Video widget (1.3.1 fixes Windows crash: notify VideoOutput.Resize on platform thread)
-  media_kit_native_event_loop: ^1.0.9 # Support for platforms
-  media_kit_libs_windows_video: ^1.0.11 # Windows video support
-  media_kit_libs_android_video: ^1.3.8 # Android video support
-  # media_kit_libs_ios_video: ^1.1.4 # Uncomment if you need iOS support
-  # Keep the VLC fallback pinned; validate Android channel initialization on upgrades.
-  flutter_vlc_player: 7.4.4
+  # VLC 2.1.2 plugin with the Windows runtime pinned to VLC 3.0.23.
+  vlc_player:
+    path: third_party/vlc_player
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -116,6 +109,10 @@ dependencies:
   google_fonts: ^8.2.1
   highlight: ^0.7.0
   archive: ^4.0.9
+  dartssh2: ^4.1.0
+  xterm:
+    path: third_party/xterm # Flutter view-aware text input; see PATCHES.md
+  pinenacl: ^0.6.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

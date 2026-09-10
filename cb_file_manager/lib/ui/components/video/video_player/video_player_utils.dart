@@ -85,7 +85,7 @@ class VideoPlayerUtils {
       case 'scaleDown':
         return BoxFit.scaleDown;
       default:
-        return BoxFit.cover;
+        return BoxFit.contain;
     }
   }
 }

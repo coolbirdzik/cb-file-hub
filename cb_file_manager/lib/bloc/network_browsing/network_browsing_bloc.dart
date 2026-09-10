@@ -14,7 +14,7 @@ import 'network_browsing_state.dart';
 /// BLoC for managing network browsing state
 class NetworkBrowsingBloc
     extends Bloc<NetworkBrowsingEvent, NetworkBrowsingState> {
-  final NetworkServiceRegistry _registry = NetworkServiceRegistry();
+  final NetworkServiceRegistry _registry;
 
   int _directoryRequestId = 0;
   int _activeDirectoryRequestId = 0;
@@ -28,7 +28,9 @@ class NetworkBrowsingBloc
     }
   }
 
-  NetworkBrowsingBloc() : super(const NetworkBrowsingState.initial()) {
+  NetworkBrowsingBloc({NetworkServiceRegistry? registry})
+    : _registry = registry ?? NetworkServiceRegistry(),
+      super(const NetworkBrowsingState.initial()) {
     on<NetworkServicesListRequested>(_onServicesListRequested);
     on<NetworkConnectionRequested>(_onConnectionRequested);
     on<NetworkDisconnectRequested>(_onDisconnectRequested);
@@ -38,19 +40,27 @@ class NetworkBrowsingBloc
     on<NetworkDirectoryLoadFailed>(_onDirectoryLoadFailed);
   }
 
+  /// Share connections, but never a tab's listing, loading state, or error.
+  NetworkBrowsingBloc createBrowserSession() =>
+      NetworkBrowsingBloc(registry: _registry);
+
   void _onServicesListRequested(
     NetworkServicesListRequested event,
     Emitter<NetworkBrowsingState> emit,
   ) {
-    emit(state.copyWith(isLoading: true));
-
     final services = _registry.availableServices;
 
     emit(
       state.copyWith(
         isLoading: false,
         services: services,
+        connections: {
+          for (final entry in _registry.activeConnections.entries)
+            _registry.getTabPathForNativeServiceBasePath(entry.key)!:
+                entry.value,
+        },
         clearServices: false,
+        clearErrorMessage: true,
       ),
     );
   }
@@ -78,7 +88,7 @@ class NetworkBrowsingBloc
       );
 
       if (result.success && result.connectedPath != null) {
-        final service = _registry.getServiceByName(event.serviceName);
+        final service = _registry.getServiceForPath(result.connectedPath!);
         if (service == null) {
           emit(
             state.copyWith(
@@ -145,6 +155,7 @@ class NetworkBrowsingBloc
           currentPath: event.path,
           clearDirectories: true,
           clearFiles: true,
+          clearCurrentService: true,
         ),
       );
       return;
@@ -174,11 +185,19 @@ class NetworkBrowsingBloc
     );
   }
 
+  @override
+  Future<void> close() {
+    // Ignore in-flight listings when their owning browser tab is disposed.
+    _activeDirectoryRequestId = ++_directoryRequestId;
+    return super.close();
+  }
+
   Future<void> _loadDirectoryInBackground({
     required int requestId,
     required String path,
     required NetworkServiceBase service,
   }) async {
+    if (isClosed || requestId != _activeDirectoryRequestId) return;
     try {
       final Duration timeout = (Platform.isAndroid || Platform.isIOS)
           ? const Duration(seconds: 12)
@@ -188,6 +207,7 @@ class NetworkBrowsingBloc
       try {
         contents = await service.listDirectory(path).timeout(timeout);
       } on TimeoutException catch (e) {
+        if (isClosed || requestId != _activeDirectoryRequestId) return;
         // Best-effort reconnect for Mobile SMB on timeout.
         if (service is MobileSMBService) {
           try {

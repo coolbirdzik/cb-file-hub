@@ -462,6 +462,16 @@ class _CBDrawerContentState extends State<_CBDrawerContent> {
                       ),
 
                       DrawerNavigationItem(
+                        icon: PhosphorIconsLight.terminalWindow,
+                        title: context.tr.sshWorkspace,
+                        onTap: () => _navigateTo(
+                          context,
+                          '#ssh',
+                          context.tr.sshWorkspace,
+                        ),
+                      ),
+
+                      DrawerNavigationItem(
                         icon: PhosphorIconsLight.sparkle,
                         title: context.tr.cbAgent,
                         onTap: () => _navigateToAiChat(context),
@@ -715,6 +725,18 @@ class _CBDrawerContentState extends State<_CBDrawerContent> {
                               context,
                               '#network',
                               context.tr.networkTab,
+                            ),
+                          ),
+                          _fluentNavigationItem(
+                            context,
+                            icon: PhosphorIconsLight.terminalWindow,
+                            title: context.tr.sshWorkspace,
+                            semanticLabel: context.tr.sshWorkspace,
+                            selected: _isFluentPathSelected(activePath, '#ssh'),
+                            onPressed: () => _navigateTo(
+                              context,
+                              '#ssh',
+                              context.tr.sshWorkspace,
                             ),
                           ),
                           _fluentNavigationItem(

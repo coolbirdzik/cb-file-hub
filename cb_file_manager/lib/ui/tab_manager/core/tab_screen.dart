@@ -2174,7 +2174,7 @@ class _TabScreenState extends State<TabScreen> with TickerProviderStateMixin {
                   }
                 },
               ),
-              // Native Streaming Test removed - using flutter_vlc_player now
+              // Native Streaming Test removed - using the shared VLC backend now
             ],
           ),
         ),

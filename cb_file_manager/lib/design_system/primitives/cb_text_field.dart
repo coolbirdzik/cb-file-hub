@@ -42,6 +42,9 @@ class CbTextField extends StatefulWidget {
   final bool readOnly;
   final bool obscureText;
   final bool autofocus;
+  final bool autocorrect;
+  final bool enableSuggestions;
+  final TextInputType? keyboardType;
 
   /// Grows the field to this many lines. 1 keeps it a single-line control.
   final int maxLines;
@@ -71,6 +74,9 @@ class CbTextField extends StatefulWidget {
     this.readOnly = false,
     this.obscureText = false,
     this.autofocus = false,
+    this.autocorrect = true,
+    this.enableSuggestions = true,
+    this.keyboardType,
     this.maxLines = 1,
     this.maxLength,
     this.textInputAction,
@@ -152,6 +158,9 @@ class _CbTextFieldState extends State<CbTextField> {
       readOnly: widget.readOnly,
       obscureText: widget.obscureText,
       autofocus: widget.autofocus,
+      autocorrect: !widget.obscureText && widget.autocorrect,
+      enableSuggestions: !widget.obscureText && widget.enableSuggestions,
+      keyboardType: widget.keyboardType,
       maxLines: widget.maxLines,
       maxLength: widget.maxLength,
       textInputAction: widget.textInputAction,
@@ -174,6 +183,15 @@ class _CbTextFieldState extends State<CbTextField> {
             counterText: '',
             isDense: true,
             contentPadding: EdgeInsets.zero,
+            // InputDecoration's state borders otherwise inherit the app's
+            // Material theme and draw a second outline inside our chrome.
+            filled: false,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
           ),
     );
 

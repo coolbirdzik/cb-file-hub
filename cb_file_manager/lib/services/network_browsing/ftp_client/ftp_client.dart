@@ -1,12 +1,16 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
 import 'ftp_response.dart';
 import 'ftp_file_info.dart';
 import 'ftp_commands.dart';
+import 'curl_ftps_client.dart';
+
+enum FtpSecurity { none, explicitTls, implicitTls }
 
 /// A custom FTP client implementation that handles all basic FTP operations
 class FtpClient {
@@ -16,6 +20,12 @@ class FtpClient {
   final String? _username;
   final String? _password;
 
+  StreamSubscription<List<int>>? _controlSubscription;
+  final Queue<FtpResponse> _responses = Queue();
+  String _responseBuffer = '';
+  String? _multilineCode;
+  Object? _socketError;
+
   // Connection state
   Socket? _controlSocket;
   Socket? _dataSocket;
@@ -24,15 +34,36 @@ class FtpClient {
   bool _usePassiveMode = true; // Default to passive mode
   String? _currentDirectory;
 
-  // Stream controller for command responses
-  final StreamController<FtpResponse> _responseController =
-      StreamController<FtpResponse>();
-
   // Completer for the current command
   Completer<FtpResponse>? _commandCompleter;
 
   /// Creates a new FTP client instance
-  FtpClient({
+  factory FtpClient({
+    required String host,
+    int port = 21,
+    String username = 'anonymous',
+    String password = 'anonymous@',
+    FtpSecurity security = FtpSecurity.none,
+    String? trustedCertificatePath,
+  }) {
+    if (security != FtpSecurity.none) {
+      return CurlFtpsClient(
+        host: host,
+        port: port,
+        username: username,
+        password: password,
+        implicit: security == FtpSecurity.implicitTls,
+        trustedCertificatePath: trustedCertificatePath,
+      );
+    }
+    return FtpClient.plain(
+      host: host,
+      port: port,
+      username: username,
+      password: password,
+    );
+  }
+  FtpClient.plain({
     required this._host,
     this._port = 21,
     String this._username = 'anonymous',
@@ -49,10 +80,18 @@ class FtpClient {
   Future<bool> connect() async {
     try {
       // Connect to the control socket
-      _controlSocket = await Socket.connect(_host, _port);
+      _responses.clear();
+      _responseBuffer = '';
+      _multilineCode = null;
+      _socketError = null;
+      _controlSocket = await Socket.connect(
+        _host,
+        _port,
+        timeout: const Duration(seconds: 15),
+      );
 
       // Set up data handling
-      _controlSocket!.listen(
+      _controlSubscription = _controlSocket!.listen(
         _handleControlResponse,
         onError: _handleControlError,
         onDone: _handleControlDone,
@@ -68,21 +107,17 @@ class FtpClient {
       await _sendCommand(FtpCommands.user(_username ?? 'anonymous'));
       final userResponse = await _waitForResponse();
 
-      if (userResponse.code == 230) {
-        // Already logged in, no password needed
-        _isConnected = true;
-        return true;
-      }
-
-      if (userResponse.code != 331) {
+      if (userResponse.code != 230 && userResponse.code != 331) {
         throw Exception('Failed to send username: ${userResponse.message}');
       }
 
-      await _sendCommand(FtpCommands.pass(_password ?? 'anonymous@'));
-      final passResponse = await _waitForResponse();
+      if (userResponse.code == 331) {
+        await _sendCommand(FtpCommands.pass(_password ?? 'anonymous@'));
+        final passResponse = await _waitForResponse();
 
-      if (passResponse.code != 230) {
-        throw Exception('Failed to authenticate: ${passResponse.message}');
+        if (passResponse.code != 230) {
+          throw Exception('Failed to authenticate: ${passResponse.message}');
+        }
       }
 
       // Set binary mode for file transfers
@@ -101,7 +136,7 @@ class FtpClient {
     } catch (e) {
       _handleError('Connection error: $e');
       await disconnect();
-      return false;
+      rethrow;
     }
   }
 
@@ -109,21 +144,20 @@ class FtpClient {
   Future<void> disconnect() async {
     _isConnected = false;
 
-    try {
-      if (_controlSocket != null) {
-        await _sendCommand(FtpCommands.quit());
-        await _controlSocket!.close();
-        _controlSocket = null;
-      }
-    } catch (e) {
-      debugPrint('Error during disconnect: $e');
-    }
+    _dataSocket?.destroy();
+    _dataSocket = null;
+    await _passiveServer?.close();
+    _passiveServer = null;
+    _controlSocket?.destroy();
+    _controlSocket = null;
+    await _controlSubscription?.cancel();
+    _controlSubscription = null;
+    _handleControlDone();
   }
 
   /// Dispose resources
   void dispose() {
-    _responseController.close();
-    debugPrint('FTPClient: Disposed resources');
+    unawaited(disconnect());
   }
 
   /// Sends a NOOP command to keep the connection alive
@@ -503,10 +537,13 @@ class FtpClient {
       throw Exception('Failed to upload file: ${storResponse.message}');
     }
 
+    _dataSocket!.listen((_) {}, onError: _handleControlError);
     // Read file and send to data connection
     final fileBytes = await file.readAsBytes();
     _dataSocket!.add(fileBytes);
-    await _dataSocket!.close();
+    await _dataSocket!.flush();
+    await _dataSocket!.close().timeout(const Duration(seconds: 15));
+    _dataSocket = null;
 
     // Wait for transfer complete message
     final transferResponse = await _waitForResponse();
@@ -545,6 +582,7 @@ class FtpClient {
       throw Exception('Failed to upload file: ${storResponse.message}');
     }
 
+    _dataSocket!.listen((_) {}, onError: _handleControlError);
     // Read file in chunks and send to data connection with progress updates
     final fileStream = file.openRead();
     int totalBytesSent = 0;
@@ -557,7 +595,9 @@ class FtpClient {
       onProgress(totalBytesSent);
     }
 
-    await _dataSocket!.close();
+    await _dataSocket!.flush();
+    await _dataSocket!.close().timeout(const Duration(seconds: 15));
+    _dataSocket = null;
 
     // Wait for transfer complete message
     final transferResponse = await _waitForResponse();
@@ -589,6 +629,7 @@ class FtpClient {
       );
     }
 
+    _dataSocket!.listen((_) {}, onError: _handleControlError);
     // Send data
     _dataSocket!.add(data);
     await _dataSocket!.flush();
@@ -692,7 +733,11 @@ class FtpClient {
 
     // Connect to the data port
     try {
-      _dataSocket = await Socket.connect(ip, port);
+      _dataSocket = await Socket.connect(
+        _host,
+        port,
+        timeout: const Duration(seconds: 15),
+      );
     } catch (e) {
       debugPrint('FTP: Error connecting to passive data port: $e');
       throw Exception('Failed to connect to passive mode port: $e');
@@ -761,7 +806,8 @@ class FtpClient {
   /// Closes the data connection
   Future<void> _closeDataConnection() async {
     if (_dataSocket != null) {
-      await _dataSocket!.close();
+      await _dataSocket!.flush();
+      await _dataSocket!.close().timeout(const Duration(seconds: 15));
       _dataSocket = null;
     }
 
@@ -777,40 +823,54 @@ class FtpClient {
       throw Exception('Not connected to FTP server');
     }
 
-    debugPrint('> $command');
+    if (command.contains('\r') || command.contains('\n')) {
+      throw ArgumentError('Invalid FTP command');
+    }
+    debugPrint(command.startsWith('PASS ') ? '> PASS ***' : '> $command');
     _controlSocket!.write('$command\r\n');
     await _controlSocket!.flush();
   }
 
   /// Waits for a response from the FTP server
   Future<FtpResponse> _waitForResponse() {
-    _commandCompleter = Completer<FtpResponse>();
-    return _commandCompleter!.future;
+    if (_responses.isNotEmpty) return Future.value(_responses.removeFirst());
+    if (_socketError != null) return Future.error(_socketError!);
+    final pending = Completer<FtpResponse>();
+    _commandCompleter = pending;
+    return pending.future.timeout(const Duration(seconds: 30)).whenComplete(() {
+      if (identical(_commandCompleter, pending)) _commandCompleter = null;
+    });
   }
 
-  /// Handles incoming data on the control connection
   void _handleControlResponse(List<int> data) {
-    final response = utf8.decode(data);
-    debugPrint('< $response');
-
-    final lines = response
-        .split('\r\n')
-        .where((line) => line.isNotEmpty)
-        .toList();
-
-    for (final line in lines) {
-      final ftpResponse = FtpResponse.parse(line);
-      _responseController.add(ftpResponse);
-
-      // Complete the current command if waiting
-      if (_commandCompleter != null && !_commandCompleter!.isCompleted) {
-        _commandCompleter!.complete(ftpResponse);
+    _responseBuffer += latin1.decode(data);
+    while (_responseBuffer.contains('\r\n')) {
+      final end = _responseBuffer.indexOf('\r\n');
+      final line = _responseBuffer.substring(0, end);
+      _responseBuffer = _responseBuffer.substring(end + 2);
+      if (!RegExp(r'^\d{3}[ -]').hasMatch(line)) continue;
+      final code = line.substring(0, 3);
+      if (_multilineCode != null) {
+        if (code != _multilineCode || line[3] != ' ') continue;
+        _multilineCode = null;
+      } else if (line[3] == '-') {
+        _multilineCode = code;
+        continue;
+      }
+      final response = FtpResponse.parse(line);
+      final pending = _commandCompleter;
+      if (pending != null && !pending.isCompleted) {
+        _commandCompleter = null;
+        pending.complete(response);
+      } else {
+        _responses.add(response);
       }
     }
   }
 
   /// Handles errors on the control connection
   void _handleControlError(Object error) {
+    _socketError = error;
     _handleError('Control connection error: $error');
 
     // Complete the current command with an error
@@ -822,7 +882,7 @@ class FtpClient {
   /// Handles the control connection being closed
   void _handleControlDone() {
     _isConnected = false;
-    debugPrint('FTP control connection closed');
+    _socketError ??= StateError('FTP connection closed');
 
     // Complete the current command with an error if necessary
     if (_commandCompleter != null && !_commandCompleter!.isCompleted) {

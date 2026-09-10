@@ -1,3 +1,4 @@
+import '../../../design_system/primitives/cb_button.dart';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -422,29 +423,21 @@ class _SMBBrowserScreenState extends State<SMBBrowserScreen>
     super.build(context); // Call super.build to ensure keepAlive is managed
     final l10n = AppLocalizations.of(context)!;
     return SystemScreen(
+      tabId: widget.tabId,
+      onRefresh: _isScanning ? null : _resetAndScan,
       title: l10n.smbNetwork,
       systemId: '#smb',
       icon: PhosphorIconsLight.desktop,
       showAppBar: true,
       actions: [
-        IconButton(
-          icon: _isScanning
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Theme.of(context).colorScheme.onPrimary,
-                    ),
-                  ),
-                )
-              : const Icon(PhosphorIconsLight.arrowsClockwise),
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowsClockwise,
+          loading: _isScanning,
           onPressed: _isScanning ? null : _resetAndScan,
           tooltip: l10n.refresh,
         ),
-        IconButton(
-          icon: const Icon(PhosphorIconsLight.plus),
+        CbButton.icon(
+          icon: PhosphorIconsLight.plus,
           onPressed: () {
             // Lấy TabManagerBloc từ context trước khi mở dialog
             final tabBloc = BlocProvider.of<TabManagerBloc>(

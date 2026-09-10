@@ -3,12 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:media_kit/media_kit.dart';
-import 'package:media_kit_video/media_kit_video.dart';
+import 'package:cb_file_manager/services/media/vlc_playback.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../helpers/core/user_preferences.dart';
-import '../../../../helpers/core/path_utils.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 class DesktopPipWindow extends StatefulWidget {
@@ -21,8 +19,8 @@ class DesktopPipWindow extends StatefulWidget {
 
 class _DesktopPipWindowState extends State<DesktopPipWindow>
     with WindowListener {
-  Player? _player;
-  VideoController? _controller;
+  PlaybackPlayer? _player;
+  PlaybackVideoController? _controller;
   bool _isPlaying = true;
   Timer? _saveDebounce;
   StreamSubscription<int?>? _videoWSub;
@@ -41,7 +39,6 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
 
   // Playback performance settings (loaded from UserPreferences)
   bool _hardwareAcceleration = true;
-  int _bufferSizeMB = 10;
 
   // Overlay controls
   bool _showOverlay = true;
@@ -126,7 +123,6 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
   }
 
   Future<void> _initPlayer() async {
-    MediaKit.ensureInitialized();
     // Load video performance settings from UserPreferences if available
     try {
       final prefs = UserPreferences.instance;
@@ -137,22 +133,19 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
             defaultValue: !Platform.isWindows,
           ) ??
           !Platform.isWindows;
-      _bufferSizeMB =
-          await prefs.getVideoPlayerInt('buffer_size', defaultValue: 10) ?? 10;
     } catch (_) {
       // Fallback to defaults if preferences are unavailable in PiP process
       _hardwareAcceleration = !Platform.isWindows;
-      _bufferSizeMB = 10;
     }
 
-    _player = Player(
-      configuration: PlayerConfiguration(
-        bufferSize: (_bufferSizeMB > 0 ? _bufferSizeMB : 10) * 1024 * 1024,
+    _player = PlaybackPlayer(
+      configuration: PlaybackConfiguration(
+        networkCaching: const Duration(seconds: 1),
       ),
     );
-    _controller = VideoController(
+    _controller = PlaybackVideoController(
       _player!,
-      configuration: VideoControllerConfiguration(
+      configuration: PlaybackVideoConfiguration(
         enableHardwareAcceleration: _hardwareAcceleration,
       ),
     );
@@ -165,19 +158,11 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
         ? true
         : (widget.args['playing'] == true);
 
-    String openSrc = src;
-    if (Platform.isWindows) {
-      if (type == 'smb') {
-        openSrc = smbMrlToUnc(src);
-      } else if (type == 'file') {
-        // Use explicit file:// URI to avoid edge-cases with backslashes.
-        openSrc = _normalizeToFileUri(src);
-      }
-    }
+    final openSrc = src;
 
     try {
-      debugPrint('[PiP] Opening source type=$type src=$openSrc');
-      await _player!.open(Media(openSrc));
+      debugPrint('[PiP] Opening source type=$type');
+      await _player!.open(PlaybackMedia(openSrc), play: shouldPlay);
     } catch (e) {
       debugPrint('[PiP] Failed to open media: $e');
       if (mounted) setState(() => _openError = '$e');
@@ -238,9 +223,9 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
       if (!mounted || _firstFrameReady || !_hardwareAcceleration) return;
       try {
         // Recreate controller with hardware acceleration disabled
-        _controller = VideoController(
+        _controller = PlaybackVideoController(
           _player!,
-          configuration: const VideoControllerConfiguration(
+          configuration: const PlaybackVideoConfiguration(
             enableHardwareAcceleration: false,
           ),
         );
@@ -354,9 +339,8 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
               if (_controller != null)
                 Positioned.fill(
                   child: RepaintBoundary(
-                    child: Video(
+                    child: PlaybackVideo(
                       controller: _controller!,
-                      controls: NoVideoControls,
                       fill: Colors.black,
                     ),
                   ),
@@ -792,19 +776,6 @@ class _DesktopPipWindowState extends State<DesktopPipWindow>
     // Best-effort save; may not always complete before process exit
     unawaited(_saveCurrentSize());
     _sendState(closing: true);
-  }
-
-  String _normalizeToFileUri(String path) {
-    try {
-      if (Platform.isWindows) {
-        // Use Uri.file to handle both local and UNC paths correctly.
-        final uri = Uri.file(path, windows: true);
-        return uri.toString();
-      }
-      return path;
-    } catch (_) {
-      return path;
-    }
   }
 }
 

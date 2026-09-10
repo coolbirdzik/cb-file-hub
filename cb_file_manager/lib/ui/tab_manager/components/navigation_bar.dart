@@ -9,6 +9,7 @@ import '../../../design_system/fluent_surface_tokens.dart';
 import '../core/tab_manager.dart';
 import '../../../config/languages/app_localizations.dart';
 import 'address_bar_menu.dart';
+import '../../../design_system/primitives/cb_button.dart';
 import '../../../helpers/files/archive_path_utils.dart';
 import '../../../ui/components/common/breadcrumb_address_bar.dart';
 import 'package:cb_file_manager/design_system/primitives/cb_tooltip.dart';
@@ -32,6 +33,7 @@ class PathNavigationBar extends StatefulWidget {
   final VoidCallback? onNavigateBack;
   final bool canNavigateToParent;
   final VoidCallback? onNavigateToParent;
+  final VoidCallback? onNavigateHome;
 
   const PathNavigationBar({
     super.key,
@@ -48,6 +50,7 @@ class PathNavigationBar extends StatefulWidget {
     this.onNavigateBack,
     this.canNavigateToParent = false,
     this.onNavigateToParent,
+    this.onNavigateHome,
   });
 
   @override
@@ -176,8 +179,111 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
   }
 
   Widget _buildCompactNavigationBar(BuildContext context, double width) {
-    // Mobile uses the vertical overflow menu in the action bar instead.
-    return const SizedBox.shrink();
+    if (widget.onNavigateHome == null || width < 128) {
+      final l10n = AppLocalizations.of(context);
+      return Row(
+        children: [
+          if (width >= 64)
+            Expanded(
+              child: widget.isNetworkPath && widget.breadcrumbSegments == null
+                  ? Text(
+                      _formatNetworkPath(widget.currentPath),
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  : BreadcrumbAddressBar(
+                      segments: [
+                        BreadcrumbSegment(label: widget.pathController.text),
+                      ],
+                      editController: widget.enablePathEditing
+                          ? widget.pathController
+                          : null,
+                      onPathSubmitted: widget.enablePathEditing
+                          ? widget.onPathSubmitted
+                          : null,
+                    ),
+            ),
+          SizedBox(
+            width: width < 32 ? width : 32,
+            child: AddressBarMenu(
+              tooltip: l10n?.moreOptions ?? 'Options',
+              items: [
+                AddressBarMenuItem(
+                  title: l10n?.back ?? 'Go back',
+                  icon: PhosphorIconsLight.arrowLeft,
+                  enabled: _effectiveCanNavigateBack,
+                  onTap: _navigateBack,
+                ),
+                AddressBarMenuItem(
+                  title: l10n?.forward ?? 'Go forward',
+                  icon: PhosphorIconsLight.arrowRight,
+                  enabled: _canNavigateForward,
+                  onTap: () => _tabBloc?.forwardNavigationToPath(widget.tabId),
+                ),
+                if (widget.onNavigateToParent != null)
+                  AddressBarMenuItem(
+                    title: l10n?.parentFolder ?? 'Up',
+                    icon: PhosphorIconsLight.arrowUp,
+                    enabled: widget.canNavigateToParent,
+                    onTap: widget.onNavigateToParent!,
+                  ),
+                if (widget.onNavigateHome != null)
+                  AddressBarMenuItem(
+                    title: l10n?.home ?? 'Home',
+                    icon: PhosphorIconsLight.house,
+                    onTap: widget.onNavigateHome!,
+                  ),
+                ...?widget.menuItems,
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    final l10n = AppLocalizations.of(context)!;
+    return Row(
+      children: [
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowLeft,
+          tooltip: l10n.back,
+          size: CbButtonSize.sm,
+          onPressed: _effectiveCanNavigateBack ? _navigateBack : null,
+        ),
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowRight,
+          tooltip: l10n.forward,
+          size: CbButtonSize.sm,
+          onPressed: _canNavigateForward
+              ? () => _tabBloc?.forwardNavigationToPath(widget.tabId)
+              : null,
+        ),
+        CbButton.icon(
+          icon: PhosphorIconsLight.arrowUp,
+          tooltip: l10n.parentFolder,
+          size: CbButtonSize.sm,
+          onPressed: widget.canNavigateToParent
+              ? widget.onNavigateToParent
+              : null,
+        ),
+        CbButton.icon(
+          icon: PhosphorIconsLight.house,
+          tooltip: l10n.home,
+          size: CbButtonSize.sm,
+          onPressed: widget.onNavigateHome,
+        ),
+        if (width >= 160)
+          Expanded(
+            child: BreadcrumbAddressBar(
+              segments: _buildSegments(),
+              editController: widget.enablePathEditing
+                  ? widget.pathController
+                  : null,
+              onPathSubmitted: widget.enablePathEditing
+                  ? widget.onPathSubmitted
+                  : null,
+            ),
+          ),
+      ],
+    );
   }
 
   Widget _buildMaterialNavigationBar(BuildContext context) {
@@ -186,7 +292,7 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
         IconButton(
           icon: const Icon(PhosphorIconsLight.arrowLeft),
           onPressed: _effectiveCanNavigateBack ? _navigateBack : null,
-          tooltip: 'Go back',
+          tooltip: AppLocalizations.of(context)?.back ?? 'Go back',
         ),
         IconButton(
           icon: const Icon(PhosphorIconsLight.arrowRight),
@@ -195,7 +301,7 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
                   context,
                 ).forwardNavigationToPath(widget.tabId)
               : null,
-          tooltip: 'Go forward',
+          tooltip: AppLocalizations.of(context)?.forward ?? 'Go forward',
         ),
         if (widget.onNavigateToParent != null)
           IconButton(
@@ -206,8 +312,14 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
             tooltip: AppLocalizations.of(context)?.parentFolder ?? 'Up',
           ),
 
+        if (widget.onNavigateHome != null)
+          IconButton(
+            icon: const Icon(PhosphorIconsLight.house),
+            tooltip: AppLocalizations.of(context)?.home ?? 'Home',
+            onPressed: widget.onNavigateHome,
+          ),
         // Special display for network paths
-        if (widget.isNetworkPath) ...[
+        if (widget.isNetworkPath && widget.breadcrumbSegments == null) ...[
           const Icon(PhosphorIconsLight.wifiHigh),
           const SizedBox(width: 8),
           Expanded(
@@ -281,7 +393,8 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
       );
     }
 
-    final pathContent = widget.isNetworkPath
+    final pathContent =
+        widget.isNetworkPath && widget.breadcrumbSegments == null
         ? Row(
             children: [
               Icon(
@@ -313,12 +426,12 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
       children: [
         iconButton(
           icon: PhosphorIconsLight.arrowLeft,
-          tooltip: 'Go back',
+          tooltip: AppLocalizations.of(context)?.back ?? 'Go back',
           onPressed: _effectiveCanNavigateBack ? _navigateBack : null,
         ),
         iconButton(
           icon: PhosphorIconsLight.arrowRight,
-          tooltip: 'Go forward',
+          tooltip: AppLocalizations.of(context)?.forward ?? 'Go forward',
           onPressed: _canNavigateForward
               ? () => context.read<TabManagerBloc>().forwardNavigationToPath(
                   widget.tabId,
@@ -332,6 +445,12 @@ class _PathNavigationBarState extends State<PathNavigationBar> {
             onPressed: widget.canNavigateToParent
                 ? widget.onNavigateToParent
                 : null,
+          ),
+        if (widget.onNavigateHome != null)
+          iconButton(
+            icon: PhosphorIconsLight.house,
+            tooltip: AppLocalizations.of(context)?.home ?? 'Home',
+            onPressed: widget.onNavigateHome,
           ),
         const SizedBox(width: 6),
         Expanded(

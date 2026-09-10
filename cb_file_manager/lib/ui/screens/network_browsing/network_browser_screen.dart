@@ -26,8 +26,10 @@ import '../folder_list/components/index.dart' as folder_list_components;
 import 'package:cb_file_manager/bloc/selection/selection.dart';
 
 // Import tab manager components
-import 'package:cb_file_manager/ui/tab_manager/components/index.dart'
-    as tab_components;
+import 'components/network_recovery_view.dart';
+import 'components/network_navigation_bar.dart';
+import '../../components/common/screen_scaffold.dart';
+import '../../../design_system/primitives/cb_button.dart';
 import 'package:cb_file_manager/ui/tab_manager/core/tab_data.dart'; // Import TabData explicitly
 
 // Add imports for hardware acceleration
@@ -70,7 +72,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     with SingleTickerProviderStateMixin {
   static const bool _enableVerboseLogs = false;
   late TextEditingController _searchController;
-  late TextEditingController _pathController;
 
   late SelectionBloc _selectionBloc;
   bool _showSearchBar = false;
@@ -122,7 +123,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     super.initState();
     _currentPath = widget.path;
     _searchController = TextEditingController();
-    _pathController = TextEditingController(text: _currentPath);
     _scrollController = ScrollController();
 
     // Add scroll listener for auto load more
@@ -134,7 +134,12 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     // Avoid forcing semantics to prevent potential render/semantics assertions
 
     // Initialize the blocs
-    _networkBrowsingBloc = context.read<NetworkBrowsingBloc>();
+    // Directory state belongs to this browser. Physical connections remain
+    // shared through NetworkServiceRegistry, but errors/results cannot leak
+    // into another tab or the connection manager.
+    _networkBrowsingBloc = context
+        .read<NetworkBrowsingBloc>()
+        .createBrowserSession();
     _selectionBloc = SelectionBloc();
 
     // Listen for thumbnail loading changes
@@ -186,14 +191,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
       }
     });
 
-    // Add listener to path controller to update current path when text changes
-    _pathController.addListener(() {
-      // Don't trigger path changes while user is editing
-      if (_pathController.text != _currentPath && !_isHandlingPathUpdate) {
-        // Removed debug print to reduce logging
-      }
-    });
-
     // Register mobile file actions controller for mobile UI
     // Defer registration until after first frame to ensure context is ready
     if (!isDesktopPlatform) {
@@ -232,7 +229,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
   void dispose() {
     // Clean up resources
     _searchController.dispose();
-    _pathController.dispose();
     _scrollController.dispose();
     _selectionBloc.close();
 
@@ -242,6 +238,7 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     _dragCurrentPositionNotifier.dispose();
     _thumbnailLoadingSubscription?.cancel();
     _networkBrowsingSubscription?.cancel();
+    _networkBrowsingBloc.close();
 
     // Remove mobile actions controller
     if (!isDesktopPlatform) {
@@ -591,7 +588,9 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
   }
 
   void _loadNetworkDirectory() {
-    if (mounted && !_isLoadingStarted) {
+    if (mounted &&
+        (!_isLoadingStarted || _networkBrowsingBloc.state.hasError) &&
+        _currentPath.startsWith('#network/')) {
       setState(() {
         _isLoadingStarted = true;
       });
@@ -640,7 +639,24 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     _showSearchTip(context);
   }
 
-  void _navigateToPath(String path) {
+  void _navigateToPath(String path, {bool updateHistory = true}) {
+    if (!path.startsWith('#network/')) {
+      if (updateHistory) {
+        final tabs = context.read<TabManagerBloc>();
+        tabs.add(UpdateTabPath(widget.tabId, path));
+        if (path == '#home' || path == '#network') {
+          final l10n = AppLocalizations.of(context)!;
+          tabs.add(
+            UpdateTabName(
+              widget.tabId,
+              path == '#home' ? l10n.homeTab : l10n.networkTab,
+            ),
+          );
+        }
+      }
+      _currentPath = path;
+      return;
+    }
     // Cancel any SMB thumbnail work from the previous folder to avoid
     // background SMB operations interfering with the next directory listing.
     if (Platform.isAndroid || Platform.isIOS) {
@@ -653,20 +669,14 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
 
     setState(() {
       _currentPath = path;
-      _pathController.text = path;
       _isLoadingStarted = false; // Reset loading flag for new path
       _isNavigationPending = true;
     });
 
-    // Ensure path controller is updated
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_pathController.text != path) {
-        _pathController.text = path;
-      }
-    });
-
     // Update the tab path (this will automatically handle navigation history)
-    context.read<TabManagerBloc>().add(UpdateTabPath(widget.tabId, path));
+    if (updateHistory) {
+      context.read<TabManagerBloc>().add(UpdateTabPath(widget.tabId, path));
+    }
 
     _scheduleNetworkDirectoryLoad();
 
@@ -683,44 +693,23 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
   }
 
   Future<bool> _handleBackButton() async {
-    try {
-      final tabManagerBloc = context.read<TabManagerBloc>();
-      if (tabManagerBloc.canTabNavigateBack(widget.tabId)) {
-        final previousPath = tabManagerBloc.getTabPreviousPath(widget.tabId);
-        if (previousPath != null) {
-          _navigateToPath(previousPath);
-          return false; // Don't exit app, we navigated back
-        }
-      }
-
-      // If we can't navigate back in tab, check if we can pop the navigator
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-        return false; // Don't exit app
-      }
-
-      // If we're at the root and can't navigate back, don't allow back
-      return false; // Don't exit app, just prevent back navigation
-    } catch (e) {
-      debugPrint('Error in _handleBackButton: $e');
-      return false; // Don't exit app on error
+    final tabs = context.read<TabManagerBloc>();
+    if (tabs.backNavigationToPath(widget.tabId) == null) {
+      _navigateToPath('#home');
     }
+    return false;
   }
 
   void _updatePath(String newPath) {
     if (_isHandlingPathUpdate) return;
 
     _isHandlingPathUpdate = true;
-    _navigateToPath(newPath);
+    _navigateToPath(newPath, updateHistory: false);
     _isHandlingPathUpdate = false;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_arePreferencesLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
     return BlocProvider.value(
       value: _selectionBloc,
       child: BlocListener<TabManagerBloc, TabManagerState>(
@@ -742,12 +731,14 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
             }
           },
           child: BlocConsumer<NetworkBrowsingBloc, NetworkBrowsingState>(
+            bloc: _networkBrowsingBloc,
             listenWhen: (previous, current) {
               // Only trigger listener when state actually changes
               return previous.isLoading != current.isLoading ||
                   previous.directories != current.directories ||
                   previous.files != current.files ||
-                  previous.hasError != current.hasError;
+                  previous.errorMessage != current.errorMessage ||
+                  previous.currentPath != current.currentPath;
             },
             listener: (context, state) {
               // Check if there are any video/image files in the current directory
@@ -791,7 +782,8 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
               return previous.isLoading != current.isLoading ||
                   previous.directories != current.directories ||
                   previous.files != current.files ||
-                  previous.hasError != current.hasError;
+                  previous.errorMessage != current.errorMessage ||
+                  previous.currentPath != current.currentPath;
             },
             builder: (context, state) {
               return _buildWithSelectionState(context, state);
@@ -865,15 +857,41 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
           ]);
         }
 
-        return Scaffold(
-          appBar: widget.showAppBar
-              ? AppBar(
-                  title: _buildAppBarTitle(context),
-                  actions: actions,
-                  elevation: 0,
-                  backgroundColor: Colors.transparent,
-                )
-              : null,
+        return ScreenScaffold(
+          selectionState: selectionState,
+          isNetworkPath: true,
+          isDesktop: _isDesktopMode,
+          onClearSelection: _clearSelection,
+          showRemoveTagsDialog: (_) {},
+          showManageAllTagsDialog: (_) {},
+          showDeleteConfirmationDialog: (_) {},
+          showAppBar: widget.showAppBar,
+          showSearchBar: _showSearchBar,
+          searchBar: _buildSearchBar(context),
+          pathNavigationBar: NetworkNavigationBar(
+            tabId: widget.tabId,
+            path: _currentPath,
+            homePath: _currentPath.toLowerCase().startsWith('#network/sftp/')
+                ? '#ssh'
+                : '#home',
+            allowPathEditing: true,
+            onNavigate: _navigateToPath,
+          ),
+          actions: [
+            CbButton.icon(
+              icon: PhosphorIconsLight.plugs,
+              tooltip: AppLocalizations.of(context)!.networkConnections,
+              onPressed: () => _navigateToPath('#network'),
+            ),
+            if (!networkState.hasError)
+              ...actions
+            else
+              CbButton.icon(
+                icon: PhosphorIconsLight.arrowClockwise,
+                tooltip: AppLocalizations.of(context)!.refresh,
+                onPressed: _scheduleNetworkDirectoryLoad,
+              ),
+          ],
           body: FileViewShell(
             viewMode: _viewMode,
             onViewScaleDelta: _handleViewScaleDelta,
@@ -889,84 +907,48 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
                     _showSearchBar = false;
                   })
                 : null,
-            child: _buildBody(context, networkState, selectionState),
+            child: ClipRect(
+              child: _buildBody(context, networkState, selectionState),
+            ),
           ),
-          floatingActionButton: _buildFloatingActionButton(selectionState),
+          floatingActionButton: _isDesktopMode
+              ? null
+              : _buildFloatingActionButton(selectionState),
         );
       },
     );
   }
 
-  Widget _buildAppBarTitle(BuildContext context) {
-    if (_showSearchBar) {
-      return SizedBox(
-        height: 40,
-        child: TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: AppLocalizations.of(context)!.searchHintText,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16.0),
-              borderSide: BorderSide.none,
-            ),
-            filled: true,
-            fillColor: Theme.of(
-              context,
-            ).colorScheme.surface.withValues(alpha: 0.8),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-            prefixIcon: const Icon(
-              PhosphorIconsLight.magnifyingGlass,
-              size: 20,
-            ),
-            suffixIcon: _searchController.text.isEmpty
-                ? null
-                : IconButton(
-                    icon: const Icon(PhosphorIconsLight.broom),
-                    tooltip: AppLocalizations.of(context)!.clearSearch,
-                    onPressed: () {
-                      setState(() {
-                        _searchController.clear();
-                      });
-                    },
-                  ),
+  Widget _buildSearchBar(BuildContext context) {
+    return SizedBox(
+      height: 40,
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: AppLocalizations.of(context)!.searchHintText,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16.0),
+            borderSide: BorderSide.none,
           ),
+          filled: true,
+          fillColor: Theme.of(
+            context,
+          ).colorScheme.surface.withValues(alpha: 0.8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          prefixIcon: const Icon(PhosphorIconsLight.magnifyingGlass, size: 20),
+          suffixIcon: _searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(PhosphorIconsLight.broom),
+                  tooltip: AppLocalizations.of(context)!.clearSearch,
+                  onPressed: () {
+                    setState(() {
+                      _searchController.clear();
+                    });
+                  },
+                ),
         ),
-      );
-    }
-
-    return Row(
-      children: [
-        IconButton(
-          icon: const Icon(PhosphorIconsLight.arrowLeft),
-          onPressed: () async {
-            await _handleBackButton();
-          },
-        ),
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              _showPathDialog(context);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surface.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16.0),
-              ),
-              child: Text(
-                _currentPath,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -995,7 +977,8 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
 
     final bool shouldShowSkeleton =
         !state.hasError &&
-        (_isNavigationPending ||
+        (_arePreferencesLoading ||
+            _isNavigationPending ||
             (state.isLoading && !state.hasContent) ||
             isStatePathOutOfSync);
 
@@ -1012,18 +995,14 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     } else if (state.hasError) {
       content = FluentBackground.container(
         context: context,
-        padding: const EdgeInsets.all(24.0),
         blurAmount: 5.0,
-        child: tab_components.ErrorView(
+        child: NetworkRecoveryView(
+          path: _currentPath,
           errorMessage:
               state.errorMessage ?? AppLocalizations.of(context)!.unknownError,
-          isNetworkPath: true,
-          onRetry: () {
-            _scheduleNetworkDirectoryLoad();
-          },
-          onGoBack: () {
-            _handleBackButton();
-          },
+          onRetry: _scheduleNetworkDirectoryLoad,
+          onConnections: () => _navigateToPath('#network'),
+          onHome: () => _navigateToPath('#home'),
         ),
       );
     } else {
@@ -1048,8 +1027,13 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
           children: [
             FluentBackground(
               blurAmount: 8.0,
-              opacity: 0.2,
-              enableBlur: true,
+              opacity: _viewMode == ViewMode.list && isDesktopPlatform
+                  ? 0
+                  : 0.2,
+              backgroundColor: _viewMode == ViewMode.list && isDesktopPlatform
+                  ? Colors.transparent
+                  : null,
+              enableBlur: _viewMode != ViewMode.list || !isDesktopPlatform,
               child: GestureDetector(
                 onTap: () {
                   if (selectionState.selectedCount > 0) {
@@ -1152,6 +1136,7 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
         .toInt();
     return BrowserLikeCollectionView<FileSystemEntity>(
       viewMode: _viewMode,
+      useAdaptiveList: true,
       items: items,
       isDesktop: isDesktopPlatform,
       stackKey: _contentStackKey,
@@ -1245,10 +1230,6 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
     // Implementation for column visibility dialog
   }
 
-  void _showPathDialog(BuildContext context) {
-    // Implementation for path dialog
-  }
-
   void _showContextMenu(BuildContext context, Offset position, String? path) {
     // Implementation for context menu
   }
@@ -1308,7 +1289,7 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
   }
 
   void _handleMouseForwardButton() {
-    // Implementation for mouse forward button
+    context.read<TabManagerBloc>().forwardNavigationToPath(widget.tabId);
   }
 
   void _handleFileOpen(BuildContext context, File file) {
@@ -1327,6 +1308,9 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
   }
 
   Widget _wrapNetworkItem(bool isSelected, Widget child) {
+    if (_viewMode == ViewMode.list && isDesktopPlatform) {
+      return RepaintBoundary(child: child);
+    }
     return RepaintBoundary(
       child: FluentBackground.container(
         context: context,
@@ -1452,6 +1436,8 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
           isSelected,
           folder_list_components.FolderItem(
             key: ValueKey('folder-list-item-${item.path}'),
+            compact: isDesktopPlatform,
+            showItemBackground: !isDesktopPlatform,
             folder: item,
             onTap: _navigateToPath,
             isSelected: isSelected,
@@ -1471,6 +1457,8 @@ class _NetworkBrowserScreenState extends State<NetworkBrowserScreen>
         isSelected,
         folder_list_components.FileItem(
           key: ValueKey('file-list-item-${file.path}'),
+          compact: isDesktopPlatform,
+          showItemBackground: !isDesktopPlatform,
           file: file,
           state: FolderListState(_currentPath),
           isSelectionMode: isDesktopPlatform

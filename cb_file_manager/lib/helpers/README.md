@@ -16,7 +16,6 @@ helpers/
 ├── media/                     # Media processing & thumbnails
 │   ├── fc_native_video_thumbnail.dart
 │   ├── folder_thumbnail_service.dart
-│   ├── media_kit_audio_helper.dart
 │   ├── thumbnail_*.dart
 │   └── video_thumbnail_helper.dart
 ├── network/                   # Network & streaming

@@ -12,7 +12,6 @@ export 'core/user_preferences.dart';
 // Media & Thumbnails
 export 'media/fc_native_video_thumbnail.dart';
 export 'media/folder_thumbnail_service.dart';
-export 'media/media_kit_audio_helper.dart';
 export 'media/thumbnail_background_isolate.dart';
 export 'media/thumbnail_helper.dart';
 export 'media/thumbnail_queue_manager.dart';

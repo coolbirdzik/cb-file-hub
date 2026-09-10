@@ -15,7 +15,7 @@ class StreamingServiceManager {
 
     try {
       // Add native SMB streaming helper with highest priority
-      // _helpers.add(NativeSmbStreamingHelper()); // Removed - using flutter_vlc_player
+      // _helpers.add(NativeSmbStreamingHelper()); // Removed - using the shared VLC backend
 
       // Sort helpers by priority (highest first)
       _helpers.sort((a, b) => (b).priority.compareTo((a).priority));

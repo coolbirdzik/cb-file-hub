@@ -1,18 +1,23 @@
-import 'dart:io';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'dart:io';
+
 import 'package:cb_file_manager/design_system/cb_design_system.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import '../../../config/languages/app_localizations.dart';
 import '../../../bloc/network_browsing/network_browsing_bloc.dart';
 import '../../../bloc/network_browsing/network_browsing_event.dart';
 import '../../../bloc/network_browsing/network_browsing_state.dart';
-// Removed smb_connect import - using mobile_smb_native instead
-import '../../../services/network_credentials_service.dart';
+import '../../../config/languages/app_localizations.dart';
 import '../../../models/database/network_credentials.dart';
+import '../../../services/network_browsing/network_service_registry.dart';
+import '../../../services/network_credentials_service.dart';
+import '../../components/common/connection_form_row.dart';
 import '../../utils/route.dart';
+import '../ssh/ssh_host_dialog.dart';
+
+// Removed smb_connect import - using mobile_smb_native instead
 
 /// Dialog for entering network connection details
 class NetworkConnectionDialog extends StatefulWidget {
@@ -21,6 +26,7 @@ class NetworkConnectionDialog extends StatefulWidget {
 
   /// Initial host to fill in the host field
   final String? initialHost;
+  final NetworkServiceRegistry? registry;
 
   /// Callback when connection is requested
   final Function(String connectionPath, String tabName)? onConnectionRequested;
@@ -29,6 +35,7 @@ class NetworkConnectionDialog extends StatefulWidget {
     super.key,
     this.initialService,
     this.initialHost,
+    this.registry,
     this.onConnectionRequested,
   });
 
@@ -47,6 +54,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
   final _basePathController = TextEditingController();
   bool _showPassword = false;
   bool _useSSL = true;
+  String _ftpSecurity = 'none';
   String? _domain;
 
   // For SMB connection progress
@@ -70,7 +78,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
       'NetworkConnectionDialog: initState() called on platform: ${Platform.operatingSystem}',
     );
     _selectedService = widget.initialService ?? 'SMB';
-    _localBloc = NetworkBrowsingBloc();
+    _localBloc = NetworkBrowsingBloc(registry: widget.registry);
 
     // Set the host if provided
     if (widget.initialHost != null) {
@@ -91,6 +99,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
     // Đảm bảo host controller đã được thiết lập trước khi tải thông tin đăng nhập
     // Trên mobile, cần thêm delay dài hơn để đảm bảo giá trị đã được cập nhật
     Future.delayed(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
       debugPrint(
         'NetworkConnectionDialog: Before loading credentials, host is: ${_hostController.text}',
       );
@@ -99,6 +108,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
 
     // Listen to connection results
     _localBloc.stream.listen((state) {
+      if (!mounted) return;
       if (state.lastSuccessfullyConnectedPath != null &&
           widget.onConnectionRequested != null) {
         final connectionPath = state.lastSuccessfullyConnectedPath!;
@@ -145,6 +155,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
   Future<void> _loadSavedCredentials() async {
     // Đợi một chút để đảm bảo UI đã hiển thị
     await Future.delayed(const Duration(milliseconds: 100));
+    if (!mounted) return;
 
     try {
       final hostToSearch = _hostController.text.trim();
@@ -197,6 +208,11 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
             _domain = credentials.domain;
           }
 
+          if (_selectedService == 'FTP' &&
+              credentials.additionalOptions != null) {
+            final options = jsonDecode(credentials.additionalOptions!);
+            _ftpSecurity = options['ftpSecurity'] ?? 'none';
+          }
           // Load basePath for WebDAV
           if (_selectedService == 'WebDAV' &&
               credentials.additionalOptions != null) {
@@ -267,23 +283,23 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
 
   Future<void> _deleteSavedHost(String host) async {
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
-    final confirmed = await showDialog<bool>(
+    final colors = context.cbColors;
+    final confirmed = await RouteUtils.showAcrylicDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.deleteSavedConnectionTitle),
+      builder: (ctx) => CbDialog(
+        destructive: true,
+        icon: PhosphorIconsLight.trash,
+        title: l10n.deleteSavedConnectionTitle,
         content: Text(l10n.deleteSavedConnectionConfirm(host)),
         actions: [
-          TextButton(
+          CbButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(l10n.cancel),
+            label: l10n.cancel,
           ),
-          TextButton(
+          CbButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              l10n.delete,
-              style: TextStyle(color: theme.colorScheme.error),
-            ),
+            label: l10n.delete,
+            variant: CbButtonVariant.danger,
           ),
         ],
       ),
@@ -318,7 +334,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(l10n.connectionNotFoundToDelete(host)),
-                backgroundColor: theme.colorScheme.secondary,
+                backgroundColor: colors.surfaceRaised,
               ),
             );
           }
@@ -339,8 +355,11 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
       case 'SMB':
         _portController.text = '445';
         break;
+      case 'SFTP':
+        _portController.text = '22';
+        break;
       case 'FTP':
-        _portController.text = '21';
+        _portController.text = _ftpSecurity == 'implicitTls' ? '990' : '21';
         break;
       case 'WebDAV':
         _portController.text = _useSSL ? '443' : '80';
@@ -433,7 +452,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = context.cbColors;
     return BlocProvider.value(
       value: _localBloc,
       child: BlocBuilder<NetworkBrowsingBloc, NetworkBrowsingState>(
@@ -443,15 +462,32 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
               state.isLoading || state.isConnecting || _connectingToServer;
 
           final l10n = AppLocalizations.of(context)!;
-          return AlertDialog(
-            title: Text(l10n.connectToServiceServer(_selectedService)),
+          if (_selectedService == 'SFTP') {
+            return SshHostDialog(
+              connectSftp: true,
+              onChangeService: () => setState(() {
+                _selectedService = 'SMB';
+                _updateDefaultPort();
+                _loadSavedHosts();
+              }),
+              initialHost: widget.initialHost,
+              onConnected: (path) =>
+                  widget.onConnectionRequested?.call(path, 'SFTP'),
+            );
+          }
+          return CbDialog(
+            width: 800,
+            icon: PhosphorIconsLight.plugsConnected,
+            showCloseButton: !isLoading,
+            title: l10n.connectToServiceServer(_selectedService),
             content: SizedBox(
-              width: 400,
+              width: double.infinity,
               child: Form(
                 key: _formKey,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Service Selection Dropdown
                       CbSelect<String>(
@@ -460,7 +496,8 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                         value: _selectedService,
                         items: const [
                           CbSelectItem(value: 'SMB', label: 'SMB'),
-                          CbSelectItem(value: 'FTP', label: 'FTP'),
+                          CbSelectItem(value: 'FTP', label: 'FTP / FTPS'),
+                          CbSelectItem(value: 'SFTP', label: 'SFTP'),
                           CbSelectItem(value: 'WebDAV', label: 'WebDAV'),
                         ],
                         onChanged: isLoading
@@ -474,119 +511,142 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                               },
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: CbSpacing.lg),
 
-                      // Host Field with Autocomplete
-                      Autocomplete<String>(
-                        fieldViewBuilder:
-                            (context, controller, focusNode, onFieldSubmitted) {
-                              // Sync the controller with our _hostController
-                              if (controller.text != _hostController.text) {
-                                controller.text = _hostController.text;
-                              }
-                              _hostController.addListener(() {
+                      if (_selectedService == 'FTP') ...[
+                        CbSelect<String>(
+                          label: l10n.ftpSecurity,
+                          expand: true,
+                          value: _ftpSecurity,
+                          items: [
+                            CbSelectItem(value: 'none', label: l10n.ftpPlain),
+                            CbSelectItem(
+                              value: 'explicitTls',
+                              label: l10n.ftpExplicitTls,
+                            ),
+                            CbSelectItem(
+                              value: 'implicitTls',
+                              label: l10n.ftpImplicitTls,
+                            ),
+                          ],
+                          onChanged: isLoading
+                              ? null
+                              : (value) => setState(() {
+                                  _ftpSecurity = value;
+                                  _updateDefaultPort();
+                                }),
+                        ),
+                        const SizedBox(height: CbSpacing.lg),
+                      ],
+                      ConnectionFormRow(
+                        firstFlex: 3,
+                        secondFlex: 1,
+                        first: Autocomplete<String>(
+                          fieldViewBuilder:
+                              (
+                                context,
+                                controller,
+                                focusNode,
+                                onFieldSubmitted,
+                              ) {
+                                // Sync the controller with our _hostController
                                 if (controller.text != _hostController.text) {
                                   controller.text = _hostController.text;
                                 }
-                              });
 
-                              return TextFormField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                enabled: !isLoading,
-                                decoration: InputDecoration(
-                                  labelText: l10n.host,
-                                  border: const OutlineInputBorder(),
-                                ),
-                                onChanged: (value) {
-                                  _hostController.text = value;
-                                  _loadSavedCredentials();
-                                },
-                                onFieldSubmitted: (value) {
-                                  onFieldSubmitted();
-                                },
-                              );
-                            },
-                        optionsBuilder: (TextEditingValue textEditingValue) {
-                          if (textEditingValue.text.isEmpty) {
-                            return _savedHosts;
-                          }
-                          return _savedHosts.where(
-                            (option) => option.toLowerCase().contains(
-                              textEditingValue.text.toLowerCase(),
-                            ),
-                          );
-                        },
-                        onSelected: (String option) {
-                          _hostController.text = option;
-                          _loadSavedCredentials();
-                        },
-                        optionsViewBuilder: (context, onSelected, options) {
-                          return Material(
-                            elevation: 0,
-                            child: ListView.builder(
-                              padding: EdgeInsets.zero,
-                              itemCount: options.length,
-                              shrinkWrap: true,
-                              itemBuilder: (BuildContext context, int index) {
-                                final option = options.elementAt(index);
-                                return ListTile(
-                                  title: Text(option),
-                                  trailing: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(
-                                          PhosphorIconsLight.pencilSimple,
-                                          size: 16,
-                                        ),
-                                        onPressed: () {
-                                          // Stop dropdown from closing
-                                          RouteUtils.safePopDialog(context);
-                                          _deleteSavedHost(option);
-                                        },
-                                        tooltip: l10n.deleteSavedConnection,
-                                      ),
-                                    ],
-                                  ),
-                                  onTap: () {
-                                    onSelected(option);
+                                return CbTextField(
+                                  controller: controller,
+                                  focusNode: focusNode,
+                                  enabled: !isLoading,
+                                  label: l10n.host,
+
+                                  onChanged: (value) {
+                                    _hostController.text = value;
+                                    _loadSavedCredentials();
+                                  },
+                                  onSubmitted: (value) {
+                                    onFieldSubmitted();
                                   },
                                 );
                               },
-                            ),
-                          );
-                        },
-                      ),
+                          optionsBuilder: (TextEditingValue textEditingValue) {
+                            if (textEditingValue.text.isEmpty) {
+                              return _savedHosts;
+                            }
+                            return _savedHosts.where(
+                              (option) => option.toLowerCase().contains(
+                                textEditingValue.text.toLowerCase(),
+                              ),
+                            );
+                          },
+                          onSelected: (String option) {
+                            _hostController.text = option;
+                            _loadSavedCredentials();
+                          },
+                          optionsViewBuilder: (context, onSelected, options) {
+                            return Material(
+                              elevation: 0,
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                itemCount: options.length,
+                                shrinkWrap: true,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final option = options.elementAt(index);
+                                  return ListTile(
+                                    title: Text(option),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(
+                                            PhosphorIconsLight.pencilSimple,
+                                            size: 16,
+                                          ),
+                                          onPressed: () {
+                                            // Stop dropdown from closing
+                                            RouteUtils.safePopDialog(context);
+                                            _deleteSavedHost(option);
+                                          },
+                                          tooltip: l10n.deleteSavedConnection,
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: () {
+                                      onSelected(option);
+                                    },
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                        second: CbTextField(
+                          controller: _portController,
+                          enabled: !isLoading,
+                          label: l10n.portOptional,
 
-                      const SizedBox(height: 16),
-
-                      // Username Field
-                      TextFormField(
-                        controller: _usernameController,
-                        enabled: !isLoading,
-                        decoration: InputDecoration(
-                          labelText: l10n.username,
-                          border: const OutlineInputBorder(),
+                          keyboardType: TextInputType.number,
                         ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Password Field
-                      TextFormField(
-                        controller: _passwordController,
-                        enabled: !isLoading,
-                        obscureText: !_showPassword,
-                        decoration: InputDecoration(
-                          labelText: l10n.password,
-                          border: const OutlineInputBorder(),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _showPassword
-                                  ? PhosphorIconsLight.eye
-                                  : PhosphorIconsLight.eyeSlash,
-                            ),
+                      const SizedBox(height: CbSpacing.xl),
+                      ConnectionFormRow(
+                        first: CbTextField(
+                          controller: _usernameController,
+                          enabled: !isLoading,
+                          label: l10n.username,
+                        ),
+                        second: CbTextField(
+                          controller: _passwordController,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          enabled: !isLoading,
+                          obscureText: !_showPassword,
+                          label: l10n.password,
+                          suffix: CbButton.icon(
+                            tooltip: l10n.password,
+                            icon: _showPassword
+                                ? PhosphorIconsLight.eye
+                                : PhosphorIconsLight.eyeSlash,
                             onPressed: isLoading
                                 ? null
                                 : () {
@@ -597,23 +657,9 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 16),
-
-                      // Port Field
-                      TextFormField(
-                        controller: _portController,
-                        enabled: !isLoading,
-                        decoration: InputDecoration(
-                          labelText: l10n.portOptional,
-                          border: const OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-
                       // Show additional options based on selected service
                       if (_selectedService == 'WebDAV') ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: CbSpacing.lg),
 
                         // SSL Checkbox
                         CheckboxListTile(
@@ -634,30 +680,25 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                                 },
                         ),
 
-                        const SizedBox(height: 16),
+                        const SizedBox(height: CbSpacing.lg),
 
                         // Base Path Field
-                        TextFormField(
+                        CbTextField(
                           controller: _basePathController,
                           enabled: !isLoading,
-                          decoration: InputDecoration(
-                            labelText: l10n.basePathOptional,
-                            hintText: l10n.basePathHint,
-                            border: const OutlineInputBorder(),
-                          ),
+                          label: l10n.basePathOptional,
+                          placeholder: l10n.basePathHint,
                         ),
                       ],
 
                       if (_selectedService == 'SMB') ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: CbSpacing.lg),
 
                         // Domain Field
-                        TextFormField(
+                        CbTextField(
                           enabled: !isLoading,
-                          decoration: InputDecoration(
-                            labelText: l10n.domainOptional,
-                            border: const OutlineInputBorder(),
-                          ),
+                          label: l10n.domainOptional,
+
                           onChanged: (value) {
                             _domain = value.isEmpty ? null : value;
                           },
@@ -666,34 +707,30 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
 
                       // Error message display
                       if (state.hasError && state.errorMessage != null) ...[
-                        const SizedBox(height: 16),
+                        const SizedBox(height: CbSpacing.lg),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: theme.colorScheme.error.withValues(
-                              alpha: 0.1,
-                            ),
+                            color: colors.status.dangerSurface,
                             border: Border.all(
-                              color: theme.colorScheme.error.withValues(
+                              color: colors.status.danger.withValues(
                                 alpha: 0.3,
                               ),
                             ),
-                            borderRadius: BorderRadius.circular(16),
+                            borderRadius: CbRadii.mdAll,
                           ),
                           child: Row(
                             children: [
                               Icon(
                                 PhosphorIconsLight.warning,
-                                color: theme.colorScheme.error,
+                                color: colors.status.danger,
                                 size: 20,
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: CbSpacing.sm),
                               Expanded(
                                 child: Text(
                                   state.errorMessage!,
-                                  style: TextStyle(
-                                    color: theme.colorScheme.error,
-                                  ),
+                                  style: TextStyle(color: colors.status.danger),
                                 ),
                               ),
                             ],
@@ -701,7 +738,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                         ),
                       ],
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: CbSpacing.lg),
 
                       // Save Credentials Checkbox
                       CheckboxListTile(
@@ -722,11 +759,12 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
               ),
             ),
             actions: [
-              TextButton(
+              CbButton(
                 onPressed: isLoading ? null : () => Navigator.pop(context),
-                child: Text(l10n.cancel),
+                label: l10n.cancel,
               ),
-              ElevatedButton(
+              CbButton(
+                variant: CbButtonVariant.primary,
                 onPressed: isLoading
                     ? null
                     : _selectedService == 'SMB'
@@ -749,6 +787,8 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                             password: password,
                             port: port,
                             additionalOptions: {
+                              if (_selectedService == 'FTP')
+                                'ftpSecurity': _ftpSecurity,
                               if (_selectedService == 'WebDAV')
                                 'useSSL': _useSSL,
                               if (_selectedService == 'WebDAV' &&
@@ -759,7 +799,7 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                             },
                           );
                           debugPrint(
-                            'NetworkConnectionDialog: Sending WebDAV connection event: $event',
+                            'NetworkConnectionDialog: Connecting to $_selectedService',
                           );
                           _localBloc.add(event);
 
@@ -773,6 +813,8 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                               port: port,
                               domain: _domain,
                               additionalOptions: {
+                                if (_selectedService == 'FTP')
+                                  'ftpSecurity': _ftpSecurity,
                                 if (_selectedService == 'WebDAV')
                                   'useSSL': _useSSL,
                                 if (_selectedService == 'WebDAV' &&
@@ -783,16 +825,8 @@ class _NetworkConnectionDialogState extends State<NetworkConnectionDialog> {
                           }
                         }
                       },
-                child: isLoading
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.onPrimary,
-                        ),
-                      )
-                    : Text(l10n.connect),
+                loading: isLoading,
+                label: l10n.connect,
               ),
             ],
           );

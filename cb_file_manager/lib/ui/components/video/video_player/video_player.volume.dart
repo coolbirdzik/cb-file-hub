@@ -7,25 +7,18 @@ abstract class _VideoPlayerVolumeHost extends State<VideoPlayer> {
   double get _savedVolume;
   set _savedVolume(double v);
 
-  set _vlcVolume(double v);
-
   double get _lastVolume;
   set _lastVolume(double v);
 
   bool get _isRestoringVolume;
   set _isRestoringVolume(bool v);
 
-  bool get _useVlcControls;
-  bool get _useExoControls;
-
-  Player? get _player;
-  VlcPlayerController? get _vlcController;
-  exo.VideoPlayerController? get _exoController;
+  PlaybackPlayer? get _player;
 }
 
 mixin _VideoPlayerVolumeMixin on _VideoPlayerVolumeHost {
   Future<void> _applyVolumeSettings() async {
-    // Prefer applying volume via the active backend controller (VLC / Exo / media_kit).
+    // The shared VLC backend also queues volume before native attachment.
     await _applyVolumeToActiveController();
   }
 
@@ -61,11 +54,7 @@ mixin _VideoPlayerVolumeMixin on _VideoPlayerVolumeHost {
     if (!mounted) return;
     final vol0to100 = _currentEffectiveVolume0to100();
     try {
-      if (_useVlcControls) {
-        await _vlcController!.setVolume(vol0to100.toInt());
-      } else if (_useExoControls) {
-        await _exoController!.setVolume((vol0to100 / 100.0).clamp(0.0, 1.0));
-      } else if (_player != null) {
+      if (_player != null) {
         final restoringBefore = _isRestoringVolume;
         _isRestoringVolume = true;
         await _player!.setVolume(vol0to100);
@@ -86,7 +75,6 @@ mixin _VideoPlayerVolumeMixin on _VideoPlayerVolumeHost {
     final wasMuted = _isMuted;
     setState(() {
       _savedVolume = v;
-      _vlcVolume = v;
       if (v > 0.1) _lastVolume = v;
       if (v <= 0.1) _isMuted = true;
     });

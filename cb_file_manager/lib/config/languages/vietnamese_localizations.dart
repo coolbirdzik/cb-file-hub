@@ -2,6 +2,93 @@ import 'app_localizations.dart';
 
 class VietnameseLocalizations implements AppLocalizations {
   @override
+  String get sshDisplayName => 'Tên';
+  @override
+  String get sshRequired => 'Vui lòng nhập thông tin.';
+  @override
+  String get sshInvalidHost =>
+      'Nhập tên máy chủ hoặc địa chỉ IP, không kèm URL hoặc đường dẫn.';
+  @override
+  String get sshInvalidPort => 'Nhập cổng từ 1 đến 65535.';
+
+  @override
+  String get sshWorkspace => 'Không gian SSH';
+  @override
+  String get sshHosts => 'Máy chủ';
+  @override
+  String get sshKeys => 'SSH key';
+  @override
+  String get sshKnownHosts => 'Máy chủ đã tin cậy';
+  @override
+  String get sshAddHost => 'Thêm máy chủ';
+  @override
+  String get sshEditHost => 'Sửa máy chủ';
+  @override
+  String get sshGenerateKey => 'Tạo key Ed25519';
+  @override
+  String get sshImportKey => 'Nhập private key';
+  @override
+  String get sshOpenTerminal => 'Mở terminal';
+  @override
+  String get sshBrowseFiles => 'Duyệt SFTP';
+  @override
+  String get sshGroup => 'Nhóm';
+  @override
+  String get sshAuthMethod => 'Xác thực';
+  @override
+  String get sshPasswordAuth => 'Mật khẩu';
+  @override
+  String get sshKeyAuth => 'SSH key';
+  @override
+  String get sshNoHosts => 'Thêm máy chủ SSH để mở terminal hoặc duyệt file.';
+  @override
+  String get sshNoKeys => 'Nhập private key hoặc tạo key Ed25519.';
+  @override
+  String get sshNoTrustedHosts =>
+      'Fingerprint xuất hiện ở đây sau khi bạn chấp nhận kết nối.';
+  @override
+  String get sshPrivateKey => 'Private key (OpenSSH / PEM)';
+  @override
+  String get sshPassphrase => 'Mật khẩu của key';
+  @override
+  String get sshCopyPublicKey => 'Sao chép public key';
+  @override
+  String get sshTrustHost => 'Tin cậy máy chủ SSH này?';
+  @override
+  String get sshHostKeyChanged => 'SSH host key đã thay đổi';
+  @override
+  String get sshVerifyFingerprint =>
+      'Đối chiếu fingerprint với quản trị viên máy chủ trước khi tin cậy.';
+  @override
+  String get sshTrustAndConnect => 'Tin cậy và kết nối';
+  @override
+  String get sshForgetHost => 'Bỏ tin cậy máy chủ';
+  @override
+  String get sshDeleteConfirm => 'Xóa mục đã lưu này?';
+  @override
+  String get sshKeyInUse =>
+      'Đổi xác thực của các máy chủ đang dùng key này trước khi xóa.';
+  @override
+  String get sshConnecting => 'Đang kết nối…';
+  @override
+  String get sshDisconnected => 'Phiên đã ngắt kết nối';
+  @override
+  String get sshReconnect => 'Kết nối lại';
+  @override
+  String get sshClearTerminal => 'Xóa màn hình terminal';
+  @override
+  String get sshVaultHint =>
+      'Mật khẩu và private key được lưu trong kho bảo mật trên thiết bị này.';
+  @override
+  String get ftpSecurity => 'Bảo mật kết nối';
+  @override
+  String get ftpPlain => 'FTP (không mã hóa)';
+  @override
+  String get ftpExplicitTls => 'FTPS — Explicit TLS (21)';
+  @override
+  String get ftpImplicitTls => 'FTPS — Implicit TLS (990)';
+
+  @override
   String get appTitle => 'CB File Hub';
 
   // Common actions
@@ -2826,7 +2913,7 @@ class VietnameseLocalizations implements AppLocalizations {
 
   @override
   String get screenshotNotAvailableVlcMessage =>
-      'Chụp ảnh màn hình không khả dụng với VLC player.\nVui lòng chuyển sang Media Kit player trong cài đặt.';
+      'VLC chưa chụp được khung hình này. Vui lòng đợi video tải xong rồi thử lại.';
 
   @override
   String get screenshotFileNotFound => 'Không tìm thấy file ảnh';
@@ -3914,4 +4001,45 @@ class VietnameseLocalizations implements AppLocalizations {
   String get localAiInvalidTokenCount => 'Vui lòng nhập số hợp lệ';
   @override
   String get aiReasoning => 'Suy nghĩ';
+
+  @override
+  String get sshLocalConfig => 'Từ ~/.ssh/config';
+  @override
+  String get sshLocalConfigHint =>
+      'Chọn máy chủ có sẵn để tự điền thông tin kết nối.';
+  @override
+  String get sshNoLocalConfig =>
+      'Chưa có máy chủ trong ~/.ssh/config. Nhập máy chủ bên dưới.';
+  @override
+  String get sshLocalKeys => 'Key trên máy này';
+  @override
+  String get sshLocalKeysHint =>
+      'Tìm thấy trong ~/.ssh. Chọn key để nhập vào kho bảo mật.';
+  @override
+  String get sshChooseKeyFile => 'Chọn file key';
+  @override
+  String get sshPasteKey => 'Dán private key';
+  @override
+  String get sshPassphraseHint =>
+      'Chỉ cần nhập nếu private key được mã hóa bằng mật khẩu.';
+  @override
+  String get sshImportHint =>
+      'Chọn file trên máy hoặc dán private key OpenSSH / PEM.';
+  @override
+  String get sshGenerateHint =>
+      'Tạo key Ed25519. Sao chép public key lên máy chủ sau khi lưu.';
+  @override
+  String get sshKeyImportFailed =>
+      'Không thể lưu key. Kiểm tra file, định dạng và mật khẩu của key rồi thử lại.';
+  @override
+  String get sshConnectionDetails => 'Thông tin kết nối';
+  @override
+  String get sshLocalKeyPending =>
+      'Key trên máy sẽ được nhập khi bạn lưu hoặc kết nối.';
+  @override
+  String get sshConfigUnsupported =>
+      'Máy chủ này dùng proxy hoặc chứng chỉ SSH chưa được hỗ trợ. Kiểm tra cấu hình trước khi kết nối.';
+  @override
+  String get sshDiscoveryIncomplete =>
+      'Một số cấu hình SSH không tải được (file không đọc được hoặc quy tắc Match). Hãy kiểm tra thông tin đã điền.';
 }
